@@ -24,6 +24,12 @@ class Settings(BaseSettings):
     openai_embedding_model: str = "text-embedding-3-small"
     openai_embedding_dim: int = 1536
 
+    # Google Gemini API
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-3.1-flash-lite"
+    gemini_embedding_model: str = "gemini-embedding-001"
+    ai_provider: str = "auto"  # "gemini", "openai", or "auto"
+
     admin_api_token: str = ""
     internal_ingest_token: str = ""
     admin_telegram_id: int = 0  # Owner Telegram user ID — set in .env

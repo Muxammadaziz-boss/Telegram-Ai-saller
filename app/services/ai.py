@@ -1,4 +1,5 @@
 import json
+import httpx
 from openai import AsyncOpenAI
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -9,10 +10,57 @@ logger = get_logger(__name__)
 
 class SalesAI:
     def __init__(self) -> None:
-        self.client = AsyncOpenAI(
+        self.gemini_key = settings.gemini_api_key
+        self.gemini_model = settings.gemini_model or "gemini-3.1-flash-lite"
+        self.openai_client = AsyncOpenAI(
             api_key=settings.openai_api_key,
             base_url=settings.openai_base_url or None,
         ) if settings.openai_api_key else None
+
+    @property
+    def provider(self) -> str:
+        if settings.ai_provider == "gemini" and self.gemini_key:
+            return "gemini"
+        if settings.ai_provider == "openai" and self.openai_client:
+            return "openai"
+        if self.gemini_key:
+            return "gemini"
+        if self.openai_client:
+            return "openai"
+        return "none"
+
+    async def _generate_gemini(self, instructions: str, payload_str: str) -> dict:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.gemini_model}:generateContent?key={self.gemini_key}"
+        body = {
+            "systemInstruction": {
+                "parts": [{"text": instructions}]
+            },
+            "contents": [{
+                "role": "user",
+                "parts": [{"text": payload_str}]
+            }],
+            "generationConfig": {
+                "responseMimeType": "application/json",
+                "temperature": 0.3,
+            }
+        }
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(url, json=body)
+            resp.raise_for_status()
+            data = resp.json()
+            raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
+            return json.loads(raw_text)
+
+    async def _generate_openai(self, instructions: str, payload_str: str) -> dict:
+        if not self.openai_client:
+            raise ValueError("OpenAI client mavjud emas")
+        response = await self.openai_client.responses.create(
+            model=settings.openai_model,
+            instructions=instructions,
+            input=payload_str,
+            text={"format": {"type": "json_object"}},
+        )
+        return json.loads(response.output_text)
 
     async def answer(self, customer_text: str, context: list[ChannelPost], history: list[dict]) -> dict:
         normalized = " ".join(customer_text.lower().strip().split()).strip("!?.,")
@@ -26,7 +74,7 @@ class SalesAI:
                 "attach_photo": False,
                 "source_post_id": None,
             }
-        if not self.client:
+        if self.provider == "none":
             return {
                 "reply": "Hozircha maslahatchimiz sizga yordam beradi. Suhbatingizni operatorga topshirdim.",
                 "handoff": True,
@@ -104,13 +152,11 @@ Javobingni FAQAT quyidagi JSON formatida qaytar:
             "catalog_evidence": evidence,
         }
         try:
-            response = await self.client.responses.create(
-                model=settings.openai_model,
-                instructions=instructions,
-                input=json.dumps(payload, ensure_ascii=False),
-                text={"format": {"type": "json_object"}},
-            )
-            data = json.loads(response.output_text)
+            payload_str = json.dumps(payload, ensure_ascii=False)
+            if self.provider == "gemini":
+                data = await self._generate_gemini(instructions, payload_str)
+            else:
+                data = await self._generate_openai(instructions, payload_str)
             reply = str(data.get("reply", "")).strip()
             allowed_photo_ids = {post.telegram_message_id for post in context if post.photo_file_id or post.image_path}
             requested_photo_id = data.get("source_post_id")

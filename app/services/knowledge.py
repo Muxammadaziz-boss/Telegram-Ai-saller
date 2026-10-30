@@ -1,6 +1,7 @@
 import base64
 from datetime import datetime
 from pathlib import Path
+import httpx
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from openai import AsyncOpenAI
@@ -13,40 +14,106 @@ logger = get_logger(__name__)
 
 class KnowledgeService:
     def __init__(self) -> None:
-        self.client = AsyncOpenAI(
+        self.gemini_key = settings.gemini_api_key
+        self.gemini_model = settings.gemini_model or "gemini-3.1-flash-lite"
+        self.gemini_embedding_model = settings.gemini_embedding_model or "gemini-embedding-001"
+        self.openai_client = AsyncOpenAI(
             api_key=settings.openai_api_key,
             base_url=settings.openai_base_url or None,
         ) if settings.openai_api_key else None
 
     async def embed(self, text: str) -> list[float] | None:
-        if not self.client or not text.strip():
+        if not text.strip():
             return None
-        response = await self.client.embeddings.create(
-            model=settings.openai_embedding_model,
-            input=text[:12000],
-        )
-        return response.data[0].embedding
+
+        # 1. Try Gemini if configured
+        if self.gemini_key and (settings.ai_provider in ("gemini", "auto") or not self.openai_client):
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.gemini_embedding_model}:embedContent?key={self.gemini_key}"
+            body = {
+                "content": {"parts": [{"text": text[:10000]}]},
+                "outputDimensionality": settings.openai_embedding_dim,
+            }
+            try:
+                async with httpx.AsyncClient(timeout=15.0) as client:
+                    resp = await client.post(url, json=body)
+                    resp.raise_for_status()
+                    data = resp.json()
+                    return data.get("embedding", {}).get("values")
+            except Exception:
+                logger.exception("Gemini embedding yaratishda xatolik")
+                return None
+
+        # 2. Fallback to OpenAI
+        if self.openai_client:
+            try:
+                response = await self.openai_client.embeddings.create(
+                    model=settings.openai_embedding_model,
+                    input=text[:12000],
+                )
+                return response.data[0].embedding
+            except Exception:
+                logger.exception("OpenAI embedding yaratishda xatolik")
+                return None
+
+        return None
 
     async def describe_image(self, image_bytes: bytes, mime_type: str = "image/jpeg") -> str:
-        if not self.client:
+        # 1. Try Gemini Vision if configured
+        if self.gemini_key and (settings.ai_provider in ("gemini", "auto") or not self.openai_client):
+            encoded = base64.b64encode(image_bytes).decode("ascii")
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.gemini_model}:generateContent?key={self.gemini_key}"
+            body = {
+                "systemInstruction": {
+                    "parts": [{"text": "Sen mahsulot katalogi uchun rasmni tavsiflovchi yordamchisan. Faqat ko'rinib turgan faktlarni o'zbek tilida qisqa bayon qil. Narx, brend, model yoki xususiyatni rasmda aniq ko'rinmasa taxmin qilma."}]
+                },
+                "contents": [{
+                    "role": "user",
+                    "parts": [
+                        {"text": "Ushbu mahsulot rasmini katalog qidiruvi uchun tavsifla."},
+                        {
+                            "inline_data": {
+                                "mime_type": mime_type,
+                                "data": encoded,
+                            }
+                        }
+                    ]
+                }],
+                "generationConfig": {"temperature": 0.2}
+            }
+            try:
+                async with httpx.AsyncClient(timeout=30.0) as client:
+                    resp = await client.post(url, json=body)
+                    resp.raise_for_status()
+                    data = resp.json()
+                    return (data["candidates"][0]["content"]["parts"][0]["text"] or "").strip()
+            except Exception:
+                logger.exception("Gemini rasm tavsifini olishda xatolik")
+                return ""
+
+        # 2. Fallback to OpenAI
+        if not self.openai_client:
             return ""
         encoded = base64.b64encode(image_bytes).decode("ascii")
-        response = await self.client.responses.create(
-            model=settings.openai_model,
-            instructions=(
-                "Sen mahsulot katalogi uchun rasmni tavsiflovchi yordamchisan. "
-                "Faqat ko'rinib turgan faktlarni o'zbek tilida qisqa bayon qil. "
-                "Narx, brend, model yoki xususiyatni rasmda aniq ko'rinmasa taxmin qilma."
-            ),
-            input=[{
-                "role": "user",
-                "content": [
-                    {"type": "input_text", "text": "Ushbu mahsulot rasmini katalog qidiruvi uchun tavsifla."},
-                    {"type": "input_image", "image_url": f"data:{mime_type};base64,{encoded}"},
-                ],
-            }],
-        )
-        return (response.output_text or "").strip()
+        try:
+            response = await self.openai_client.responses.create(
+                model=settings.openai_model,
+                instructions=(
+                    "Sen mahsulot katalogi uchun rasmni tavsiflovchi yordamchisan. "
+                    "Faqat ko'rinib turgan faktlarni o'zbek tilida qisqa bayon qil. "
+                    "Narx, brend, model yoki xususiyatni rasmda aniq ko'rinmasa taxmin qilma."
+                ),
+                input=[{
+                    "role": "user",
+                    "content": [
+                        {"type": "input_text", "text": "Ushbu mahsulot rasmini katalog qidiruvi uchun tavsifla."},
+                        {"type": "input_image", "image_url": f"data:{mime_type};base64,{encoded}"},
+                    ],
+                }],
+            )
+            return (response.output_text or "").strip()
+        except Exception:
+            logger.exception("OpenAI rasm tavsifini olishda xatolik")
+            return ""
 
     async def upsert_post(
         self,
