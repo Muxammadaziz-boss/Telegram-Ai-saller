@@ -10,17 +10,43 @@ class TelegramAPIError(RuntimeError):
 class TelegramService:
     def __init__(self) -> None:
         self.base_url = f"https://api.telegram.org/bot{settings.telegram_bot_token}"
+        self._client: httpx.AsyncClient | None = None
+
+    def _get_client(self) -> httpx.AsyncClient:
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(
+                timeout=30.0,
+                limits=httpx.Limits(max_keepalive_connections=20, max_connections=50),
+            )
+        return self._client
 
     async def call(self, method: str, payload: dict) -> dict:
         if not settings.telegram_bot_token:
             raise TelegramAPIError("TELEGRAM_BOT_TOKEN sozlanmagan")
-        async with httpx.AsyncClient(timeout=30) as client:
-            response = await client.post(f"{self.base_url}/{method}", json=payload)
-            response.raise_for_status()
-            result = response.json()
+        client = self._get_client()
+        response = await client.post(f"{self.base_url}/{method}", json=payload)
+        response.raise_for_status()
+        result = response.json()
         if not result.get("ok"):
             raise TelegramAPIError(result.get("description", f"Telegram {method} xatosi"))
         return result.get("result", {})
+
+    async def read_business_message(
+        self,
+        business_connection_id: str,
+        chat_id: int | str,
+        message_id: int,
+    ) -> bool:
+        """Belgilangan xabarni Telegram Business nomidan o'qilgan (double checkmark ✓✓) deb belgilash."""
+        try:
+            await self.call("readBusinessMessage", {
+                "business_connection_id": business_connection_id,
+                "chat_id": chat_id,
+                "message_id": message_id,
+            })
+            return True
+        except Exception:
+            return False
 
     async def send_chat_action(
         self,

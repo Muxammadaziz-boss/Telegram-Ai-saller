@@ -17,10 +17,19 @@ class KnowledgeService:
         self.gemini_key = settings.gemini_api_key
         self.gemini_model = settings.gemini_model or "gemini-3.1-flash-lite"
         self.gemini_embedding_model = settings.gemini_embedding_model or "gemini-embedding-001"
+        self._http_client: httpx.AsyncClient | None = None
         self.openai_client = AsyncOpenAI(
             api_key=settings.openai_api_key,
             base_url=settings.openai_base_url or None,
         ) if settings.openai_api_key else None
+
+    def _get_http_client(self) -> httpx.AsyncClient:
+        if self._http_client is None or self._http_client.is_closed:
+            self._http_client = httpx.AsyncClient(
+                timeout=15.0,
+                limits=httpx.Limits(max_keepalive_connections=20, max_connections=50),
+            )
+        return self._http_client
 
     async def embed(self, text: str) -> list[float] | None:
         if not text.strip():
@@ -34,11 +43,11 @@ class KnowledgeService:
                 "outputDimensionality": settings.openai_embedding_dim,
             }
             try:
-                async with httpx.AsyncClient(timeout=15.0) as client:
-                    resp = await client.post(url, json=body)
-                    resp.raise_for_status()
-                    data = resp.json()
-                    return data.get("embedding", {}).get("values")
+                client = self._get_http_client()
+                resp = await client.post(url, json=body)
+                resp.raise_for_status()
+                data = resp.json()
+                return data.get("embedding", {}).get("values")
             except Exception:
                 logger.exception("Gemini embedding yaratishda xatolik")
                 return None

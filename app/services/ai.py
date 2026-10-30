@@ -12,10 +12,19 @@ class SalesAI:
     def __init__(self) -> None:
         self.gemini_key = settings.gemini_api_key
         self.gemini_model = settings.gemini_model or "gemini-3.1-flash-lite"
+        self._http_client: httpx.AsyncClient | None = None
         self.openai_client = AsyncOpenAI(
             api_key=settings.openai_api_key,
             base_url=settings.openai_base_url or None,
         ) if settings.openai_api_key else None
+
+    def _get_http_client(self) -> httpx.AsyncClient:
+        if self._http_client is None or self._http_client.is_closed:
+            self._http_client = httpx.AsyncClient(
+                timeout=30.0,
+                limits=httpx.Limits(max_keepalive_connections=20, max_connections=50),
+            )
+        return self._http_client
 
     @property
     def provider(self) -> str:
@@ -45,12 +54,12 @@ class SalesAI:
                 "thinkingConfig": {"thinkingBudget": 0},
             }
         }
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.post(url, json=body)
-            resp.raise_for_status()
-            data = resp.json()
-            raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
-            return json.loads(raw_text)
+        client = self._get_http_client()
+        resp = await client.post(url, json=body)
+        resp.raise_for_status()
+        data = resp.json()
+        raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
+        return json.loads(raw_text)
 
     async def _generate_openai(self, instructions: str, payload_str: str) -> dict:
         if not self.openai_client:
@@ -65,13 +74,30 @@ class SalesAI:
 
     @staticmethod
     def is_greeting(text: str) -> bool:
-        normalized = " ".join(text.lower().strip().split()).strip("!?.,")
-        greetings = {
-            "salom", "assalomu alaykum", "assalomu aleykum", "salom alaykum",
-            "hayrli kun", "xayrli kun", "qalaysiz", "qalesiz", "salomatchilikmi",
-            "assalomu alaykum va rahmatulloh", "assalom", "privet", "hello", "hi",
+        import re
+        t = text.lower().strip()
+        cleaned = re.sub(r"[^\w\s]", " ", t)
+        words = cleaned.split()
+        if not words or len(words) > 6:
+            return False
+
+        # If customer is already asking about a product or price, do not treat as simple greeting
+        product_question_keywords = {
+            "noutbuk", "laptop", "narx", "narxi", "qancha", "necha", "nechpul",
+            "sotuvda", "bormi", "bor", "olmoqchiman", "yetkazib", "dostavka",
+            "zakaz", "rasm", "katalog", "qanaqa", "qaysi", "model"
         }
-        return normalized in greetings
+        if any(w in product_question_keywords for w in words):
+            return False
+
+        greeting_roots = (
+            "assalom", "asalom", "salom", "xayrli", "hayrli", "qalays", "qales",
+            "privet", "hello", "hi", "slm", "alaukum", "aleykum", "alekum", "keldik"
+        )
+        for w in words:
+            if any(w.startswith(r) or r in w for r in greeting_roots):
+                return True
+        return False
 
     async def answer(self, customer_text: str, context: list[ChannelPost], history: list[dict]) -> dict:
         if self.is_greeting(customer_text):

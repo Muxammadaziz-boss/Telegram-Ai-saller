@@ -76,6 +76,17 @@ async def _store_channel_post(message: dict) -> None:
         await db.commit()
 
 
+async def _typing_loop(chat_id: int, connection_id: str | None, stop_event: asyncio.Event) -> None:
+    while not stop_event.is_set():
+        try:
+            await telegram.send_chat_action(chat_id, "typing", business_connection_id=connection_id)
+            await asyncio.wait_for(stop_event.wait(), timeout=4.0)
+        except (asyncio.TimeoutError, asyncio.CancelledError):
+            pass
+        except Exception:
+            break
+
+
 async def _handle_business_message(message: dict) -> None:
     connection_id = message.get("business_connection_id")
     chat = message.get("chat", {})
@@ -83,21 +94,29 @@ async def _handle_business_message(message: dict) -> None:
     if not connection_id or chat.get("type") != "private":
         return
 
+    chat_id_int = int(chat["id"])
+    msg_id_int = int(message.get("message_id", 0))
+
+    # Real human customer check
+    if message.get("sender_business_bot") or sender.get("is_bot"):
+        return
+
+    # Immediately mark message as READ (turns single checkmark into double checkmark ✓✓)
+    # and show typing indicator right away
+    if msg_id_int:
+        asyncio.create_task(telegram.read_business_message(connection_id, chat_id_int, msg_id_int))
+        asyncio.create_task(telegram.send_chat_action(chat_id_int, "typing", business_connection_id=connection_id))
+
     async with SessionLocal() as db:
         connection = await db.get(BusinessConnection, connection_id)
         if connection is None or not connection.is_enabled:
-            return
-
-        # Messages emitted by this connected business bot carry sender_business_bot.
-        # Do not mistake them for a human owner reply.
-        if message.get("sender_business_bot") or sender.get("is_bot"):
             return
 
         # A real account-owner reply means the human has taken over this chat.
         if sender.get("id") and connection.owner_user_id == int(sender["id"]):
             result = await db.execute(select(Conversation).where(
                 Conversation.business_connection_id == connection_id,
-                Conversation.chat_id == int(chat["id"]),
+                Conversation.chat_id == chat_id_int,
             ))
             conversation = result.scalar_one_or_none()
             if conversation:
@@ -107,7 +126,7 @@ async def _handle_business_message(message: dict) -> None:
                 await save_message(
                     db,
                     conversation_id=conversation.id,
-                    telegram_message_id=int(message["message_id"]),
+                    telegram_message_id=msg_id_int,
                     direction="admin",
                     text=message.get("text") or message.get("caption") or "[Admin xabari]",
                 )
@@ -122,14 +141,14 @@ async def _handle_business_message(message: dict) -> None:
             conversation = await get_or_create_conversation(
                 db,
                 business_connection_id=connection_id,
-                chat_id=int(chat["id"]),
+                chat_id=chat_id_int,
                 customer_name=customer_name,
                 username=sender.get("username"),
             )
             await save_message(
                 db,
                 conversation_id=conversation.id,
-                telegram_message_id=int(message["message_id"]),
+                telegram_message_id=msg_id_int,
                 direction="customer",
                 text=incoming_text or "[Matn bo'lmagan xabar]",
             )
@@ -146,14 +165,14 @@ async def _handle_business_message(message: dict) -> None:
         conversation = await get_or_create_conversation(
             db,
             business_connection_id=connection_id,
-            chat_id=int(chat["id"]),
+            chat_id=chat_id_int,
             customer_name=customer_name,
             username=sender.get("username"),
         )
         incoming_saved = await save_message(
             db,
             conversation_id=conversation.id,
-            telegram_message_id=int(message["message_id"]),
+            telegram_message_id=msg_id_int,
             direction="customer",
             text=incoming_text or "[Matn bo'lmagan xabar]",
         )
@@ -168,7 +187,7 @@ async def _handle_business_message(message: dict) -> None:
             # do not send a duplicate. If it does not, continue so a transient failure can retry.
             existing_reply = await db.execute(select(Message.id).where(
                 Message.conversation_id == conversation.id,
-                Message.reply_to_telegram_message_id == int(message["message_id"]),
+                Message.reply_to_telegram_message_id == msg_id_int,
             ).limit(1))
             if existing_reply.scalar_one_or_none() is not None:
                 await db.commit()
@@ -185,35 +204,37 @@ async def _handle_business_message(message: dict) -> None:
                 logger.exception("Admin bildirishnoma yuborishda xatolik (matn bo'lmagan xabar)")
             return
 
-        # Send typing action immediately so customer sees immediate response
-        await telegram.send_chat_action(int(chat["id"]), "typing", business_connection_id=connection_id)
-
         history_rows = (await db.execute(
             select(Message).where(Message.conversation_id == conversation.id).order_by(Message.created_at.desc()).limit(10)
         )).scalars().all()
         history = [{"direction": row.direction, "text": row.text} for row in reversed(history_rows)]
 
-        if sales_ai.is_greeting(incoming_text):
-            evidence = []
-            decision = await sales_ai.answer(incoming_text, evidence, history)
-        else:
-            evidence = await knowledge.search(db, incoming_text, limit=6)
-            decision = await sales_ai.answer(incoming_text, evidence, history)
+        stop_typing = asyncio.Event()
+        typing_task = asyncio.create_task(_typing_loop(chat_id_int, connection_id, stop_typing))
+        try:
+            if sales_ai.is_greeting(incoming_text):
+                evidence = []
+                decision = await sales_ai.answer(incoming_text, evidence, history)
+            else:
+                evidence = await knowledge.search(db, incoming_text, limit=6)
+                decision = await sales_ai.answer(incoming_text, evidence, history)
+        finally:
+            stop_typing.set()
+            typing_task.cancel()
 
         if decision["handoff"]:
             conversation.status = "human_takeover"
             conversation.handoff_reason = decision.get("reason") or "AI suhbatni operatorga topshirdi"
-            # Give the customer a brief acknowledgement before the operator takes over.
             handoff_reply = decision.get("reply") or "Savolingizni mutaxassisimizga yetkazdim. Tez orada javob beramiz."
             try:
-                sent = await telegram.send_business_text(connection_id, int(chat["id"]), handoff_reply)
+                sent = await telegram.send_business_text(connection_id, chat_id_int, handoff_reply)
                 await save_message(
                     db,
                     conversation_id=conversation.id,
                     telegram_message_id=int(sent["message_id"]),
                     direction="assistant",
                     text=handoff_reply,
-                    reply_to_telegram_message_id=int(message["message_id"]),
+                    reply_to_telegram_message_id=msg_id_int,
                 )
             except Exception:
                 logger.exception("Handoff javobini yuborishda xatolik: conversation=%s", conversation.id)
@@ -227,6 +248,7 @@ async def _handle_business_message(message: dict) -> None:
             except Exception:
                 logger.exception("Admin bildirishnoma yuborishda xatolik (handoff)")
             return
+
 
         # If AI successfully completed an order, save it and alert admin
         if decision.get("order_created") and decision.get("order_data"):
@@ -279,16 +301,21 @@ async def _handle_business_message(message: dict) -> None:
                     logger.exception("Mahsulot rasmini yuborishda xatolik: post_id=%s", decision.get('source_post_id'))
                     sent = None
         if sent is None:
-            sent = await telegram.send_business_text(connection_id, int(chat["id"]), decision["reply"])
-        await save_message(
-            db,
-            conversation_id=conversation.id,
-            telegram_message_id=int(sent["message_id"]),
-            direction="assistant",
-            text=decision["reply"],
-            reply_to_telegram_message_id=int(message["message_id"]),
-        )
-        await db.commit()
+            try:
+                sent = await telegram.send_business_text(connection_id, chat_id_int, decision["reply"])
+            except Exception:
+                logger.exception("Biznes xabarni yuborishda xatolik: chat_id=%s", chat_id_int)
+                sent = None
+        if sent:
+            await save_message(
+                db,
+                conversation_id=conversation.id,
+                telegram_message_id=int(sent["message_id"]),
+                direction="assistant",
+                text=decision["reply"],
+                reply_to_telegram_message_id=msg_id_int,
+            )
+            await db.commit()
 
 
 async def _handle_direct_bot_message(message: dict, db: AsyncSession) -> None:
@@ -303,15 +330,19 @@ async def _handle_direct_bot_message(message: dict, db: AsyncSession) -> None:
     last_name = sender.get("last_name", "")
     customer_name = f"{first_name} {last_name}".strip() or "Mijoz"
 
-    # Send typing action immediately
-    await telegram.send_chat_action(chat_id, "typing")
-
-    if sales_ai.is_greeting(text):
-        evidence = []
-        decision = await sales_ai.answer(text, evidence, [])
-    else:
-        evidence = await knowledge.search(db, text, limit=6)
-        decision = await sales_ai.answer(text, evidence, [])
+    chat_id_int = int(chat_id)
+    stop_typing = asyncio.Event()
+    typing_task = asyncio.create_task(_typing_loop(chat_id_int, None, stop_typing))
+    try:
+        if sales_ai.is_greeting(text):
+            evidence = []
+            decision = await sales_ai.answer(text, evidence, [])
+        else:
+            evidence = await knowledge.search(db, text, limit=6)
+            decision = await sales_ai.answer(text, evidence, [])
+    finally:
+        stop_typing.set()
+        typing_task.cancel()
 
     # If photo requested and available
     sent = None
