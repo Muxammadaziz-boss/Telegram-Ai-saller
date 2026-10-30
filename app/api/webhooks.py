@@ -7,7 +7,8 @@ from app.api.bot_commands import handle_callback_query, handle_private_command
 from app.core.config import settings
 from app.core.db import SessionLocal
 from app.core.logging import get_logger
-from app.models import BusinessConnection, Conversation, Message
+from app.models import BusinessConnection, Conversation, Message, Order
+from app.services import settings_service
 from app.services.ai import sales_ai
 from app.services.conversations import get_or_create_conversation, save_message
 from app.services.knowledge import knowledge
@@ -38,25 +39,27 @@ def _clean_channel_username(raw: str) -> str:
 async def _store_channel_post(message: dict) -> None:
     chat = message.get("chat", {})
     username = (chat.get("username") or "").lstrip("@")
-    configured = _clean_channel_username(settings.telegram_public_channel)
-    if not configured or not username or username.lower() != configured.lower():
+    if not username:
         return
-    text = message.get("text") or message.get("caption") or ""
-    photos = message.get("photo") or []
-    file_id = photos[-1].get("file_id") if photos else None
-    photo_bytes = None
-    mime = "image/jpeg"
-    if file_id:
-        try:
-            safe_name = "".join(c for c in username if c.isalnum() or c in "-_" ) or "channel"
-            dest = Path(settings.storage_dir) / "incoming_tmp" / f"{safe_name}_{message.get('message_id')}.jpg"
-            await telegram.download_photo(file_id, dest)
-            photo_bytes = dest.read_bytes()
-            dest.unlink(missing_ok=True)
-        except Exception:
-            logger.exception("Kanal post rasmini yuklab olishda xatolik: post=%s", message.get('message_id'))
-            photo_bytes = None
     async with SessionLocal() as db:
+        configured = await settings_service.get_public_channel(db)
+        if not configured or username.lower() != configured.lower():
+            return
+        text = message.get("text") or message.get("caption") or ""
+        photos = message.get("photo") or []
+        file_id = photos[-1].get("file_id") if photos else None
+        photo_bytes = None
+        mime = "image/jpeg"
+        if file_id:
+            try:
+                safe_name = "".join(c for c in username if c.isalnum() or c in "-_") or "channel"
+                dest = Path(settings.storage_dir) / "incoming_tmp" / f"{safe_name}_{message.get('message_id')}.jpg"
+                await telegram.download_photo(file_id, dest)
+                photo_bytes = dest.read_bytes()
+                dest.unlink(missing_ok=True)
+            except Exception:
+                logger.exception("Kanal post rasmini yuklab olishda xatolik: post=%s", message.get('message_id'))
+                photo_bytes = None
         await knowledge.upsert_post(
             db,
             channel_username=username,
@@ -214,6 +217,41 @@ async def _handle_business_message(message: dict) -> None:
             except Exception:
                 logger.exception("Admin bildirishnoma yuborishda xatolik (handoff)")
             return
+
+        # If AI successfully completed an order, save it and alert admin
+        if decision.get("order_created") and decision.get("order_data"):
+            order_info = decision["order_data"]
+            new_order = Order(
+                conversation_id=conversation.id,
+                customer_name=order_info.get("customer_name") or customer_name,
+                phone=order_info.get("phone") or "",
+                product_summary=order_info.get("product_summary") or "",
+                delivery_address=order_info.get("delivery_address") or "",
+                status="new",
+                notes=order_info.get("notes") or "",
+            )
+            db.add(new_order)
+            await db.flush()
+
+            user_handle = f"@{conversation.username}" if conversation.username else f"ID: {chat.get('id')}"
+            address_str = new_order.delivery_address or "Ko'rsatilmadi"
+            order_notification = (
+                "🔥 *YANGI BUYURTMA QABUL QILINDI!*\n\n"
+                f"👤 *Mijoz:* {new_order.customer_name} ({user_handle})\n"
+                f"📞 *Telefon:* `{new_order.phone}`\n"
+                f"📍 *Manzil:* {address_str}\n"
+                f"📦 *Mahsulot:* {new_order.product_summary or 'Muloqotdan qarang'}\n"
+            )
+            if new_order.notes:
+                order_notification += f"💬 *Izoh:* {new_order.notes}\n"
+            order_notification += (
+                f"💬 *Suhbat ID:* #{conversation.id}\n\n"
+                "⚡️ *Iltimos admin, mijoz bilan bog'laning!*"
+            )
+            try:
+                await telegram.notify_admin(order_notification)
+            except Exception:
+                logger.exception("Admin'ga buyurtma xabarnomasini yuborishda xatolik")
 
         sent = None
         if decision.get("attach_photo") and decision.get("source_post_id") is not None:

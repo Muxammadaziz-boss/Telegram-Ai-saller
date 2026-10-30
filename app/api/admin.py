@@ -7,8 +7,8 @@ from app.core.config import settings
 from app.core.db import get_db
 from app.core.permissions import ALL_PERMISSIONS, ROLE_DEFAULTS
 from app.models import Admin, ChannelPost, Conversation, Message, Order
-from app.schemas import AdminCreate, AdminOut, AdminReply, AdminUpdatePermission, AdminUpdateRole, StatusUpdate
-from app.services import admin_service
+from app.schemas import AdminCreate, AdminOut, AdminReply, AdminUpdatePermission, AdminUpdateRole, SettingUpdate, StatusUpdate
+from app.services import admin_service, settings_service
 from app.services.telegram import telegram
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -268,5 +268,39 @@ async def update_admin_role(
         updated = await admin_service.update_role(db, telegram_user_id, payload.role)
         await db.commit()
         return {"ok": True, "role": updated.role, "permissions": updated.permissions}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.get("/settings")
+async def get_settings(
+    db: AsyncSession = Depends(get_db),
+    current_admin: Admin = Depends(get_current_admin),
+):
+    channel = await settings_service.get_public_channel(db)
+    all_settings = await settings_service.list_settings(db)
+    return {
+        "public_channel": channel,
+        "settings": all_settings,
+    }
+
+
+@router.patch("/settings/{key}")
+async def update_setting(
+    key: str,
+    payload: SettingUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_admin: Admin = Depends(get_current_admin),
+):
+    if not (current_admin.role == "owner" or admin_service.has_permission(current_admin, "can_manage_settings")):
+        raise HTTPException(status_code=403, detail="Sozlamalarni o'zgartirish huquqi yo'q")
+    try:
+        if key == "public_channel":
+            cleaned = await settings_service.set_public_channel(db, payload.value)
+            await db.commit()
+            return {"ok": True, "key": key, "value": cleaned}
+        setting = await settings_service.set_setting(db, key, payload.value, description=payload.description)
+        await db.commit()
+        return {"ok": True, "key": setting.key, "value": setting.value}
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))

@@ -46,3 +46,8 @@ class AdminOut(BaseModel):
     is_active: bool
     added_by: int | None = None
     created_at: str | None = None
+
+
+class SettingUpdate(BaseModel):
+    value: str
+    description: str | None = None

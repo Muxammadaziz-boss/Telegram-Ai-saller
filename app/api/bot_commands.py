@@ -26,7 +26,7 @@ from app.core.config import settings
 from app.core.logging import get_logger
 from app.core.permissions import ALL_PERMISSIONS, PERMISSION_LABELS, VALID_ROLES
 from app.models import Admin
-from app.services import admin_service
+from app.services import admin_service, settings_service
 from app.services.telegram import telegram
 
 logger = get_logger(__name__)
@@ -48,6 +48,9 @@ def _admin_keyboard(admin: Admin) -> list[list[dict]]:
     ]
     if admin.role == "owner":
         buttons.append([{"text": "➖ Admin o'chirish", "callback_data": "admin:remove:start"}])
+        buttons.append([{"text": "⚙️ Sozlamalar (Kanal URL)", "callback_data": "admin:settings"}])
+    elif admin_service.has_permission(admin, "can_manage_knowledge"):
+        buttons.append([{"text": "⚙️ Sozlamalar (Kanal URL)", "callback_data": "admin:settings"}])
     buttons.append([{"text": "🔐 Mening ruxsatlarim", "callback_data": "admin:mypermissions"}])
     return buttons
 
@@ -118,6 +121,12 @@ async def handle_private_command(message: dict, db: AsyncSession) -> bool:
         return await _cmd_admins(user_id, chat_id, db)
     if cmd == "/mypermissions":
         return await _cmd_mypermissions(user_id, chat_id, db)
+    if cmd == "/setchannel":
+        return await _cmd_setchannel(user_id, chat_id, text, db)
+    if cmd == "/channel":
+        return await _cmd_getchannel(user_id, chat_id, db)
+    if cmd == "/settings":
+        return await _cmd_settings(user_id, chat_id, db)
 
     return False
 
@@ -302,6 +311,37 @@ async def handle_callback_query(callback_query: dict, db: AsyncSession) -> None:
             except ValueError as exc:
                 await telegram.answer_callback(callback_id, f"Xatolik: {exc}")
 
+        elif data == "admin:settings":
+            current_ch = await settings_service.get_public_channel(db)
+            settings_text = (
+                "⚙️ *Tizim va Do'kon Sozlamalari*\n\n"
+                f"📢 *Public kanal:* `@{current_ch or 'sozlanmagan'}`\n"
+                f"🤖 *AI status:* Faol (Sotuvchi va buyurtma xodimi)\n\n"
+                "Kanal havolasini o'zgartirish uchun quyidagi tugmani bosing:"
+            )
+            keyboard = [
+                [{"text": "📢 Kanalni o'zgartirish", "callback_data": "admin:set:channel"}],
+                [{"text": "◀️ Admin menyu", "callback_data": "admin:menu"}],
+            ]
+            await _edit_message(chat_id, message_id, settings_text, keyboard)
+
+        elif data == "admin:set:channel":
+            if not _is_owner(user_id) and not admin_service.has_permission(admin, "can_manage_knowledge"):
+                await telegram.answer_callback(callback_id, "⛔ Kanalni o'zgartirish huquqi yo'q")
+                return
+            current_ch = await settings_service.get_public_channel(db)
+            _wizard_state[user_id] = {"step": "awaiting_channel", "chat_id": chat_id}
+            await _edit_message(
+                chat_id,
+                message_id,
+                f"📢 *Kanalni o'zgartirish*\n\n"
+                f"Hozirgi kanal: `@{current_ch or 'mavjud emas'}`\n\n"
+                "Yangi Telegram kanal havolasini yoki username'ini yuboring:\n"
+                "(Masalan: `@yangi_kanal` yoki `https://t.me/yangi_kanal`)\n\n"
+                "Bekor qilish uchun pastdagi tugmani bosing:",
+                [[{"text": "❌ Bekor qilish", "callback_data": "admin:settings"}]]
+            )
+
         elif data == "admin:mypermissions":
             lines = [f"🔐 *Sizning ruxsatlaringiz*\nRol: {admin.role}\n"]
             for perm in ALL_PERMISSIONS:
@@ -455,15 +495,107 @@ async def _cmd_mypermissions(user_id: int, chat_id: int, db: AsyncSession) -> bo
     return True
 
 
+async def _cmd_setchannel(user_id: int, chat_id: int, text: str, db: AsyncSession) -> bool:
+    admin = await admin_service.get_admin_by_telegram_id(db, user_id)
+    if not admin and _is_owner(user_id):
+        admin = await admin_service.ensure_owner(db)
+        await db.commit()
+    if not admin or (admin.role != "owner" and not admin_service.has_permission(admin, "can_manage_knowledge")):
+        await telegram.call("sendMessage", {"chat_id": chat_id, "text": "⛔ Kanalni o'zgartirish huquqi yo'q."})
+        return True
+    parts = text.split(maxsplit=1)
+    if len(parts) > 1 and parts[1].strip():
+        new_val = parts[1].strip()
+        try:
+            cleaned = await settings_service.set_public_channel(db, new_val)
+            await db.commit()
+            await telegram.call("sendMessage", {
+                "chat_id": chat_id,
+                "text": f"✅ Kanal muvaffaqiyatli o'zgartirildi: `@{cleaned}`",
+                "parse_mode": "Markdown",
+            })
+            return True
+        except ValueError as exc:
+            await telegram.call("sendMessage", {"chat_id": chat_id, "text": f"❌ Xatolik: {exc}"})
+            return True
+    current_ch = await settings_service.get_public_channel(db)
+    _wizard_state[user_id] = {"step": "awaiting_channel", "chat_id": chat_id}
+    await telegram.call("sendMessage", {
+        "chat_id": chat_id,
+        "text": f"📢 *Kanalni sozlash*\n\nHozirgi kanal: `@{current_ch or 'mavjud emas'}`\n\nYangi kanal username yoki havolasini yuboring:\n(Masalan: `@yangi_kanal` yoki `https://t.me/yangi_kanal`)",
+        "parse_mode": "Markdown",
+    })
+    return True
+
+
+async def _cmd_getchannel(user_id: int, chat_id: int, db: AsyncSession) -> bool:
+    channel = await settings_service.get_public_channel(db)
+    await telegram.call("sendMessage", {
+        "chat_id": chat_id,
+        "text": f"📢 *Faol mahsulotlar kanali:*\n`@{channel or 'sozlanmagan'}`\n\nO'zgartirish uchun: `/setchannel <kanal_link>`",
+        "parse_mode": "Markdown",
+    })
+    return True
+
+
+async def _cmd_settings(user_id: int, chat_id: int, db: AsyncSession) -> bool:
+    admin = await admin_service.get_admin_by_telegram_id(db, user_id)
+    if not admin and _is_owner(user_id):
+        admin = await admin_service.ensure_owner(db)
+        await db.commit()
+    if not admin:
+        await telegram.call("sendMessage", {"chat_id": chat_id, "text": "⛔ Sizda admin huquqi yo'q."})
+        return True
+    current_ch = await settings_service.get_public_channel(db)
+    settings_text = (
+        "⚙️ *Tizim va Do'kon Sozlamalari*\n\n"
+        f"📢 *Public kanal:* `@{current_ch or 'sozlanmagan'}`\n"
+        f"🤖 *AI status:* Faol (Sotuvchi va buyurtma xodimi)\n\n"
+        "Kanal havolasini o'zgartirish uchun quyidagi tugmani bosing:"
+    )
+    keyboard = [
+        [{"text": "📢 Kanalni o'zgartirish", "callback_data": "admin:set:channel"}],
+        [{"text": "◀️ Admin menyu", "callback_data": "admin:menu"}],
+    ]
+    await telegram.call("sendMessage", {
+        "chat_id": chat_id,
+        "text": settings_text,
+        "parse_mode": "Markdown",
+        "reply_markup": {"inline_keyboard": keyboard},
+    })
+    return True
+
+
 # ---------------------------------------------------------------------------
 # Wizard input handler
 # ---------------------------------------------------------------------------
 
 async def _handle_wizard_input(user_id: int, chat_id: int, text: str, db: AsyncSession) -> bool:
-    """Handle text input during an active wizard (e.g. add-admin)."""
+    """Handle text input during an active wizard (e.g. add-admin, set-channel)."""
     state = _wizard_state.get(user_id)
     if not state:
         return False
+
+    if state.get("step") == "awaiting_channel":
+        if text.startswith("/"):
+            _wizard_state.pop(user_id, None)
+            return False
+        try:
+            cleaned = await settings_service.set_public_channel(db, text)
+            await db.commit()
+            _wizard_state.pop(user_id, None)
+            await telegram.call("sendMessage", {
+                "chat_id": chat_id,
+                "text": f"✅ Kanal muvaffaqiyatli saqlandi!\n\n📢 Faol kanal: `@{cleaned}`\n(Endi AI bilim bazasi ushbu kanaldan ma'lumot oladi)",
+                "parse_mode": "Markdown",
+            })
+            return True
+        except ValueError as exc:
+            await telegram.call("sendMessage", {
+                "chat_id": chat_id,
+                "text": f"❌ Xatolik: {exc}. Qaytadan kiriting:",
+            })
+            return True
 
     if state.get("step") == "awaiting_id":
         # Cancel if user typed a command.

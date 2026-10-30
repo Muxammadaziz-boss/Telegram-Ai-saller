@@ -12,6 +12,7 @@ ALL_PERMISSIONS = [
     "can_view_orders",
     "can_manage_orders",
     "can_view_analytics",
+    "can_manage_settings",
 ]
 
 # Default permission sets per role.
@@ -28,6 +29,7 @@ ROLE_DEFAULTS: dict[str, dict[str, bool]] = {
         "can_view_orders": True,
         "can_manage_orders": True,
         "can_view_analytics": True,
+        "can_manage_settings": True,
     },
     "moderator": {
         "can_view_conversations": True,
@@ -40,6 +42,7 @@ ROLE_DEFAULTS: dict[str, dict[str, bool]] = {
         "can_view_orders": True,
         "can_manage_orders": False,
         "can_view_analytics": False,
+        "can_manage_settings": False,
     },
 }
 
@@ -57,4 +60,5 @@ PERMISSION_LABELS: dict[str, str] = {
     "can_view_orders": "📦 Buyurtmalarni ko'rish",
     "can_manage_orders": "🛒 Buyurtmalarni boshqarish",
     "can_view_analytics": "📊 Statistikani ko'rish",
+    "can_manage_settings": "⚙️ Sozlamalarni boshqarish",
 }
