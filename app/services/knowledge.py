@@ -201,5 +201,75 @@ class KnowledgeService:
         stmt = select(ChannelPost).where(or_(*conditions)).order_by(ChannelPost.posted_at.desc().nullslast()).limit(limit)
         return list((await db.execute(stmt)).scalars().all())
 
+    async def sync_channel_posts(self, db: AsyncSession, channel_username: str) -> int:
+        """Sync posts from public Telegram channel web preview without MTProto login."""
+        import re
+        from html import unescape
+        clean_name = channel_username.lstrip("@").strip()
+        if not clean_name:
+            return 0
+        url = f"https://t.me/s/{clean_name}"
+        logger.info("Kanal postlari sinxronlanmoqda: %s", url)
+
+        async with httpx.AsyncClient(headers={"User-Agent": "Mozilla/5.0"}, timeout=30.0) as client:
+            resp = await client.get(url)
+            if resp.status_code != 200:
+                logger.warning("Telegram web sahifasi ochilmadi: code=%s url=%s", resp.status_code, url)
+                return 0
+
+            blocks = resp.text.split('<div class="tgme_widget_message ')
+            imported = 0
+            for block in blocks[1:]:
+                post_m = re.search(r'data-post="([^"]+)"', block)
+                if not post_m:
+                    continue
+                full_id = post_m.group(1)
+                msg_id = int(full_id.split("/")[-1])
+
+                text_m = re.search(r'<div class="tgme_widget_message_text[^>]*>(.*?)</div>\s*<div class="tgme_widget_message_footer', block, re.DOTALL)
+                text = ""
+                if text_m:
+                    raw_text = text_m.group(1)
+                    cleaned = re.sub(r'<br\s*/?>', '\n', raw_text)
+                    cleaned = re.sub(r'<[^>]+>', '', cleaned)
+                    text = unescape(cleaned).strip()
+
+                photo_urls = re.findall(r"background-image:url\('([^']+)'\)", block)
+                photo_bytes = None
+                valid_photo_urls = [u for u in photo_urls if u.startswith("http://") or u.startswith("https://")]
+                if valid_photo_urls:
+                    try:
+                        p_resp = await client.get(valid_photo_urls[-1])
+                        if p_resp.status_code == 200:
+                            photo_bytes = p_resp.content
+                    except Exception:
+                        photo_bytes = None
+
+                date_m = re.search(r'<time datetime="([^"]+)"', block)
+                posted_at = None
+                if date_m:
+                    try:
+                        posted_at = datetime.fromisoformat(date_m.group(1))
+                    except Exception:
+                        posted_at = None
+
+                if not text and not photo_bytes:
+                    continue
+
+                await self.upsert_post(
+                    db,
+                    channel_username=clean_name,
+                    telegram_message_id=msg_id,
+                    text=text,
+                    posted_at=posted_at,
+                    source_url=f"https://t.me/{clean_name}/{msg_id}",
+                    photo_bytes=photo_bytes,
+                    photo_mime_type="image/jpeg",
+                )
+                imported += 1
+
+            logger.info("Jami %s ta post sinxronlandi: kanal=%s", imported, clean_name)
+            return imported
+
 
 knowledge = KnowledgeService()

@@ -169,6 +169,17 @@ async def knowledge_posts(db: AsyncSession = Depends(get_db)):
     } for row in rows]
 
 
+@router.post("/knowledge/sync", dependencies=[Depends(require_permission("can_manage_knowledge"))])
+async def sync_knowledge_posts(db: AsyncSession = Depends(get_db)):
+    from app.services.knowledge import knowledge
+    channel = await settings_service.get_public_channel(db)
+    if not channel:
+        raise HTTPException(status_code=400, detail="Faol Telegram kanal sozlanmagan")
+    count = await knowledge.sync_channel_posts(db, channel)
+    await db.commit()
+    return {"ok": True, "channel": channel, "synced_posts": count}
+
+
 # ---------------------------------------------------------------------------
 # Admin Management Endpoints
 # ---------------------------------------------------------------------------

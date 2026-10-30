@@ -152,6 +152,19 @@ export default function Home() {
     await perform(`/admin/conversations/${selected}/reply`, { text });
   }
 
+  async function handleSyncKnowledge() {
+    setBusy(true); setError(""); setSuccess("");
+    try {
+      const res = await api<{ ok: boolean; channel: string; synced_posts: number }>("/admin/knowledge/sync", { method: "POST" });
+      setSuccess(`✅ ${res.synced_posts} ta post muvaffaqiyatli sinxronlandi! (@${res.channel})`);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Kanal postlarini sinxronlashda xatolik");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleAddAdmin(e: React.FormEvent) {
     e.preventDefault();
     if (!newAdminId.trim()) return;
@@ -323,7 +336,19 @@ export default function Home() {
           )}
 
           {tab === "knowledge" && (
-            <section className="panel knowledge-panel"><div className="panel-head"><div><h2>Synced channel posts</h2><p>Matn va rasm tavsiflari bo'yicha bilim bazasi</p></div><span className="subtle-count">{posts.length} latest records</span></div>
+            <section className="panel knowledge-panel">
+              <div className="panel-head">
+                <div>
+                  <h2>Synced channel posts</h2>
+                  <p>Matn va rasm tavsiflari bo'yicha bilim bazasi</p>
+                </div>
+                <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+                  <button className="secondary-btn" disabled={busy} onClick={() => void handleSyncKnowledge()}>
+                    <RefreshCw size={14} className={busy ? "spin" : ""} /> {busy ? "Sinxronlanmoqda..." : "Kanal postlarini sinxronlash"}
+                  </button>
+                  <span className="subtle-count">{posts.length} latest records</span>
+                </div>
+              </div>
               {posts.length === 0 ? <div className="empty">Hali kanal postlari import qilinmagan.</div> : <div className="post-grid">{posts.map((post) => <article className="post-card" key={post.id}><div className="post-meta"><span>#{post.telegram_message_id}</span><span>@{post.channel_username}</span></div><p>{post.text || "Matn mavjud emas"}</p>{post.image_description && <div className="image-description">Image: {post.image_description}</div>}{post.source_url && <a href={post.source_url} target="_blank" rel="noreferrer">Telegram postini ko'rish ↗</a>}</article>)}</div>}
             </section>
           )}
