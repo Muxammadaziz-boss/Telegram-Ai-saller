@@ -179,9 +179,19 @@ async def _handle_business_message(message: dict) -> None:
         conversation.last_message_at = datetime.now(timezone.utc)
         await db.flush()
 
+        # Auto-reactivate AI if customer greets or if previous handoff was automated
         if conversation.status == "human_takeover":
-            await db.commit()
-            return
+            if sales_ai.is_greeting(incoming_text):
+                conversation.status = "ai_active"
+                conversation.handoff_reason = None
+                logger.info("Yangi salomlashish sababli AI qayta faollashtirildi: conversation_id=%s", conversation.id)
+            elif conversation.handoff_reason and not conversation.handoff_reason.startswith("Admin"):
+                conversation.status = "ai_active"
+                conversation.handoff_reason = None
+                logger.info("Avtomatik handoff holatidagi suhbat AI rejimiga qaytarildi: conversation_id=%s", conversation.id)
+            else:
+                await db.commit()
+                return
         if incoming_saved is None:
             # Telegram may retry a webhook. If this incoming message already has a reply,
             # do not send a duplicate. If it does not, continue so a transient failure can retry.
