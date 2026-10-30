@@ -13,6 +13,8 @@ async def main() -> None:
         "url": url,
         "secret_token": secret,
         "allowed_updates": [
+            "message",
+            "callback_query",
             "business_connection",
             "business_message",
             "edited_business_message",
