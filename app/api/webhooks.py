@@ -1,8 +1,10 @@
+import asyncio
 import hmac
 from datetime import datetime, timezone
 from pathlib import Path
 from fastapi import APIRouter, Header, HTTPException, Request
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.bot_commands import handle_callback_query, handle_private_command
 from app.core.config import settings
 from app.core.db import SessionLocal
@@ -183,12 +185,20 @@ async def _handle_business_message(message: dict) -> None:
                 logger.exception("Admin bildirishnoma yuborishda xatolik (matn bo'lmagan xabar)")
             return
 
+        # Send typing action immediately so customer sees immediate response
+        await telegram.send_chat_action(int(chat["id"]), "typing", business_connection_id=connection_id)
+
         history_rows = (await db.execute(
             select(Message).where(Message.conversation_id == conversation.id).order_by(Message.created_at.desc()).limit(10)
         )).scalars().all()
         history = [{"direction": row.direction, "text": row.text} for row in reversed(history_rows)]
-        evidence = await knowledge.search(db, incoming_text, limit=6)
-        decision = await sales_ai.answer(incoming_text, evidence, history)
+
+        if sales_ai.is_greeting(incoming_text):
+            evidence = []
+            decision = await sales_ai.answer(incoming_text, evidence, history)
+        else:
+            evidence = await knowledge.search(db, incoming_text, limit=6)
+            decision = await sales_ai.answer(incoming_text, evidence, history)
 
         if decision["handoff"]:
             conversation.status = "human_takeover"
@@ -281,6 +291,73 @@ async def _handle_business_message(message: dict) -> None:
         await db.commit()
 
 
+async def _handle_direct_bot_message(message: dict, db: AsyncSession) -> None:
+    chat = message.get("chat", {})
+    chat_id = chat.get("id")
+    sender = message.get("from") or {}
+    text = (message.get("text") or message.get("caption") or "").strip()
+    if not chat_id or not text:
+        return
+
+    first_name = sender.get("first_name", "")
+    last_name = sender.get("last_name", "")
+    customer_name = f"{first_name} {last_name}".strip() or "Mijoz"
+
+    # Send typing action immediately
+    await telegram.send_chat_action(chat_id, "typing")
+
+    if sales_ai.is_greeting(text):
+        evidence = []
+        decision = await sales_ai.answer(text, evidence, [])
+    else:
+        evidence = await knowledge.search(db, text, limit=6)
+        decision = await sales_ai.answer(text, evidence, [])
+
+    # If photo requested and available
+    sent = None
+    if decision.get("attach_photo") and decision.get("source_post_id") is not None:
+        selected_post = next((post for post in evidence if post.telegram_message_id == decision["source_post_id"]), None)
+        if selected_post and selected_post.photo_file_id:
+            try:
+                sent = await telegram.call("sendPhoto", {
+                    "chat_id": chat_id,
+                    "photo": selected_post.photo_file_id,
+                    "caption": decision["reply"][:1024],
+                })
+            except Exception:
+                sent = None
+
+    if sent is None:
+        await telegram.send_message(chat_id, decision["reply"])
+
+    # If order was created in direct bot chat, notify admin
+    if decision.get("order_created") and decision.get("order_data"):
+        order_info = decision["order_data"]
+        new_order = Order(
+            customer_name=order_info.get("customer_name") or customer_name,
+            phone=order_info.get("phone") or "",
+            product_summary=order_info.get("product_summary") or "",
+            delivery_address=order_info.get("delivery_address") or "",
+            status="new",
+            notes=f"Telegram bot chatidan (@{sender.get('username') or ''}, ID: {chat_id})",
+        )
+        db.add(new_order)
+        await db.commit()
+        order_notification = (
+            "🎉 YANGI BUYURTMA (Bot chatidan)!\n\n"
+            f"👤 Mijoz: {new_order.customer_name}\n"
+            f"📞 Telefon: {new_order.phone or 'Kiritilmadi'}\n"
+            f"📍 Manzil: {new_order.delivery_address or 'Kiritilmadi'}\n"
+            f"💻 Mahsulot: {new_order.product_summary or 'Aniqlashtirilmoqda'}\n"
+            f"💬 Chat: @{sender.get('username') or ''} (ID: {chat_id})\n\n"
+            "Iltimos, admin mijoz bilan bog'laning!"
+        )
+        try:
+            await telegram.notify_admin(order_notification)
+        except Exception:
+            pass
+
+
 @router.post("/telegram/webhook")
 async def telegram_webhook(
     request: Request,
@@ -305,11 +382,11 @@ async def telegram_webhook(
             row.rights = data.get("rights") or {}
             await db.commit()
     elif update.get("channel_post"):
-        await _store_channel_post(update["channel_post"])
+        asyncio.create_task(_store_channel_post(update["channel_post"]))
     elif update.get("edited_channel_post"):
-        await _store_channel_post(update["edited_channel_post"])
+        asyncio.create_task(_store_channel_post(update["edited_channel_post"]))
     elif update.get("business_message"):
-        await _handle_business_message(update["business_message"])
+        asyncio.create_task(_handle_business_message(update["business_message"]))
     elif update.get("edited_business_message"):
         # Edited customer messages are saved as context in a future iteration; do not auto-reply twice.
         pass
@@ -317,10 +394,19 @@ async def telegram_webhook(
         msg = update["message"]
         chat = msg.get("chat", {})
         if chat.get("type") == "private":
-            async with SessionLocal() as db:
-                await handle_private_command(msg, db)
+            asyncio.create_task(_process_private_message(msg))
     elif update.get("callback_query"):
         cb = update["callback_query"]
         async with SessionLocal() as db:
             await handle_callback_query(cb, db)
     return {"ok": True}
+
+
+async def _process_private_message(msg: dict) -> None:
+    try:
+        async with SessionLocal() as db:
+            handled = await handle_private_command(msg, db)
+            if not handled:
+                await _handle_direct_bot_message(msg, db)
+    except Exception:
+        logger.exception("Xususiy xabarni qayta ishlashda xatolik")

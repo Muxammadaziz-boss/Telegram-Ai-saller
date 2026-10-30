@@ -42,6 +42,7 @@ class SalesAI:
             "generationConfig": {
                 "responseMimeType": "application/json",
                 "temperature": 0.3,
+                "thinkingConfig": {"thinkingBudget": 0},
             }
         }
         async with httpx.AsyncClient(timeout=30.0) as client:
@@ -62,15 +63,25 @@ class SalesAI:
         )
         return json.loads(response.output_text)
 
+    @staticmethod
+    def is_greeting(text: str) -> bool:
+        normalized = " ".join(text.lower().strip().split()).strip("!?.,")
+        greetings = {
+            "salom", "assalomu alaykum", "assalomu aleykum", "salom alaykum",
+            "hayrli kun", "xayrli kun", "qalaysiz", "qalesiz", "salomatchilikmi",
+            "assalomu alaykum va rahmatulloh", "assalom", "privet", "hello", "hi",
+        }
+        return normalized in greetings
+
     async def answer(self, customer_text: str, context: list[ChannelPost], history: list[dict]) -> dict:
-        normalized = " ".join(customer_text.lower().strip().split()).strip("!?.,")
-        greetings = {"salom", "assalomu alaykum", "assalomu aleykum", "salom alaykum", "hayrli kun", "xayrli kun"}
-        if normalized in greetings:
+        if self.is_greeting(customer_text):
             return {
-                "reply": "Assalomu alaykum! 😊 Sizga qaysi mahsulotimiz haqida ma'lumot kerak?",
+                "reply": "Assalomu alaykum! 😊 Do'konimizga xush kelibsiz. Sizga qaysi noutbuk yoki mahsulotimiz haqida ma'lumot kerak?",
                 "handoff": False,
                 "reason": None,
                 "intent": "greeting",
+                "order_created": False,
+                "order_data": None,
                 "attach_photo": False,
                 "source_post_id": None,
             }

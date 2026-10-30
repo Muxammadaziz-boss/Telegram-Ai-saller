@@ -22,6 +22,21 @@ class TelegramService:
             raise TelegramAPIError(result.get("description", f"Telegram {method} xatosi"))
         return result.get("result", {})
 
+    async def send_chat_action(
+        self,
+        chat_id: int | str,
+        action: str = "typing",
+        business_connection_id: str | None = None,
+    ) -> bool:
+        payload: dict = {"chat_id": chat_id, "action": action}
+        if business_connection_id:
+            payload["business_connection_id"] = business_connection_id
+        try:
+            await self.call("sendChatAction", payload)
+            return True
+        except Exception:
+            return False
+
     async def send_business_text(self, business_connection_id: str, chat_id: int, text: str) -> dict:
         return await self.call("sendMessage", {
             "business_connection_id": business_connection_id,
