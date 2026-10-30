@@ -1,0 +1,13 @@
+.env
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+channel_import_session.session
+channel_import_session.session-journal
+storage/**
+!storage/channel_images/.gitkeep
+node_modules/
+.next/
+*.zip
+*.tsbuildinfo
