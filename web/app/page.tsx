@@ -72,6 +72,7 @@ export default function Home() {
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState("");
+  const [mounted, setMounted] = useState(false);
 
   // New admin form state
   const [newAdminId, setNewAdminId] = useState("");
@@ -104,6 +105,7 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    setMounted(true);
     fetch("/api/auth/status", { cache: "no-store" })
       .then((response) => response.json())
       .then((data) => setAuthenticated(Boolean(data.authenticated)))
@@ -229,10 +231,10 @@ export default function Home() {
     }
   }
 
-  if (checkingAuth) return <main className="login-screen"><div className="login-card"><div className="brand-mark"><Sparkles size={20}/></div><h1>AI Sales Control</h1><p>Tekshirilmoqda...</p></div></main>;
+  if (!mounted || checkingAuth) return <main className="login-screen" suppressHydrationWarning><div className="login-card" suppressHydrationWarning><div className="brand-mark"><Sparkles size={20}/></div><h1>AI Sales Control</h1><p>Tekshirilmoqda...</p></div></main>;
   if (!authenticated) return (
-    <main className="login-screen">
-      <form className="login-card" onSubmit={login}>
+    <main className="login-screen" suppressHydrationWarning>
+      <form className="login-card" onSubmit={login} suppressHydrationWarning>
         <div className="brand-mark"><Sparkles size={20}/></div>
         <div className="eyebrow">PRIVATE WORKSPACE</div>
         <h1>Admin panelga kirish</h1>
