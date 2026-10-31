@@ -1,23 +1,14 @@
-"use client";
+import { cookies } from "next/headers";
+import { isValidSessionToken, sessionCookieName } from "@/lib/session";
+import Dashboard from "./Dashboard";
 
-import dynamic from "next/dynamic";
-import { Sparkles } from "lucide-react";
+export default async function Home() {
+  const cookieStore = await cookies();
+  const token = cookieStore.get(sessionCookieName)?.value;
+  const initialAuthenticated = isValidSessionToken(
+    token,
+    process.env.SESSION_SECRET || ""
+  );
 
-const Dashboard = dynamic(() => import("./Dashboard"), {
-  ssr: false,
-  loading: () => (
-    <main className="login-screen" suppressHydrationWarning>
-      <div className="login-card" suppressHydrationWarning>
-        <div className="brand-mark">
-          <Sparkles size={20} />
-        </div>
-        <h1>AI Sales Control</h1>
-        <p>Yuklanmoqda...</p>
-      </div>
-    </main>
-  ),
-});
-
-export default function Home() {
-  return <Dashboard />;
+  return <Dashboard initialAuthenticated={initialAuthenticated} />;
 }

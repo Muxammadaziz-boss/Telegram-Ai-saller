@@ -39,27 +39,41 @@ class SalesAI:
         return "none"
 
     async def _generate_gemini(self, instructions: str, payload_str: str) -> dict:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.gemini_model}:generateContent?key={self.gemini_key}"
-        body = {
-            "systemInstruction": {
-                "parts": [{"text": instructions}]
-            },
-            "contents": [{
-                "role": "user",
-                "parts": [{"text": payload_str}]
-            }],
-            "generationConfig": {
-                "responseMimeType": "application/json",
-                "temperature": 0.3,
-                "thinkingConfig": {"thinkingBudget": 0},
-            }
-        }
         client = self._get_http_client()
-        resp = await client.post(url, json=body)
-        resp.raise_for_status()
-        data = resp.json()
-        raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
-        return json.loads(raw_text)
+        candidate_models = [self.gemini_model]
+        for fallback in ("gemini-3.5-flash-lite", "gemini-3.8-flash"):
+            if fallback not in candidate_models:
+                candidate_models.append(fallback)
+
+        last_error = None
+        for model in candidate_models:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={self.gemini_key}"
+            body = {
+                "systemInstruction": {
+                    "parts": [{"text": instructions}]
+                },
+                "contents": [{
+                    "role": "user",
+                    "parts": [{"text": payload_str}]
+                }],
+                "generationConfig": {
+                    "responseMimeType": "application/json",
+                    "temperature": 0.3,
+                }
+            }
+            try:
+                resp = await client.post(url, json=body, timeout=25.0)
+                resp.raise_for_status()
+                data = resp.json()
+                raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
+                return json.loads(raw_text)
+            except Exception as e:
+                last_error = e
+                logger.warning("Gemini model %s xatolik berdi (%s), zaxiraga o'tilmoqda...", model, e)
+                continue
+        if last_error:
+            raise last_error
+        raise RuntimeError("Barcha Gemini modellari muvaffaqiyatsiz bo'ldi")
 
     async def _generate_openai(self, instructions: str, payload_str: str) -> dict:
         if not self.openai_client:

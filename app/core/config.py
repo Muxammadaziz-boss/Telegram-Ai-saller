@@ -26,7 +26,7 @@ class Settings(BaseSettings):
 
     # Google Gemini API
     gemini_api_key: str = ""
-    gemini_model: str = "gemini-3.1-flash-lite"
+    gemini_model: str = "gemini-3.5-flash-lite"
     gemini_embedding_model: str = "gemini-embedding-001"
     ai_provider: str = "auto"  # "gemini", "openai", or "auto"
 

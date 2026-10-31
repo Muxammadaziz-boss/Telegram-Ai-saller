@@ -44,8 +44,8 @@ async def _store_channel_post(message: dict) -> None:
     if not username:
         return
     async with SessionLocal() as db:
-        configured = await settings_service.get_public_channel(db)
-        if not configured or username.lower() != configured.lower():
+        active_channels = await settings_service.get_active_channel_usernames(db)
+        if not active_channels or username.lower() not in [c.lower() for c in active_channels]:
             return
         text = message.get("text") or message.get("caption") or ""
         photos = message.get("photo") or []
@@ -179,19 +179,16 @@ async def _handle_business_message(message: dict) -> None:
         conversation.last_message_at = datetime.now(timezone.utc)
         await db.flush()
 
-        # Auto-reactivate AI if customer greets or if previous handoff was automated
+        # Auto-reactivate AI unless explicitly taken over via web admin panel
         if conversation.status == "human_takeover":
-            if sales_ai.is_greeting(incoming_text):
-                conversation.status = "ai_active"
-                conversation.handoff_reason = None
-                logger.info("Yangi salomlashish sababli AI qayta faollashtirildi: conversation_id=%s", conversation.id)
-            elif conversation.handoff_reason and not conversation.handoff_reason.startswith("Admin"):
-                conversation.status = "ai_active"
-                conversation.handoff_reason = None
-                logger.info("Avtomatik handoff holatidagi suhbat AI rejimiga qaytarildi: conversation_id=%s", conversation.id)
-            else:
+            if conversation.handoff_reason == "Admin panel orqali operator qabul qildi" and not sales_ai.is_greeting(incoming_text):
+                logger.info("Suhbat web admin panel orqali operator nazoratida: conversation_id=%s", conversation.id)
                 await db.commit()
                 return
+            else:
+                conversation.status = "ai_active"
+                conversation.handoff_reason = None
+                logger.info("AI qayta faollashtirildi: conversation_id=%s", conversation.id)
         if incoming_saved is None:
             # Telegram may retry a webhook. If this incoming message already has a reply,
             # do not send a duplicate. If it does not, continue so a transient failure can retry.

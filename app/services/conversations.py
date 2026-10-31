@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import BusinessConnection, Conversation, Message
 
@@ -32,7 +33,18 @@ async def get_or_create_conversation(
             username=username,
         )
         db.add(conversation)
-        await db.flush()
+        try:
+            await db.flush()
+        except IntegrityError:
+            # Handle concurrent creation by another task
+            await db.rollback()
+            result = await db.execute(select(Conversation).where(
+                Conversation.business_connection_id == business_connection_id,
+                Conversation.chat_id == chat_id,
+            ))
+            conversation = result.scalar_one_or_none()
+            if conversation is None:
+                raise
     else:
         conversation.customer_name = customer_name or conversation.customer_name
         conversation.username = username or conversation.username
@@ -63,5 +75,9 @@ async def save_message(
         text=text,
     )
     db.add(message)
-    await db.flush()
+    try:
+        await db.flush()
+    except IntegrityError:
+        await db.rollback()
+        return None
     return message

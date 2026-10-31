@@ -278,7 +278,27 @@ class KnowledgeService:
                 imported += 1
 
             logger.info("Jami %s ta post sinxronlandi: kanal=%s", imported, clean_name)
+            try:
+                from app.services import settings_service
+                await settings_service.update_channel_stats(db, clean_name, imported)
+            except Exception:
+                pass
             return imported
+
+    async def sync_all_channels(self, db: AsyncSession) -> dict[str, int]:
+        """Sync posts from all active connected channels."""
+        from app.services import settings_service
+        channels = await settings_service.get_active_channel_usernames(db)
+        results: dict[str, int] = {}
+        for ch in channels:
+            try:
+                cnt = await self.sync_channel_posts(db, ch)
+                results[ch] = cnt
+            except Exception:
+                logger.exception("Kanalni sinxronlashda xatolik: %s", ch)
+                results[ch] = 0
+        return results
 
 
 knowledge = KnowledgeService()
+

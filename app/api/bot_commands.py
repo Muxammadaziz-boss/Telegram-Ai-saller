@@ -48,10 +48,13 @@ def _admin_keyboard(admin: Admin) -> list[list[dict]]:
     ]
     if admin.role == "owner":
         buttons.append([{"text": "➖ Admin o'chirish", "callback_data": "admin:remove:start"}])
-        buttons.append([{"text": "⚙️ Sozlamalar (Kanal URL)", "callback_data": "admin:settings"}])
+        buttons.append([{"text": "📢 Ulangan Kanallar", "callback_data": "admin:channels:list"}])
     elif admin_service.has_permission(admin, "can_manage_knowledge"):
-        buttons.append([{"text": "⚙️ Sozlamalar (Kanal URL)", "callback_data": "admin:settings"}])
-    buttons.append([{"text": "🔐 Mening ruxsatlarim", "callback_data": "admin:mypermissions"}])
+        buttons.append([{"text": "📢 Ulangan Kanallar", "callback_data": "admin:channels:list"}])
+    buttons.append([
+        {"text": "🔐 Mening ruxsatlarim", "callback_data": "admin:mypermissions"},
+        {"text": "ℹ️ Yordam", "callback_data": "admin:help"},
+    ])
     return buttons
 
 
@@ -111,6 +114,8 @@ async def handle_private_command(message: dict, db: AsyncSession) -> bool:
 
     if cmd == "/start":
         return await _cmd_start(user_id, chat_id, sender, db)
+    if cmd in ("/help", "/yordam"):
+        return await _cmd_help(user_id, chat_id, db)
     if cmd == "/admin":
         return await _cmd_admin(user_id, chat_id, db)
     if cmd == "/addadmin":
@@ -121,12 +126,20 @@ async def handle_private_command(message: dict, db: AsyncSession) -> bool:
         return await _cmd_admins(user_id, chat_id, db)
     if cmd == "/mypermissions":
         return await _cmd_mypermissions(user_id, chat_id, db)
+    if cmd in ("/channels", "/kanallar"):
+        return await _cmd_channels(user_id, chat_id, db)
+    if cmd in ("/addchannel", "/ulash"):
+        return await _cmd_addchannel(user_id, chat_id, text, db)
+    if cmd in ("/delchannel", "/removechannel"):
+        return await _cmd_delchannel(user_id, chat_id, text, db)
+    if cmd in ("/sync", "/syncchannels"):
+        return await _cmd_syncchannels(user_id, chat_id, db)
     if cmd == "/setchannel":
-        return await _cmd_setchannel(user_id, chat_id, text, db)
+        return await _cmd_addchannel(user_id, chat_id, text, db)
     if cmd == "/channel":
-        return await _cmd_getchannel(user_id, chat_id, db)
+        return await _cmd_channels(user_id, chat_id, db)
     if cmd == "/settings":
-        return await _cmd_settings(user_id, chat_id, db)
+        return await _cmd_channels(user_id, chat_id, db)
 
     return False
 
@@ -311,36 +324,128 @@ async def handle_callback_query(callback_query: dict, db: AsyncSession) -> None:
             except ValueError as exc:
                 await telegram.answer_callback(callback_id, f"Xatolik: {exc}")
 
-        elif data == "admin:settings":
-            current_ch = await settings_service.get_public_channel(db)
-            settings_text = (
-                "⚙️ *Tizim va Do'kon Sozlamalari*\n\n"
-                f"📢 *Public kanal:* `@{current_ch or 'sozlanmagan'}`\n"
-                f"🤖 *AI status:* Faol (Sotuvchi va buyurtma xodimi)\n\n"
-                "Kanal havolasini o'zgartirish uchun quyidagi tugmani bosing:"
-            )
-            keyboard = [
-                [{"text": "📢 Kanalni o'zgartirish", "callback_data": "admin:set:channel"}],
-                [{"text": "◀️ Admin menyu", "callback_data": "admin:menu"}],
+        elif data in ("admin:settings", "admin:channels:list"):
+            channels = await settings_service.list_channels(db)
+            lines = [
+                "📢 *Ulangan Telegram Kanallar*\n",
+                f"Jami kanallar: *{len(channels)} ta*",
+                "Har bir kanal postlari avtomatik ravishda AI bilim bazasiga qo'shiladi:\n",
             ]
-            await _edit_message(chat_id, message_id, settings_text, keyboard)
+            keyboard = []
+            if not channels:
+                lines.append("_(Hozircha hech qanday kanal ulanmagan)_")
+            else:
+                for ch in channels:
+                    sync_time = ch.last_synced_at.strftime("%d.%m %H:%M") if ch.last_synced_at else "sinxronlanmagan"
+                    lines.append(f"• `@{ch.channel_username}` — 📦 {ch.posts_count} ta post ({sync_time})")
+                    keyboard.append([
+                        {"text": f"🔄 Sinxron: @{ch.channel_username}", "callback_data": f"admin:channels:sync:{ch.channel_username}"},
+                        {"text": f"🗑 O'chirish", "callback_data": f"admin:channels:del:{ch.channel_username}"},
+                    ])
+            keyboard.append([{"text": "➕ Yangi kanal ulash", "callback_data": "admin:channels:add"}])
+            if channels:
+                keyboard.append([{"text": "🔄 Barcha kanallarni sinxronlash", "callback_data": "admin:channels:syncall"}])
+            keyboard.append([{"text": "◀️ Admin menyu", "callback_data": "admin:menu"}])
+            await _edit_message(chat_id, message_id, "\n".join(lines), keyboard)
 
-        elif data == "admin:set:channel":
+        elif data in ("admin:set:channel", "admin:channels:add"):
             if not _is_owner(user_id) and not admin_service.has_permission(admin, "can_manage_knowledge"):
-                await telegram.answer_callback(callback_id, "⛔ Kanalni o'zgartirish huquqi yo'q")
+                await telegram.answer_callback(callback_id, "⛔ Kanal qo'shish huquqi yo'q")
                 return
-            current_ch = await settings_service.get_public_channel(db)
             _wizard_state[user_id] = {"step": "awaiting_channel", "chat_id": chat_id}
             await _edit_message(
                 chat_id,
                 message_id,
-                f"📢 *Kanalni o'zgartirish*\n\n"
-                f"Hozirgi kanal: `@{current_ch or 'mavjud emas'}`\n\n"
-                "Yangi Telegram kanal havolasini yoki username'ini yuboring:\n"
+                "📢 *Yangi kanal ulash*\n\n"
+                "Telegram kanal havolasini yoki username'ini yuboring:\n"
                 "(Masalan: `@yangi_kanal` yoki `https://t.me/yangi_kanal`)\n\n"
+                "Yuborishingiz bilan kanal postlari avtomatik tahlil qilinib bazaga qo'shiladi.\n\n"
                 "Bekor qilish uchun pastdagi tugmani bosing:",
-                [[{"text": "❌ Bekor qilish", "callback_data": "admin:settings"}]]
+                [[{"text": "❌ Bekor qilish", "callback_data": "admin:channels:list"}]]
             )
+
+        elif data.startswith("admin:channels:sync:"):
+            target_ch = data[len("admin:channels:sync:"):]
+            await telegram.answer_callback(callback_id, f"@{target_ch} sinxronlanmoqda...")
+            from app.services.knowledge import knowledge
+            cnt = await knowledge.sync_channel_posts(db, target_ch)
+            await db.commit()
+            channels = await settings_service.list_channels(db)
+            lines = [
+                f"✅ `@{target_ch}` muvaffaqiyatli sinxronlandi ({cnt} ta post)!\n",
+                "📢 *Ulangan Telegram Kanallar:*\n",
+            ]
+            keyboard = []
+            for ch in channels:
+                sync_time = ch.last_synced_at.strftime("%d.%m %H:%M") if ch.last_synced_at else "sinxronlanmagan"
+                lines.append(f"• `@{ch.channel_username}` — 📦 {ch.posts_count} ta post ({sync_time})")
+                keyboard.append([
+                    {"text": f"🔄 Sinxron: @{ch.channel_username}", "callback_data": f"admin:channels:sync:{ch.channel_username}"},
+                    {"text": f"🗑 O'chirish", "callback_data": f"admin:channels:del:{ch.channel_username}"},
+                ])
+            keyboard.append([{"text": "➕ Yangi kanal ulash", "callback_data": "admin:channels:add"}])
+            keyboard.append([{"text": "🔄 Barcha kanallarni sinxronlash", "callback_data": "admin:channels:syncall"}])
+            keyboard.append([{"text": "◀️ Admin menyu", "callback_data": "admin:menu"}])
+            await _edit_message(chat_id, message_id, "\n".join(lines), keyboard)
+
+        elif data == "admin:channels:syncall":
+            await telegram.answer_callback(callback_id, "Barcha kanallar sinxronlanmoqda...")
+            from app.services.knowledge import knowledge
+            results = await knowledge.sync_all_channels(db)
+            await db.commit()
+            total = sum(results.values())
+            channels = await settings_service.list_channels(db)
+            lines = [
+                f"✅ Jami *{total} ta post* sinxronlandi!\n",
+                "📢 *Ulangan Telegram Kanallar:*\n",
+            ]
+            keyboard = []
+            for ch in channels:
+                sync_time = ch.last_synced_at.strftime("%d.%m %H:%M") if ch.last_synced_at else "sinxronlanmagan"
+                lines.append(f"• `@{ch.channel_username}` — 📦 {ch.posts_count} ta post ({sync_time})")
+                keyboard.append([
+                    {"text": f"🔄 Sinxron: @{ch.channel_username}", "callback_data": f"admin:channels:sync:{ch.channel_username}"},
+                    {"text": f"🗑 O'chirish", "callback_data": f"admin:channels:del:{ch.channel_username}"},
+                ])
+            keyboard.append([{"text": "➕ Yangi kanal ulash", "callback_data": "admin:channels:add"}])
+            keyboard.append([{"text": "◀️ Admin menyu", "callback_data": "admin:menu"}])
+            await _edit_message(chat_id, message_id, "\n".join(lines), keyboard)
+
+        elif data.startswith("admin:channels:del:"):
+            target_ch = data[len("admin:channels:del:"):]
+            keyboard = [
+                [{"text": f"⚠️ Ha, @{target_ch} o'chirilsin", "callback_data": f"admin:channels:confirm_del:{target_ch}"}],
+                [{"text": "❌ Bekor qilish", "callback_data": "admin:channels:list"}],
+            ]
+            await _edit_message(
+                chat_id,
+                message_id,
+                f"🗑 *Kanalni o'chirish*\n\n`@{target_ch}` kanali bazadan olib tashlansinmi?",
+                keyboard,
+            )
+
+        elif data.startswith("admin:channels:confirm_del:"):
+            target_ch = data[len("admin:channels:confirm_del:"):]
+            await settings_service.remove_channel(db, target_ch)
+            await db.commit()
+            channels = await settings_service.list_channels(db)
+            lines = [
+                f"🗑 `@{target_ch}` kanali muvaffaqiyatli o'chirildi.\n",
+                "📢 *Ulangan Telegram Kanallar:*\n",
+            ]
+            keyboard = []
+            for ch in channels:
+                sync_time = ch.last_synced_at.strftime("%d.%m %H:%M") if ch.last_synced_at else "sinxronlanmagan"
+                lines.append(f"• `@{ch.channel_username}` — 📦 {ch.posts_count} ta post ({sync_time})")
+                keyboard.append([
+                    {"text": f"🔄 Sinxron: @{ch.channel_username}", "callback_data": f"admin:channels:sync:{ch.channel_username}"},
+                    {"text": f"🗑 O'chirish", "callback_data": f"admin:channels:del:{ch.channel_username}"},
+                ])
+            keyboard.append([{"text": "➕ Yangi kanal ulash", "callback_data": "admin:channels:add"}])
+            if channels:
+                keyboard.append([{"text": "🔄 Barcha kanallarni sinxronlash", "callback_data": "admin:channels:syncall"}])
+            keyboard.append([{"text": "◀️ Admin menyu", "callback_data": "admin:menu"}])
+            await _edit_message(chat_id, message_id, "\n".join(lines), keyboard)
 
         elif data == "admin:mypermissions":
             lines = [f"🔐 *Sizning ruxsatlaringiz*\nRol: {admin.role}\n"]
@@ -350,6 +455,11 @@ async def handle_callback_query(callback_query: dict, db: AsyncSession) -> None:
                 lines.append(f"{icon} {label}")
             await _edit_message(chat_id, message_id, "\n".join(lines),
                                 [[{"text": "◀️ Orqaga", "callback_data": "admin:menu"}]])
+
+        elif data == "admin:help":
+            help_message = _help_text(is_admin_user=True, is_owner_user=_is_owner(user_id))
+            keyboard = [[{"text": "◀️ Orqaga", "callback_data": "admin:menu"}]]
+            await _edit_message(chat_id, message_id, help_message, keyboard)
 
     except Exception:
         logger.exception("Admin callback xatolik: data=%s, user=%s", data, user_id)
@@ -374,7 +484,13 @@ async def _cmd_start(user_id: int, chat_id: int, sender: dict, db: AsyncSession)
         await db.commit()
         await telegram.call("sendMessage", {
             "chat_id": chat_id,
-            "text": "👑 Assalomu alaykum, owner!\n\nBot boshqaruv paneli tayyor.\n/admin — Admin boshqaruvi",
+            "text": (
+                "👑 Assalomu alaykum, owner!\n\n"
+                "Bot boshqaruv paneli tayyor.\n"
+                "• /admin — Admin boshqaruvi\n"
+                "• /help — Barcha buyruqlar va yordam\n"
+                "• /channels — Ulangan kanallar"
+            ),
             "parse_mode": "Markdown",
         })
         return True
@@ -386,14 +502,24 @@ async def _cmd_start(user_id: int, chat_id: int, sender: dict, db: AsyncSession)
         await db.commit()
         await telegram.call("sendMessage", {
             "chat_id": chat_id,
-            "text": f"Assalomu alaykum, {admin.name}!\n\nSiz *{admin.role}* sifatida ro'yxatdansiz.\n/admin — Admin boshqaruvi\n/mypermissions — Ruxsatlarim",
+            "text": (
+                f"Assalomu alaykum, {admin.name}!\n\n"
+                f"Siz *{admin.role}* sifatida ro'yxatdansiz.\n"
+                "• /admin — Admin boshqaruvi\n"
+                "• /help — Barcha buyruqlar va yordam\n"
+                "• /mypermissions — Ruxsatlarim"
+            ),
             "parse_mode": "Markdown",
         })
         return True
 
     await telegram.call("sendMessage", {
         "chat_id": chat_id,
-        "text": "Assalomu alaykum! Bu bot faqat adminlar uchun.\nAdmin bo'lish uchun owner sizni qo'shishi kerak.",
+        "text": (
+            "Assalomu alaykum! Men do'konimizning AI savdo yordamchisiman.\n\n"
+            "Menga qiziqtirgan mahsulotingiz haqida yozishingiz mumkin.\n"
+            "Yo'riqnoma uchun: /help"
+        ),
     })
     return True
 
@@ -495,50 +621,7 @@ async def _cmd_mypermissions(user_id: int, chat_id: int, db: AsyncSession) -> bo
     return True
 
 
-async def _cmd_setchannel(user_id: int, chat_id: int, text: str, db: AsyncSession) -> bool:
-    admin = await admin_service.get_admin_by_telegram_id(db, user_id)
-    if not admin and _is_owner(user_id):
-        admin = await admin_service.ensure_owner(db)
-        await db.commit()
-    if not admin or (admin.role != "owner" and not admin_service.has_permission(admin, "can_manage_knowledge")):
-        await telegram.call("sendMessage", {"chat_id": chat_id, "text": "⛔ Kanalni o'zgartirish huquqi yo'q."})
-        return True
-    parts = text.split(maxsplit=1)
-    if len(parts) > 1 and parts[1].strip():
-        new_val = parts[1].strip()
-        try:
-            cleaned = await settings_service.set_public_channel(db, new_val)
-            await db.commit()
-            await telegram.call("sendMessage", {
-                "chat_id": chat_id,
-                "text": f"✅ Kanal muvaffaqiyatli o'zgartirildi: `@{cleaned}`",
-                "parse_mode": "Markdown",
-            })
-            return True
-        except ValueError as exc:
-            await telegram.call("sendMessage", {"chat_id": chat_id, "text": f"❌ Xatolik: {exc}"})
-            return True
-    current_ch = await settings_service.get_public_channel(db)
-    _wizard_state[user_id] = {"step": "awaiting_channel", "chat_id": chat_id}
-    await telegram.call("sendMessage", {
-        "chat_id": chat_id,
-        "text": f"📢 *Kanalni sozlash*\n\nHozirgi kanal: `@{current_ch or 'mavjud emas'}`\n\nYangi kanal username yoki havolasini yuboring:\n(Masalan: `@yangi_kanal` yoki `https://t.me/yangi_kanal`)",
-        "parse_mode": "Markdown",
-    })
-    return True
-
-
-async def _cmd_getchannel(user_id: int, chat_id: int, db: AsyncSession) -> bool:
-    channel = await settings_service.get_public_channel(db)
-    await telegram.call("sendMessage", {
-        "chat_id": chat_id,
-        "text": f"📢 *Faol mahsulotlar kanali:*\n`@{channel or 'sozlanmagan'}`\n\nO'zgartirish uchun: `/setchannel <kanal_link>`",
-        "parse_mode": "Markdown",
-    })
-    return True
-
-
-async def _cmd_settings(user_id: int, chat_id: int, db: AsyncSession) -> bool:
+async def _cmd_channels(user_id: int, chat_id: int, db: AsyncSession) -> bool:
     admin = await admin_service.get_admin_by_telegram_id(db, user_id)
     if not admin and _is_owner(user_id):
         admin = await admin_service.ensure_owner(db)
@@ -546,23 +629,188 @@ async def _cmd_settings(user_id: int, chat_id: int, db: AsyncSession) -> bool:
     if not admin:
         await telegram.call("sendMessage", {"chat_id": chat_id, "text": "⛔ Sizda admin huquqi yo'q."})
         return True
-    current_ch = await settings_service.get_public_channel(db)
-    settings_text = (
-        "⚙️ *Tizim va Do'kon Sozlamalari*\n\n"
-        f"📢 *Public kanal:* `@{current_ch or 'sozlanmagan'}`\n"
-        f"🤖 *AI status:* Faol (Sotuvchi va buyurtma xodimi)\n\n"
-        "Kanal havolasini o'zgartirish uchun quyidagi tugmani bosing:"
-    )
-    keyboard = [
-        [{"text": "📢 Kanalni o'zgartirish", "callback_data": "admin:set:channel"}],
-        [{"text": "◀️ Admin menyu", "callback_data": "admin:menu"}],
+    channels = await settings_service.list_channels(db)
+    lines = [
+        "📢 *Ulangan Telegram Kanallar:*\n",
+        f"Jami kanallar: *{len(channels)} ta*",
+        "Kanal postlari avtomatik ravishda AI bilim bazasiga qo'shiladi.\n",
     ]
+    keyboard = []
+    if not channels:
+        lines.append("_(Hozircha hech qanday kanal ulanmagan)_\nKanal qo'shish uchun: `/addchannel <link>`")
+    else:
+        for ch in channels:
+            sync_time = ch.last_synced_at.strftime("%d.%m %H:%M") if ch.last_synced_at else "sinxronlanmagan"
+            lines.append(f"• `@{ch.channel_username}` — 📦 {ch.posts_count} ta post ({sync_time})")
+            keyboard.append([
+                {"text": f"🔄 @{ch.channel_username}", "callback_data": f"admin:channels:sync:{ch.channel_username}"},
+                {"text": "🗑 O'chirish", "callback_data": f"admin:channels:del:{ch.channel_username}"},
+            ])
+    keyboard.append([{"text": "➕ Yangi kanal ulash", "callback_data": "admin:channels:add"}])
+    if channels:
+        keyboard.append([{"text": "🔄 Barchasini sinxronlash", "callback_data": "admin:channels:syncall"}])
+    keyboard.append([{"text": "◀️ Admin menyu", "callback_data": "admin:menu"}])
     await telegram.call("sendMessage", {
         "chat_id": chat_id,
-        "text": settings_text,
+        "text": "\n".join(lines),
         "parse_mode": "Markdown",
         "reply_markup": {"inline_keyboard": keyboard},
     })
+    return True
+
+
+async def _cmd_addchannel(user_id: int, chat_id: int, text: str, db: AsyncSession) -> bool:
+    admin = await admin_service.get_admin_by_telegram_id(db, user_id)
+    if not admin and _is_owner(user_id):
+        admin = await admin_service.ensure_owner(db)
+        await db.commit()
+    if not admin or (admin.role != "owner" and not admin_service.has_permission(admin, "can_manage_knowledge")):
+        await telegram.call("sendMessage", {"chat_id": chat_id, "text": "⛔ Kanal ulash huquqi yo'q."})
+        return True
+    parts = text.split(maxsplit=1)
+    if len(parts) > 1 and parts[1].strip():
+        new_val = parts[1].strip()
+        try:
+            from app.services.knowledge import knowledge
+            ch = await settings_service.add_channel(db, new_val, added_by=user_id)
+            imported = await knowledge.sync_channel_posts(db, ch.channel_username)
+            await db.commit()
+            await telegram.call("sendMessage", {
+                "chat_id": chat_id,
+                "text": f"✅ Yangi kanal ulandi va sinxronlandi!\n\n📢 Kanal: `@{ch.channel_username}`\n📦 Sinxronlangan postlar: *{imported} ta*",
+                "parse_mode": "Markdown",
+            })
+            return True
+        except ValueError as exc:
+            await telegram.call("sendMessage", {"chat_id": chat_id, "text": f"❌ Xatolik: {exc}"})
+            return True
+    _wizard_state[user_id] = {"step": "awaiting_channel", "chat_id": chat_id}
+    await telegram.call("sendMessage", {
+        "chat_id": chat_id,
+        "text": "📢 *Yangi kanal ulash*\n\nTelegram kanal username yoki havolasini yuboring:\n(Masalan: `@yangi_kanal` yoki `https://t.me/yangi_kanal`)",
+        "parse_mode": "Markdown",
+    })
+    return True
+
+
+async def _cmd_delchannel(user_id: int, chat_id: int, text: str, db: AsyncSession) -> bool:
+    admin = await admin_service.get_admin_by_telegram_id(db, user_id)
+    if not admin and _is_owner(user_id):
+        admin = await admin_service.ensure_owner(db)
+        await db.commit()
+    if not admin or (admin.role != "owner" and not admin_service.has_permission(admin, "can_manage_knowledge")):
+        await telegram.call("sendMessage", {"chat_id": chat_id, "text": "⛔ Kanalni o'chirish huquqi yo'q."})
+        return True
+    parts = text.split(maxsplit=1)
+    if len(parts) > 1 and parts[1].strip():
+        ch_name = parts[1].strip()
+        removed = await settings_service.remove_channel(db, ch_name)
+        await db.commit()
+        if removed:
+            await telegram.call("sendMessage", {
+                "chat_id": chat_id,
+                "text": f"🗑 `@{settings_service.clean_channel_username(ch_name)}` kanali o'chirildi.",
+                "parse_mode": "Markdown",
+            })
+        else:
+            await telegram.call("sendMessage", {"chat_id": chat_id, "text": f"❌ `{ch_name}` kanali topilmadi."})
+        return True
+    return await _cmd_channels(user_id, chat_id, db)
+
+
+async def _cmd_syncchannels(user_id: int, chat_id: int, db: AsyncSession) -> bool:
+    admin = await admin_service.get_admin_by_telegram_id(db, user_id)
+    if not admin and _is_owner(user_id):
+        admin = await admin_service.ensure_owner(db)
+        await db.commit()
+    if not admin or (admin.role != "owner" and not admin_service.has_permission(admin, "can_manage_knowledge")):
+        await telegram.call("sendMessage", {"chat_id": chat_id, "text": "⛔ Sinxronlash huquqi yo'q."})
+        return True
+    from app.services.knowledge import knowledge
+    await telegram.call("sendMessage", {"chat_id": chat_id, "text": "🔄 Kanallar sinxronlanmoqda, kuting..."})
+    results = await knowledge.sync_all_channels(db)
+    await db.commit()
+    total = sum(results.values())
+    lines = [f"✅ Sinxronlash yakunlandi! Jami: *{total} ta post*.\n"]
+    for ch, cnt in results.items():
+        lines.append(f"• `@{ch}`: {cnt} ta post")
+    await telegram.call("sendMessage", {
+        "chat_id": chat_id,
+        "text": "\n".join(lines),
+        "parse_mode": "Markdown",
+    })
+    return True
+
+
+def _help_text(is_admin_user: bool, is_owner_user: bool) -> str:
+    if is_admin_user:
+        lines = [
+            "ℹ️ *AI Sales Agent — Bot Buyruqlari va Yordam*",
+            "",
+            "👑 *Asosiy boshqaruv:*",
+            "• `/admin` — Asosiy admin menyusi va boshqaruv paneli",
+            "• `/help` yoki `/yordam` — Barcha buyruqlar va yo'riqnoma",
+            "• `/mypermissions` — Shaxsiy ruxsatlaringizni ko'rish",
+            "",
+            "📢 *Telegram Kanallar boshqaruvi (Multi-channel):*",
+            "• `/channels` yoki `/kanallar` — Ulangan kanallar ro'yxati va holati",
+            "• `/addchannel <link>` — Yangi kanal ulash (masalan: `/addchannel @kanal_nomi`)",
+            "• `/delchannel <username>` — Ulangan kanalni o'chirish",
+            "• `/sync` — Barcha kanallardagi yangi postlarni bazaga sinxronlash",
+            "",
+            "👥 *Adminlar boshqaruvi:*",
+            "• `/admins` — Faol admin va moderatorlar ro'yxati",
+        ]
+        if is_owner_user:
+            lines.extend([
+                "• `/addadmin` — Yangi admin yoki moderator qo'shish",
+                "• `/removeadmin` — Adminni olib tashlash",
+            ])
+        lines.extend([
+            "",
+            "🌐 *Web Dashboard:*",
+            "• Web panel: `http://localhost:3000`",
+            "• Analitika, suhbatlar, buyurtmalar va mahsulotlar boshqaruvi.",
+            "",
+            "💡 *Maslahat:* Har qanday kanal ulanganda, bot uning postlarini avtomatik o'qib, AI bilim bazasiga joylaydi.",
+        ])
+        return "\n".join(lines)
+    else:
+        return (
+            "🤖 *AI Savdo Yordamchisi — Yordam*\n\n"
+            "Assalomu alaykum! Men do'konimiz mahsulotlari bo'yicha maslahat beruvchi va buyurtma qabul qiluvchi aqlli yordamchiman.\n\n"
+            "📌 *Qanday savollar berishingiz mumkin?*\n"
+            "• Mahsulot narxi, o'lchami, sifati yoki xususiyatlari haqida;\n"
+            "• Mahsulot rasmini yuborib mavjudligi haqida ma'lumot olish;\n"
+            "• Buyurtma berish uchun manzilingiz va telefoningizni qoldirish.\n\n"
+            "📞 *Operator bilan bog'lanish:*\n"
+            "Agar xodimlarimiz bilan to'g'ridan-to'g'ri bog'lanmoqchi bo'lsangiz, xabaringizda "
+            "*operator* yoki *admin* so'zini yozing."
+        )
+
+
+async def _cmd_help(user_id: int, chat_id: int, db: AsyncSession) -> bool:
+    admin = await admin_service.get_admin_by_telegram_id(db, user_id)
+    if not admin and _is_owner(user_id):
+        admin = await admin_service.ensure_owner(db)
+        await db.commit()
+
+    is_adm = admin is not None
+    is_own = _is_owner(user_id) or (admin is not None and admin.role == "owner")
+
+    text = _help_text(is_admin_user=is_adm, is_owner_user=is_own)
+    keyboard = []
+    if is_adm:
+        keyboard.append([{"text": "🔧 Admin menyu", "callback_data": "admin:menu"}])
+        keyboard.append([{"text": "📢 Ulangan kanallar", "callback_data": "admin:channels:list"}])
+    payload = {
+        "chat_id": chat_id,
+        "text": text,
+        "parse_mode": "Markdown",
+    }
+    if keyboard:
+        payload["reply_markup"] = {"inline_keyboard": keyboard}
+    await telegram.call("sendMessage", payload)
     return True
 
 
@@ -581,12 +829,19 @@ async def _handle_wizard_input(user_id: int, chat_id: int, text: str, db: AsyncS
             _wizard_state.pop(user_id, None)
             return False
         try:
-            cleaned = await settings_service.set_public_channel(db, text)
+            from app.services.knowledge import knowledge
+            ch = await settings_service.add_channel(db, text, added_by=user_id)
+            imported = await knowledge.sync_channel_posts(db, ch.channel_username)
             await db.commit()
             _wizard_state.pop(user_id, None)
             await telegram.call("sendMessage", {
                 "chat_id": chat_id,
-                "text": f"✅ Kanal muvaffaqiyatli saqlandi!\n\n📢 Faol kanal: `@{cleaned}`\n(Endi AI bilim bazasi ushbu kanaldan ma'lumot oladi)",
+                "text": (
+                    f"✅ Yangi kanal ulandi va sinxronlandi!\n\n"
+                    f"📢 Kanal: `@{ch.channel_username}`\n"
+                    f"📦 Yuklangan postlar: *{imported} ta*\n\n"
+                    f"Barcha ulangan kanallar ro'yxati: /channels"
+                ),
                 "parse_mode": "Markdown",
             })
             return True

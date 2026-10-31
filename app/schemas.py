@@ -51,3 +51,23 @@ class AdminOut(BaseModel):
 class SettingUpdate(BaseModel):
     value: str
     description: str | None = None
+
+
+class ChannelCreate(BaseModel):
+    channel: str = Field(min_length=1, max_length=255)
+    title: str | None = None
+
+
+class ChannelSyncRequest(BaseModel):
+    channel: str | None = None
+
+
+class ChannelOut(BaseModel):
+    id: int
+    channel_username: str
+    title: str | None = None
+    is_active: bool
+    posts_count: int
+    last_synced_at: str | None = None
+    created_at: str | None = None
+

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import "@tabler/core/dist/css/tabler.min.css";
 import "./globals.css";
 
 export const metadata: Metadata = {

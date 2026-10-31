@@ -12,6 +12,7 @@ from app.core.db import SessionLocal, engine
 from app.core.logging import get_logger, setup_logging
 from app.models import Base
 from app.services import admin_service
+from app.services.telegram import telegram
 
 logger = get_logger(__name__)
 
@@ -37,6 +38,22 @@ async def lifespan(application: FastAPI):
                 logger.info("Owner admin tekshirildi/yaratildi: %s", settings.admin_telegram_id)
         except Exception:
             logger.exception("Owner admin tekshirishda xatolik yuz berdi")
+
+    # Register bot commands in Telegram menu
+    if settings.telegram_bot_token:
+        try:
+            bot_commands = [
+                {"command": "admin", "description": "Admin boshqaruv paneli"},
+                {"command": "help", "description": "Barcha buyruqlar va yordam"},
+                {"command": "channels", "description": "Ulangan Telegram kanallari"},
+                {"command": "sync", "description": "Kanallarni sinxronlash"},
+                {"command": "admins", "description": "Adminlar ro'yxati"},
+                {"command": "mypermissions", "description": "Mening ruxsatlarim"},
+            ]
+            await telegram.call("setMyCommands", {"commands": bot_commands})
+            logger.info("Telegram bot menyu buyruqlari o'rnatildi (setMyCommands)")
+        except Exception:
+            logger.exception("setMyCommands o'rnatishda xatolik yuz berdi")
 
     logger.info("Application ready")
     yield

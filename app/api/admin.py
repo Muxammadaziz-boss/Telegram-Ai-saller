@@ -6,8 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.db import get_db
 from app.core.permissions import ALL_PERMISSIONS, ROLE_DEFAULTS
-from app.models import Admin, ChannelPost, Conversation, Message, Order
-from app.schemas import AdminCreate, AdminOut, AdminReply, AdminUpdatePermission, AdminUpdateRole, SettingUpdate, StatusUpdate
+from app.models import Admin, ChannelPost, ConnectedChannel, Conversation, Message, Order
+from app.schemas import AdminCreate, AdminOut, AdminReply, AdminUpdatePermission, AdminUpdateRole, ChannelCreate, ChannelOut, ChannelSyncRequest, SettingUpdate, StatusUpdate
 from app.services import admin_service, settings_service
 from app.services.telegram import telegram
 
@@ -169,15 +169,115 @@ async def knowledge_posts(db: AsyncSession = Depends(get_db)):
     } for row in rows]
 
 
-@router.post("/knowledge/sync", dependencies=[Depends(require_permission("can_manage_knowledge"))])
-async def sync_knowledge_posts(db: AsyncSession = Depends(get_db)):
-    from app.services.knowledge import knowledge
-    channel = await settings_service.get_public_channel(db)
-    if not channel:
-        raise HTTPException(status_code=400, detail="Faol Telegram kanal sozlanmagan")
-    count = await knowledge.sync_channel_posts(db, channel)
+@router.get("/channels", dependencies=[Depends(require_permission("can_view_knowledge"))])
+async def get_channels(db: AsyncSession = Depends(get_db)):
+    channels = await settings_service.list_channels(db)
+    return [{
+        "id": ch.id,
+        "channel_username": ch.channel_username,
+        "title": ch.title or f"@{ch.channel_username}",
+        "is_active": ch.is_active,
+        "posts_count": ch.posts_count,
+        "last_synced_at": ch.last_synced_at.isoformat() if ch.last_synced_at else None,
+        "created_at": ch.created_at.isoformat() if ch.created_at else None,
+    } for ch in channels]
+
+
+@router.post("/channels", dependencies=[Depends(require_permission("can_manage_knowledge"))])
+async def add_channel(
+    payload: ChannelCreate,
+    db: AsyncSession = Depends(get_db),
+    current_admin: Admin = Depends(get_current_admin),
+):
+    try:
+        import asyncio
+        from app.services.knowledge import knowledge
+        ch = await settings_service.add_channel(
+            db,
+            raw_channel=payload.channel,
+            title=payload.title,
+            added_by=current_admin.telegram_user_id,
+        )
+        await db.commit()
+        await db.refresh(ch)
+        ch_id = ch.id
+        ch_username = ch.channel_username
+        ch_title = ch.title
+        ch_active = ch.is_active
+        ch_posts = ch.posts_count
+        ch_synced = ch.last_synced_at
+        ch_created = ch.created_at
+
+        imported = 0
+        try:
+            imported = await asyncio.wait_for(knowledge.sync_channel_posts(db, ch_username), timeout=12.0)
+            await db.commit()
+        except Exception:
+            await db.rollback()
+
+        return {
+            "ok": True,
+            "channel": {
+                "id": ch_id,
+                "channel_username": ch_username,
+                "title": ch_title,
+                "is_active": ch_active,
+                "posts_count": imported or ch_posts,
+                "last_synced_at": ch_synced.isoformat() if ch_synced else None,
+                "created_at": ch_created.isoformat() if ch_created else None,
+            },
+            "imported_posts": imported,
+        }
+    except ValueError as exc:
+        await db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.delete("/channels/{identifier}", dependencies=[Depends(require_permission("can_manage_knowledge"))])
+async def delete_channel(identifier: str, db: AsyncSession = Depends(get_db)):
+    removed = await settings_service.remove_channel(db, identifier)
+    if not removed:
+        raise HTTPException(status_code=404, detail="Kanal topilmadi")
     await db.commit()
-    return {"ok": True, "channel": channel, "synced_posts": count}
+    return {"ok": True, "identifier": identifier}
+
+
+@router.post("/channels/sync", dependencies=[Depends(require_permission("can_manage_knowledge"))])
+async def sync_channels(
+    payload: ChannelSyncRequest | None = None,
+    db: AsyncSession = Depends(get_db),
+):
+    from app.services.knowledge import knowledge
+    if payload and payload.channel:
+        clean = settings_service.clean_channel_username(payload.channel)
+        cnt = await knowledge.sync_channel_posts(db, clean)
+        await db.commit()
+        return {"ok": True, "synced": {clean: cnt}, "total_synced": cnt}
+    results = await knowledge.sync_all_channels(db)
+    await db.commit()
+    total = sum(results.values())
+    return {"ok": True, "synced": results, "total_synced": total}
+
+
+@router.post("/knowledge/sync", dependencies=[Depends(require_permission("can_manage_knowledge"))])
+async def sync_knowledge_posts(
+    payload: ChannelSyncRequest | None = None,
+    db: AsyncSession = Depends(get_db),
+):
+    from app.services.knowledge import knowledge
+    if payload and payload.channel:
+        clean = settings_service.clean_channel_username(payload.channel)
+        count = await knowledge.sync_channel_posts(db, clean)
+        await db.commit()
+        return {"ok": True, "channel": clean, "synced_posts": count, "channels": {clean: count}}
+
+    results = await knowledge.sync_all_channels(db)
+    await db.commit()
+    total = sum(results.values())
+    channel_names = list(results.keys())
+    primary = channel_names[0] if channel_names else ""
+    return {"ok": True, "channel": primary, "synced_posts": total, "channels": results}
+
 
 
 # ---------------------------------------------------------------------------
@@ -289,9 +389,19 @@ async def get_settings(
     current_admin: Admin = Depends(get_current_admin),
 ):
     channel = await settings_service.get_public_channel(db)
+    channels = await settings_service.list_channels(db)
     all_settings = await settings_service.list_settings(db)
     return {
         "public_channel": channel,
+        "connected_channels": [{
+            "id": ch.id,
+            "channel_username": ch.channel_username,
+            "title": ch.title or f"@{ch.channel_username}",
+            "is_active": ch.is_active,
+            "posts_count": ch.posts_count,
+            "last_synced_at": ch.last_synced_at.isoformat() if ch.last_synced_at else None,
+            "created_at": ch.created_at.isoformat() if ch.created_at else None,
+        } for ch in channels],
         "settings": all_settings,
     }
 
