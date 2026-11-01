@@ -1446,67 +1446,87 @@ export default function Dashboard({ initialAuthenticated = false }: { initialAut
   if (!authenticated) {
     return (
       <div className="page page-center auth-page-wrapper">
-        <div className="container container-tight py-4" style={{ maxWidth: 440 }}>
+        {/* Atmospheric Ambient Lighting & Grid */}
+        <div className="auth-ambient-orb-1" />
+        <div className="auth-ambient-orb-2" />
+        <div className="auth-mesh-grid" />
+
+        <div className="auth-content-container py-4">
           {/* Brand header */}
           <div className="text-center mb-4">
-            <div className="auth-logo-wrapper mb-3">
+            <div className="auth-logo-halo">
               <AppLogo src={logoUrl} size="xl" />
             </div>
-            <h1 className="h1 text-white fw-bold mb-1">
+            <h1 className="auth-brand-title mb-2">
               AI Sales Control Center
             </h1>
-            <div className="text-secondary small d-flex align-items-center justify-content-center gap-2">
-              <span className="badge bg-primary-lt px-2 py-1">Enterprise v2.4</span>
-              <span>•</span>
-              <span>Telegram Business AI Assistenti</span>
+            <div className="d-flex align-items-center justify-content-center gap-2">
+              <div className="auth-version-pill shadow-sm">
+                <span className="status-dot status-dot-animated bg-indigo" />
+                <span>Enterprise v2.4</span>
+                <span className="opacity-40">•</span>
+                <span style={{ color: "rgba(255,255,255,0.75)" }}>Telegram AI Assistenti</span>
+              </div>
             </div>
           </div>
 
           {/* Card */}
-          <div className="card auth-card shadow-lg">
-            <div className="card-body p-4 p-sm-5">
-              <div className="mb-4">
-                <h2 className="h2 text-white fw-bold mb-1">Tizimga kirish</h2>
+          <div className="card auth-card-modern shadow-lg">
+            <div className="card-body p-4 p-sm-4.5">
+              <div className="mb-4 text-center text-sm-start">
+                <h2 className="h2 text-white fw-bold mb-1 d-flex align-items-center gap-2">
+                  <span>Tizimga kirish</span>
+                  <span className="badge bg-indigo-lt text-indigo small fw-normal d-none d-sm-inline-flex" style={{ fontSize: "11px" }}>Secure Auth</span>
+                </h2>
                 <p className="text-secondary small mb-0">Boshqaruv paneliga kirish uchun parolingizni kiriting</p>
               </div>
 
               <form onSubmit={login} autoComplete="off">
                 {/* Admin Telegram ID with live Telegram Avatar */}
-                <div className="mb-3">
-                  <div className="d-flex align-items-center justify-content-between mb-1.5">
-                    <label className="form-label text-secondary small fw-medium mb-0" htmlFor="admin-tg-id">
-                      Admin Telegram ID
+                <div className="mb-3.5">
+                  <div className="d-flex align-items-center justify-content-between mb-2">
+                    <label className="form-label text-secondary small fw-medium mb-0 d-flex align-items-center gap-1.5" htmlFor="admin-tg-id">
+                      <IconUser size={14} className="text-indigo" />
+                      <span>Admin Telegram ID</span>
                     </label>
-                    <span className="text-secondary small" style={{ fontSize: "0.72rem" }}>
-                      Telegram avatari yuklanadi
-                    </span>
+                    {loginTelegramId === "6990611858" ? (
+                      <span className="badge bg-warning-lt text-warning d-inline-flex align-items-center gap-1 py-0.5 px-2 rounded-pill" style={{ fontSize: "11px" }}>
+                        <IconCrown size={12} /> Bosh Admin
+                      </span>
+                    ) : (
+                      <span className="badge bg-secondary-lt text-secondary py-0.5 px-2 rounded-pill" style={{ fontSize: "11px" }}>
+                        ID orqali profil
+                      </span>
+                    )}
                   </div>
-                  <div
-                    className="d-flex align-items-center gap-3 p-2.5 rounded-3 mb-2"
-                    style={{ background: "rgba(255, 255, 255, 0.03)", border: "1px solid rgba(255, 255, 255, 0.08)" }}
-                  >
-                    <div className="position-relative flex-shrink-0" style={{ width: 44, height: 44 }}>
+                  <div className="auth-tg-profile-box">
+                    <div className="auth-tg-avatar-wrap">
                       <img
                         key={loginTelegramId}
                         src={`/api/proxy?path=/admin/users/${loginTelegramId || 6990611858}/avatar`}
                         alt="Telegram Avatar"
-                        className="rounded-circle w-100 h-100 shadow-sm"
-                        style={{ objectFit: "cover", border: "2px solid #007aff" }}
                         onError={(e) => {
-                          (e.target as HTMLImageElement).src = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44"><rect width="44" height="44" rx="22" fill="%23007aff"/><text x="50%" y="54%" font-size="14" font-weight="bold" fill="white" text-anchor="middle" dominant-baseline="middle">TG</text></svg>`;
+                          (e.target as HTMLImageElement).src = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44"><rect width="44" height="44" rx="22" fill="%236366f1"/><text x="50%" y="54%" font-size="14" font-weight="bold" fill="white" text-anchor="middle" dominant-baseline="middle">TG</text></svg>`;
                         }}
                       />
-                      <span
-                        className="position-absolute bg-success rounded-circle"
-                        style={{ width: 10, height: 10, bottom: 0, right: 0, border: "2px solid #171d29" }}
-                        title="Online"
-                      />
+                      <span className="auth-tg-status-dot" title="Online" />
                     </div>
-                    <div className="auth-input-box flex-fill mb-0">
-                      <IconUser size={18} className="text-secondary flex-shrink-0" />
+                    <div className="flex-fill">
+                      <div className="d-flex align-items-center justify-content-between">
+                        <span className="text-secondary" style={{ fontSize: "0.68rem", letterSpacing: "0.03em", textTransform: "uppercase" }}>
+                          Telegram ID Raqami
+                        </span>
+                        {loginTelegramId === "6990611858" && (
+                          <span className="text-green fw-semibold" style={{ fontSize: "0.72rem" }}>
+                            ✓ Muxammadaziz
+                          </span>
+                        )}
+                      </div>
                       <input
                         id="admin-tg-id"
                         type="text"
+                        className="w-100 bg-transparent border-0 p-0 text-white fw-semibold"
+                        style={{ outline: "none", fontSize: "0.95rem" }}
                         placeholder="Telegram ID (masalan: 6990611858)"
                         value={loginTelegramId}
                         onChange={(e) => {
@@ -1519,12 +1539,18 @@ export default function Dashboard({ initialAuthenticated = false }: { initialAut
                   </div>
                 </div>
 
-                <div className="mb-3">
-                  <label className="form-label text-secondary small fw-medium" htmlFor="admin-pwd">
-                    Admin paroli
-                  </label>
-                  <div className="auth-input-box">
-                    <IconKey size={18} className="text-secondary flex-shrink-0" />
+                <div className="mb-3.5">
+                  <div className="d-flex align-items-center justify-content-between mb-2">
+                    <label className="form-label text-secondary small fw-medium mb-0 d-flex align-items-center gap-1.5" htmlFor="admin-pwd">
+                      <IconKey size={14} className="text-indigo" />
+                      <span>Admin paroli</span>
+                    </label>
+                    <span className="text-secondary" style={{ fontSize: "0.72rem" }}>
+                      Xavfsiz kalit
+                    </span>
+                  </div>
+                  <div className="auth-input-modern">
+                    <IconLock size={18} className="text-secondary flex-shrink-0 me-1" />
                     <input
                       id="admin-pwd"
                       type={showPassword ? "text" : "password"}
@@ -1541,8 +1567,9 @@ export default function Dashboard({ initialAuthenticated = false }: { initialAut
                       onClick={() => setShowPassword(!showPassword)}
                       title={showPassword ? "Parolni yashirish" : "Parolni ko'rsatish"}
                       tabIndex={-1}
+                      style={{ width: 32, height: 32, borderRadius: 8 }}
                     >
-                      {showPassword ? <IconEyeOff size={18} /> : <IconEye size={18} />}
+                      {showPassword ? <IconEyeOff size={16} /> : <IconEye size={16} />}
                     </button>
                   </div>
                 </div>
@@ -1557,47 +1584,51 @@ export default function Dashboard({ initialAuthenticated = false }: { initialAut
                 <div className="mt-4">
                   <button
                     type="submit"
-                    className="btn btn-primary btn-auth-submit w-100 d-flex align-items-center justify-content-center gap-2"
+                    className="btn btn-auth-gradient w-100"
                     disabled={loggingIn || !password}
                   >
                     {loggingIn ? (
                       <>
-                        <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                        <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true" />
                         <span>Tekshirilmoqda...</span>
                       </>
                     ) : (
-                      <span>Kirish</span>
+                      <>
+                        <span>Boshqaruv Paneliga Kirish</span>
+                        <IconArrowUpRight size={18} />
+                      </>
                     )}
                   </button>
                 </div>
               </form>
 
               {/* Status and logo configure footer */}
-              <div className="d-flex align-items-center justify-content-between pt-4 mt-4 border-top border-secondary-subtle small">
-                <span className="d-flex align-items-center gap-1 text-success">
-                  <span className="status-dot status-dot-animated bg-success me-1"></span>
-                  Tizim holati: Online
-                </span>
+              <div className="d-flex align-items-center justify-content-between pt-3 mt-4 border-top border-white border-opacity-10 small">
+                <div className="d-flex align-items-center gap-1.5 text-success">
+                  <span className="status-dot status-dot-animated bg-success" />
+                  <span className="small fw-semibold" style={{ color: "#34d399" }}>Tizim holati: Online</span>
+                </div>
                 <button
                   type="button"
-                  className="btn btn-link btn-sm text-secondary text-decoration-none p-0 d-flex align-items-center gap-1"
+                  className="btn btn-sm btn-ghost-secondary text-secondary text-decoration-none d-flex align-items-center gap-1.5 px-2.5 py-1 rounded-pill"
                   onClick={() => {
                     setCustomLogoInput(logoUrl);
                     setShowLogoModal(true);
                   }}
+                  style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}
                 >
-                  <IconPhoto size={14} />
-                  <span>Logotipni sozlash</span>
+                  <IconPalette size={13} className="text-primary" />
+                  <span className="text-secondary small">Logotipni sozlash</span>
                 </button>
               </div>
             </div>
           </div>
 
-          <div className="text-center text-secondary small mt-3">
-            <span className="d-inline-flex align-items-center gap-1">
-              <IconLock size={13} className="text-success" />
-              256-bit shifrlangan xavfsiz ulanish
-            </span>
+          <div className="text-center mt-3.5">
+            <div className="auth-security-badge d-inline-flex align-items-center gap-1.5">
+              <IconShieldLock size={13} style={{ color: "#10b981" }} />
+              <span>256-bit AES shifrlangan xavfsiz ulanish</span>
+            </div>
           </div>
         </div>
 
