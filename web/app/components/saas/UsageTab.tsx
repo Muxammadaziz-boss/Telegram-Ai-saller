@@ -306,3 +306,4 @@ export function UsageTab({ usageData, loading, onRefresh, onUpgradeClick }: Usag
     </div>
   );
 }
+

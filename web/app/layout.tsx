@@ -9,12 +9,16 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="uz" suppressHydrationWarning>
+    <html lang="uz" data-bs-theme="dark" className="theme-dark" suppressHydrationWarning>
       <head>
         <script
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
+                try {
+                  document.documentElement.setAttribute('data-bs-theme', 'dark');
+                  document.documentElement.classList.add('theme-dark');
+                } catch(e) {}
                 window.addEventListener('error', function(e) {
                   if (e.filename && e.filename.includes('chrome-extension://')) {
                     e.stopImmediatePropagation();
@@ -45,7 +49,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           }}
         />
       </head>
-      <body suppressHydrationWarning>{children}</body>
+      <body className="theme-dark" style={{ backgroundColor: "#0c0d12", color: "#f8fafc" }} suppressHydrationWarning>{children}</body>
     </html>
   );
 }

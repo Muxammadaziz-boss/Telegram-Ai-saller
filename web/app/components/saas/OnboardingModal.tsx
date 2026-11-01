@@ -423,3 +423,4 @@ export function OnboardingModal({ isOpen, onClose, onComplete }: OnboardingModal
     </div>
   );
 }
+

@@ -108,3 +108,4 @@ export function UpgradeModal({
     </div>
   );
 }
+

@@ -490,7 +490,18 @@ function MiniSparkline({
 export default function Dashboard({ initialAuthenticated = false }: { initialAuthenticated?: boolean }) {
   const [tab, setTab] = useState<
     "overview" | "inbox" | "knowledge" | "products" | "orders" | "customers" | "analytics" | "settings" | "admins" | "team" | "logs" | "profile" | "usage" | "billing" | "pricing" | "platform"
-  >("overview");
+  >(() => {
+    if (typeof window !== "undefined" && window.location.hash) {
+      const h = window.location.hash.replace("#", "");
+      const valid = [
+        "overview", "inbox", "knowledge", "products", "orders", "customers",
+        "analytics", "settings", "admins", "team", "logs", "profile",
+        "usage", "billing", "pricing", "platform"
+      ];
+      if (valid.includes(h)) return h as any;
+    }
+    return "overview";
+  });
 
   // SaaS Multi-Tenant & Subscription States
   const [userOrganizations, setUserOrganizations] = useState<any[]>([]);
@@ -669,6 +680,10 @@ export default function Dashboard({ initialAuthenticated = false }: { initialAut
       "team",
       "logs",
       "profile",
+      "usage",
+      "billing",
+      "pricing",
+      "platform",
     ];
 
     const syncFromHash = () => {
@@ -2071,18 +2086,18 @@ export default function Dashboard({ initialAuthenticated = false }: { initialAut
             <div className="nav-item dropdown ms-2 position-relative">
               <button
                 type="button"
-                className="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1.5 rounded-pill px-3"
+                className="btn btn-sm btn-outline-secondary d-flex align-items-center gap-2 rounded-pill px-3"
                 onClick={() => setShowOrgDropdown(!showOrgDropdown)}
-                style={{ height: 38, borderColor: "rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.03)" }}
+                style={{ height: 38, borderColor: "rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.04)" }}
               >
-                <IconBuildingSkyscraper size={16} className="text-primary" />
-                <span className="fw-semibold text-white small text-truncate" style={{ maxWidth: 130 }}>
+                <IconBuildingSkyscraper size={16} className="text-primary flex-shrink-0" />
+                <span className="fw-semibold text-white small text-truncate" style={{ maxWidth: 140 }}>
                   {userOrganizations.find((o) => o.id === activeOrgId)?.name || "AI Sales Central"}
                 </span>
                 <span className="badge bg-primary text-white text-uppercase" style={{ fontSize: "10px" }}>
                   {subscriptionData?.plan?.name || "PRO"}
                 </span>
-                <IconChevronDown size={14} className="text-secondary" />
+                <IconChevronDown size={14} className="text-secondary flex-shrink-0" />
               </button>
               {showOrgDropdown && (
                 <div
@@ -2797,12 +2812,12 @@ export default function Dashboard({ initialAuthenticated = false }: { initialAut
                         <hr className="my-2.5" />
                         <button
                           type="button"
-                          className="btn btn-outline-primary btn-sm w-100 d-flex align-items-center justify-content-center gap-1.5 text-nowrap"
+                          className="btn btn-outline-primary btn-sm w-100 d-flex align-items-center justify-content-center gap-2 py-2 px-3 text-nowrap"
                           onClick={handleSyncKnowledge}
                           disabled={busy}
                         >
-                          <IconRefresh size={16} className={busy ? "spin" : ""} />
-                          <span className="text-nowrap">Kanalni hozir tekshirish</span>
+                          <IconRefresh size={16} className={`flex-shrink-0 ${busy ? "spin" : ""}`} />
+                          <span className="text-nowrap fw-medium">Kanalni hozir tekshirish</span>
                         </button>
                       </div>
                     </div>
