@@ -25,10 +25,15 @@ class TelegramService:
             raise TelegramAPIError("TELEGRAM_BOT_TOKEN sozlanmagan")
         client = self._get_client()
         response = await client.post(f"{self.base_url}/{method}", json=payload)
-        response.raise_for_status()
-        result = response.json()
-        if not result.get("ok"):
-            raise TelegramAPIError(result.get("description", f"Telegram {method} xatosi"))
+        try:
+            result = response.json()
+        except Exception:
+            response.raise_for_status()
+            raise TelegramAPIError(f"Telegram {method} xatosi: HTTP {response.status_code}")
+
+        if not response.is_success or not result.get("ok"):
+            err_desc = result.get("description", f"Telegram {method} xatosi (HTTP {response.status_code})")
+            raise TelegramAPIError(err_desc)
         return result.get("result", {})
 
     async def read_business_message(
@@ -64,10 +69,15 @@ class TelegramService:
             return False
 
     async def send_business_text(self, business_connection_id: str, chat_id: int, text: str) -> dict:
+        if not business_connection_id:
+            raise TelegramAPIError("Suhbat uchun Telegram Business ulanishi topilmadi")
+        clean_text = (text or "").strip()
+        if not clean_text:
+            raise TelegramAPIError("Xabar matni bo'sh bo'lishi mumkin emas")
         return await self.call("sendMessage", {
             "business_connection_id": business_connection_id,
             "chat_id": chat_id,
-            "text": text[:4096],
+            "text": clean_text[:4096],
         })
 
 
@@ -188,6 +198,39 @@ class TelegramService:
             response.raise_for_status()
         destination.write_bytes(response.content)
         return destination
+
+    async def get_user_profile_photo_bytes(self, user_id: int) -> bytes | None:
+        import time
+        if not hasattr(self, "_avatar_cache"):
+            self._avatar_cache = {}
+        now = time.time()
+        if user_id in self._avatar_cache:
+            ts, cached_data = self._avatar_cache[user_id]
+            if now - ts < 1800:
+                return cached_data
+
+        try:
+            res = await self.call("getUserProfilePhotos", {"user_id": user_id, "limit": 1})
+            photos = res.get("photos", [])
+            if not photos or not photos[0]:
+                self._avatar_cache[user_id] = (now, None)
+                return None
+            photo_size = photos[0][1] if len(photos[0]) > 1 else photos[0][0]
+            file_id = photo_size["file_id"]
+            file_info = await self.call("getFile", {"file_id": file_id})
+            file_path = file_info["file_path"]
+            url = f"https://api.telegram.org/file/bot{settings.telegram_bot_token}/{file_path}"
+            client = self._get_client()
+            response = await client.get(url)
+            if response.status_code == 200:
+                data = response.content
+                self._avatar_cache[user_id] = (now, data)
+                return data
+        except Exception:
+            pass
+
+        self._avatar_cache[user_id] = (now, None)
+        return None
 
 
 telegram = TelegramService()

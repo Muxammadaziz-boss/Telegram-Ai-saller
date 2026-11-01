@@ -1,6 +1,7 @@
 import hmac
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi.responses import Response
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
@@ -9,7 +10,7 @@ from app.core.permissions import ALL_PERMISSIONS, ROLE_DEFAULTS
 from app.models import Admin, ChannelPost, ConnectedChannel, Conversation, Message, Order
 from app.schemas import AdminCreate, AdminOut, AdminReply, AdminUpdatePermission, AdminUpdateRole, ChannelCreate, ChannelOut, ChannelSyncRequest, SettingUpdate, StatusUpdate
 from app.services import admin_service, settings_service
-from app.services.telegram import telegram
+from app.services.telegram import TelegramAPIError, telegram
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -95,8 +96,8 @@ async def overview(
 
 
 @router.get("/conversations", dependencies=[Depends(require_permission("can_view_conversations"))])
-async def list_conversations(db: AsyncSession = Depends(get_db)):
-    rows = (await db.execute(select(Conversation).order_by(Conversation.last_message_at.desc()).limit(100))).scalars().all()
+async def list_conversations(limit: int = 500, offset: int = 0, db: AsyncSession = Depends(get_db)):
+    rows = (await db.execute(select(Conversation).order_by(Conversation.last_message_at.desc()).offset(offset).limit(limit))).scalars().all()
     return [{
         "id": row.id,
         "customer_name": row.customer_name,
@@ -142,17 +143,50 @@ async def admin_reply(conversation_id: int, payload: AdminReply, db: AsyncSessio
     row = await db.get(Conversation, conversation_id)
     if row is None:
         raise HTTPException(status_code=404, detail="Suhbat topilmadi")
-    sent = await telegram.send_business_text(row.business_connection_id, row.chat_id, payload.text)
+    if not payload.text or not payload.text.strip():
+        raise HTTPException(status_code=400, detail="Xabar matni bo'sh bo'lishi mumkin emas")
+
+    try:
+        sent = await telegram.send_business_text(row.business_connection_id, row.chat_id, payload.text)
+    except TelegramAPIError as exc:
+        err_msg = str(exc)
+        if "BUSINESS_PEER_INVALID" in err_msg:
+            detail = "Telegram xabari yuborilmadi: Ushbu mijoz bilan Telegram Business ulanishi faol emas (BUSINESS_PEER_INVALID). Mijoz biznes profilingizga yangitdan xabar yozishi lozim."
+        elif "BUSINESS_PEER_USAGE_MISSING" in err_msg:
+            detail = "Telegram xabari yuborilmadi: Ushbu chatda botning biznes ruxsati yetarli emas (BUSINESS_PEER_USAGE_MISSING)."
+        elif "CHAT_NOT_FOUND" in err_msg:
+            detail = "Telegram xabari yuborilmadi: Telegram chat topilmadi (CHAT_NOT_FOUND)."
+        elif "MESSAGE_TOO_LONG" in err_msg:
+            detail = "Telegram xabari yuborilmadi: Xabar matni ruxsat etilgan hajmdan oshib ketdi."
+        else:
+            detail = f"Telegram xabari yuborilmadi: {err_msg}"
+        raise HTTPException(status_code=400, detail=detail)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Xabar yuborishda kutilmagan xatolik: {exc}")
+
+    msg_id = int(sent.get("message_id", 0)) if isinstance(sent, dict) else 0
     db.add(Message(
         conversation_id=row.id,
-        telegram_message_id=int(sent["message_id"]),
+        telegram_message_id=msg_id,
         direction="admin",
-        text=payload.text,
+        text=payload.text.strip(),
     ))
     row.status = "human_takeover"
     row.last_message_at = datetime.now(timezone.utc)
     await db.commit()
     return {"ok": True}
+
+
+@router.api_route("/users/{user_id}/avatar", methods=["GET", "HEAD"])
+async def get_user_avatar(user_id: int):
+    photo_bytes = await telegram.get_user_profile_photo_bytes(user_id)
+    if not photo_bytes:
+        raise HTTPException(status_code=404, detail="Profil rasmi topilmadi")
+    return Response(
+        content=photo_bytes,
+        media_type="image/jpeg",
+        headers={"Cache-Control": "public, max-age=3600"},
+    )
 
 
 @router.get("/knowledge", dependencies=[Depends(require_permission("can_view_knowledge"))])
@@ -167,6 +201,16 @@ async def knowledge_posts(db: AsyncSession = Depends(get_db)):
         "source_url": row.source_url,
         "posted_at": row.posted_at.isoformat() if row.posted_at else None,
     } for row in rows]
+
+
+@router.delete("/knowledge/{post_id}", dependencies=[Depends(require_permission("can_manage_knowledge"))])
+async def delete_knowledge_post(post_id: int, db: AsyncSession = Depends(get_db)):
+    row = await db.get(ChannelPost, post_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Post topilmadi")
+    await db.delete(row)
+    await db.commit()
+    return {"ok": True, "deleted_id": post_id}
 
 
 @router.get("/channels", dependencies=[Depends(require_permission("can_view_knowledge"))])

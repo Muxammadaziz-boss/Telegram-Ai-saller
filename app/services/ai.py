@@ -41,7 +41,7 @@ class SalesAI:
     async def _generate_gemini(self, instructions: str, payload_str: str) -> dict:
         client = self._get_http_client()
         candidate_models = [self.gemini_model]
-        for fallback in ("gemini-3.5-flash-lite", "gemini-3.8-flash"):
+        for fallback in ("gemini-3.1-flash-lite", "gemini-3.5-flash", "gemini-flash-latest", "gemini-3.5-flash-lite"):
             if fallback not in candidate_models:
                 candidate_models.append(fallback)
 
@@ -62,7 +62,7 @@ class SalesAI:
                 }
             }
             try:
-                resp = await client.post(url, json=body, timeout=25.0)
+                resp = await client.post(url, json=body, timeout=12.0)
                 resp.raise_for_status()
                 data = resp.json()
                 raw_text = data["candidates"][0]["content"]["parts"][0]["text"]

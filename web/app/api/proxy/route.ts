@@ -6,13 +6,14 @@ async function proxy(request: NextRequest) {
   const token = process.env.ADMIN_API_TOKEN;
   const sessionSecret = process.env.SESSION_SECRET || "";
   const session = request.cookies.get(sessionCookieName)?.value;
-  if (!isValidSessionToken(session, sessionSecret)) {
+  const path = request.nextUrl.searchParams.get("path") || "";
+  const isAvatarPath = /^\/admin\/users\/\d+\/avatar$/.test(path);
+  if (!isAvatarPath && !isValidSessionToken(session, sessionSecret)) {
     return NextResponse.json({ detail: "Avval admin panelga kiring" }, { status: 401 });
   }
   if (!backend || !token) {
     return NextResponse.json({ detail: "BACKEND_URL yoki ADMIN_API_TOKEN sozlanmagan" }, { status: 500 });
   }
-  const path = request.nextUrl.searchParams.get("path") || "";
   if (!path.startsWith("/admin/")) {
     return NextResponse.json({ detail: "Proxy path ruxsat etilmagan" }, { status: 400 });
   }
@@ -25,10 +26,14 @@ async function proxy(request: NextRequest) {
   if (request.method !== "GET" && request.method !== "HEAD") init.body = await request.text();
   try {
     const response = await fetch(target, init);
-    const data = await response.text();
+    const contentType = response.headers.get("content-type") || "application/json";
+    const data = await response.arrayBuffer();
     return new NextResponse(data, {
       status: response.status,
-      headers: { "Content-Type": response.headers.get("content-type") || "application/json" },
+      headers: {
+        "Content-Type": contentType,
+        "Cache-Control": response.headers.get("cache-control") || "no-store",
+      },
     });
   } catch {
     return NextResponse.json({ detail: "Backend bilan aloqa yo'q" }, { status: 502 });
@@ -36,6 +41,7 @@ async function proxy(request: NextRequest) {
 }
 
 export const GET = proxy;
+export const HEAD = proxy;
 export const POST = proxy;
 export const PATCH = proxy;
 export const DELETE = proxy;

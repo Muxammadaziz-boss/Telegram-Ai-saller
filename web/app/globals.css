@@ -22,13 +22,13 @@ body {
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
 }
 
-/* Smooth spinning for refresh indicators */
+/* Smooth counter-clockwise spinning for refresh indicators (soat miliga qarama-qarshi) */
 @keyframes spin {
   from {
     transform: rotate(0deg);
   }
   to {
-    transform: rotate(360deg);
+    transform: rotate(-360deg);
   }
 }
 
@@ -40,7 +40,8 @@ body {
 .chat-history-container {
   height: 480px;
   overflow-y: auto;
-  padding: 1rem;
+  padding: 1rem 1.25rem 2rem 1.25rem;
+  background: rgba(0, 0, 0, 0.15);
 }
 
 .chat-history-container::-webkit-scrollbar {
@@ -53,8 +54,10 @@ body {
 
 /* Conversation list scroll container */
 .conversations-scroll-container {
-  max-height: 560px;
+  max-height: calc(100vh - 280px);
+  min-height: 520px;
   overflow-y: auto;
+  scroll-behavior: smooth;
 }
 
 .conversations-scroll-container::-webkit-scrollbar {
@@ -64,3 +67,611 @@ body {
   background: var(--tblr-border-color);
   border-radius: 4px;
 }
+
+/* ==========================================================================
+   INTERACTIVE LIVE STATS CARDS & MINI SPARKLINES
+   ========================================================================== */
+
+.stat-card-interactive {
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s ease, border-color 0.22s ease;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  border-radius: 12px;
+}
+
+.stat-card-interactive:hover {
+  transform: translateY(-3px);
+}
+
+.stat-card-blue:hover {
+  box-shadow: 0 12px 28px -5px rgba(32, 107, 196, 0.25);
+  border-color: rgba(32, 107, 196, 0.5) !important;
+}
+
+.stat-card-green:hover {
+  box-shadow: 0 12px 28px -5px rgba(47, 179, 68, 0.25);
+  border-color: rgba(47, 179, 68, 0.5) !important;
+}
+
+.stat-card-amber:hover {
+  box-shadow: 0 12px 28px -5px rgba(245, 159, 0, 0.25);
+  border-color: rgba(245, 159, 0, 0.5) !important;
+}
+
+.stat-card-purple:hover {
+  box-shadow: 0 12px 28px -5px rgba(174, 62, 201, 0.25);
+  border-color: rgba(174, 62, 201, 0.5) !important;
+}
+
+.stat-icon-badge {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: transform 0.22s ease;
+}
+
+.stat-card-interactive:hover .stat-icon-badge {
+  transform: scale(1.1);
+}
+
+.sparkline-svg {
+  width: 100%;
+  height: 38px;
+  overflow: visible;
+  display: block;
+}
+
+@keyframes sparkline-pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.28);
+    opacity: 0.85;
+  }
+}
+
+.sparkline-dot {
+  animation: sparkline-pulse 2.2s ease-in-out infinite;
+  box-sizing: border-box;
+}
+
+.live-pulse-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  color: #22c55e;
+  font-weight: 500;
+}
+
+/* ==========================================================================
+   PREMIUM AUTHENTICATION PAGE & LOGO STYLING (CLEAN & SEAMLESS)
+   ========================================================================== */
+
+.auth-page-wrapper {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  background-color: #0b0f17;
+  background-image: radial-gradient(circle at 50% 12%, rgba(37, 99, 235, 0.14) 0%, rgba(11, 15, 23, 0) 60%);
+  padding: 1.5rem;
+}
+
+.auth-card {
+  background: rgba(18, 24, 38, 0.96);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 2px solid #3b82f6;
+  border-radius: 16px;
+  box-shadow: 
+    0 24px 60px -15px rgba(0, 0, 0, 0.7),
+    0 0 35px -5px rgba(37, 99, 235, 0.12);
+  position: relative;
+  overflow: hidden;
+}
+
+.auth-logo-wrapper {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0 8px 20px rgba(37, 99, 235, 0.35));
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.auth-logo-wrapper:hover {
+  transform: scale(1.05);
+}
+
+/* Seamless Unified Password Input Container */
+.auth-input-box {
+  display: flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 0 8px 0 14px;
+  transition: all 0.2s ease;
+}
+
+.auth-input-box:focus-within {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.22);
+}
+
+.auth-input-box input {
+  flex: 1;
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  color: #f8fafc;
+  padding: 11px 10px;
+  font-size: 0.95rem;
+}
+
+.auth-input-box input::placeholder {
+  color: #64748b;
+  font-size: 0.88rem;
+}
+
+.btn-auth-submit {
+  background: #206bc4;
+  border: none;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  padding: 0.72rem 1.25rem;
+  border-radius: 8px;
+  color: #ffffff;
+  font-size: 0.95rem;
+  box-shadow: 0 4px 14px rgba(32, 107, 196, 0.35);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-auth-submit:hover:not(:disabled) {
+  background: #1a569d;
+  box-shadow: 0 6px 20px rgba(32, 107, 196, 0.45);
+  transform: translateY(-1px);
+}
+
+.btn-auth-submit:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.app-brand-logo-container {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.app-brand-logo-container img {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+/* ==========================================================================
+   CHAT MESSAGES: INCOMING (LEFT) & OUTGOING (RIGHT)
+   ========================================================================== */
+
+.chat-bubble-custom {
+  padding: 8px 13px 6px 13px;
+  position: relative;
+  transition: all 0.15s ease;
+  word-break: break-word;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  min-width: 90px;
+}
+
+/* User / Customer Message (LEFT) */
+.bubble-incoming {
+  background: #1e293b;
+  color: #f1f5f9;
+  border-radius: 14px 14px 14px 3px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Admin / AI Assistant Message (RIGHT) */
+.bubble-outgoing {
+  background: #2b5278;
+  color: #ffffff;
+  border-radius: 14px 14px 3px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.chat-sender-tag {
+  font-size: 0.72rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 2px;
+  letter-spacing: 0.01em;
+}
+
+.chat-time-tag {
+  font-size: 0.68rem;
+  letter-spacing: 0.02em;
+  user-select: none;
+  line-height: 1;
+}
+
+/* ==========================================================================
+   COLLAPSIBLE SIDEBAR (MINI / COMPACT SIDEBAR)
+   ========================================================================== */
+
+@media (min-width: 992px) {
+  .navbar-vertical {
+    transition: width 0.22s cubic-bezier(0.16, 1, 0.3, 1), min-width 0.22s ease !important;
+  }
+
+  .navbar-vertical ~ .page-wrapper {
+    transition: margin-left 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  }
+
+  .navbar-vertical.navbar-vertical-collapsed {
+    width: 72px !important;
+    min-width: 72px !important;
+  }
+
+  .navbar-vertical.navbar-vertical-collapsed ~ .page-wrapper {
+    margin-left: 72px !important;
+  }
+
+  .navbar-vertical.navbar-vertical-collapsed .navbar-brand {
+    justify-content: center !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  .navbar-vertical.navbar-vertical-collapsed .app-brand-text,
+  .navbar-vertical.navbar-vertical-collapsed .nav-link-title,
+  .navbar-vertical.navbar-vertical-collapsed .nav-section-title,
+  .navbar-vertical.navbar-vertical-collapsed .user-info-text {
+    display: none !important;
+  }
+
+  .navbar-vertical.navbar-vertical-collapsed .nav-section-divider {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.08);
+    margin: 8px 12px;
+    display: block !important;
+  }
+
+  .navbar-vertical.navbar-vertical-collapsed .nav-link {
+    justify-content: center !important;
+    padding: 0.65rem 0 !important;
+    margin: 3px 8px !important;
+  }
+
+  .navbar-vertical.navbar-vertical-collapsed .nav-link-icon {
+    margin-right: 0 !important;
+  }
+
+  .navbar-vertical.navbar-vertical-collapsed .sidebar-badge,
+  .navbar-vertical.navbar-vertical-collapsed .badge {
+    display: none !important;
+  }
+
+  .navbar-vertical.navbar-vertical-collapsed .sidebar-user-card {
+    justify-content: center !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  .navbar-vertical.navbar-vertical-collapsed .sidebar-user-card .avatar {
+    margin-right: 0 !important;
+  }
+}
+
+.cursor-pointer {
+  cursor: pointer;
+}
+
+.hover-bg {
+  transition: background 0.15s ease;
+}
+
+.hover-bg:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* ==========================================================================
+   ADMIN NAVBAR AVATAR BUTTON (PERFECT CIRCLE, NO GLITCHES)
+   ========================================================================== */
+
+.admin-navbar-avatar-btn {
+  width: 38px !important;
+  height: 38px !important;
+  min-width: 38px !important;
+  min-height: 38px !important;
+  max-width: 38px !important;
+  max-height: 38px !important;
+  border-radius: 50% !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: 2px solid rgba(255, 255, 255, 0.22) !important;
+  background: #1e293b !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  position: relative !important;
+  cursor: pointer !important;
+  outline: none !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25) !important;
+  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.18s ease, box-shadow 0.18s ease !important;
+}
+
+.admin-navbar-avatar-btn:hover {
+  transform: scale(1.08) !important;
+  border-color: rgba(255, 255, 255, 0.6) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35) !important;
+}
+
+.admin-navbar-avatar-btn:active {
+  transform: scale(0.96) !important;
+}
+
+.admin-navbar-avatar-btn.active {
+  border-color: #007aff !important;
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.4), 0 2px 10px rgba(0, 122, 255, 0.35) !important;
+}
+
+.admin-navbar-avatar-img {
+  width: 100% !important;
+  height: 100% !important;
+  border-radius: 50% !important;
+  object-fit: cover !important;
+  display: block !important;
+}
+
+.admin-navbar-avatar-fallback {
+  width: 100% !important;
+  height: 100% !important;
+  border-radius: 50% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: linear-gradient(135deg, #007aff 0%, #0051a8 100%) !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  font-size: 0.82rem !important;
+  letter-spacing: 0.02em !important;
+}
+
+.admin-navbar-avatar-status {
+  position: absolute !important;
+  bottom: -1px !important;
+  right: -1px !important;
+  width: 10px !important;
+  height: 10px !important;
+  border-radius: 50% !important;
+  background: #2fb344 !important;
+  border: 2px solid #0f172a !important;
+  box-shadow: 0 0 4px rgba(47, 179, 68, 0.8) !important;
+  pointer-events: none !important;
+}
+
+/* ==========================================================================
+   APPLE iOS HUMAN INTERFACE DESIGN SYSTEM ([data-ui-style="ios"])
+   ========================================================================== */
+
+[data-ui-style="ios"] {
+  --tblr-primary: #007aff;
+  --tblr-primary-rgb: 0, 122, 255;
+  --tblr-border-radius: 18px;
+}
+
+[data-ui-style="ios"] body {
+  background: #000000 !important;
+  background-image: 
+    radial-gradient(circle at 50% 0%, rgba(0, 122, 255, 0.16) 0%, transparent 55%),
+    radial-gradient(circle at 85% 25%, rgba(175, 82, 222, 0.1) 0%, transparent 45%),
+    radial-gradient(circle at 15% 75%, rgba(48, 209, 88, 0.07) 0%, transparent 45%) !important;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", sans-serif !important;
+  letter-spacing: -0.01em;
+}
+
+/* iOS Floating Dynamic Island Header */
+[data-ui-style="ios"] .navbar-floating {
+  background: rgba(28, 28, 30, 0.75) !important;
+  backdrop-filter: blur(30px) saturate(210%) !important;
+  -webkit-backdrop-filter: blur(30px) saturate(210%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border-radius: 9999px !important;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.55), 0 0 0 0.5px rgba(255, 255, 255, 0.2) inset !important;
+  padding: 6px 16px !important;
+}
+
+/* iOS Floating Sidebar */
+[data-ui-style="ios"] .navbar-vertical {
+  background: rgba(22, 22, 24, 0.78) !important;
+  backdrop-filter: blur(28px) saturate(200%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(200%) !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+[data-ui-style="ios"] .navbar-vertical .nav-item.active .nav-link {
+  background: #007aff !important;
+  color: #ffffff !important;
+  border-radius: 12px !important;
+  box-shadow: 0 4px 14px rgba(0, 122, 255, 0.45) !important;
+}
+
+[data-ui-style="ios"] .navbar-vertical .nav-link {
+  border-radius: 12px !important;
+  margin: 3px 10px !important;
+  font-weight: 500;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+/* iOS Frosted Glass Cards */
+[data-ui-style="ios"] .card {
+  background: rgba(28, 28, 30, 0.74) !important;
+  backdrop-filter: blur(24px) saturate(190%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(190%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 20px !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.42) !important;
+}
+
+[data-ui-style="ios"] .card-header {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+  background: transparent !important;
+}
+
+[data-ui-style="ios"] .card-footer {
+  border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+  background: transparent !important;
+}
+
+/* iOS Pill Buttons */
+[data-ui-style="ios"] .btn {
+  border-radius: 9999px !important;
+  font-weight: 500;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+[data-ui-style="ios"] .btn:active {
+  transform: scale(0.97);
+}
+
+[data-ui-style="ios"] .btn-primary {
+  background: #007aff !important;
+  border-color: #007aff !important;
+  box-shadow: 0 4px 16px rgba(0, 122, 255, 0.45) !important;
+}
+
+/* iOS Form Inputs */
+[data-ui-style="ios"] .form-control,
+[data-ui-style="ios"] .form-select {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 14px !important;
+  color: #ffffff !important;
+}
+
+[data-ui-style="ios"] .form-control:focus,
+[data-ui-style="ios"] .form-select:focus {
+  background: rgba(255, 255, 255, 0.12) !important;
+  border-color: #007aff !important;
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.3) !important;
+}
+
+/* iOS Badges: Capsule shaped */
+[data-ui-style="ios"] .badge {
+  border-radius: 9999px !important;
+  padding: 4px 10px !important;
+  font-weight: 600 !important;
+  font-size: 0.72rem !important;
+}
+
+/* iOS Progress Bars */
+[data-ui-style="ios"] .progress {
+  border-radius: 9999px !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+}
+
+[data-ui-style="ios"] .progress-bar {
+  border-radius: 9999px !important;
+}
+
+/* iOS Chat: Clean Apple iMessage Style */
+[data-ui-style="ios"] .bubble-incoming {
+  background: rgba(255, 255, 255, 0.12) !important;
+  color: #ffffff !important;
+  border-radius: 16px 16px 16px 4px !important;
+  border: none !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15) !important;
+}
+
+[data-ui-style="ios"] .bubble-outgoing {
+  background: #007aff !important;
+  color: #ffffff !important;
+  border-radius: 16px 16px 4px 16px !important;
+  border: none !important;
+  box-shadow: 0 2px 6px rgba(0, 122, 255, 0.25) !important;
+}
+
+/* ==========================================================================
+   FLOATING TOAST NOTIFICATIONS (Top-Right Glassmorphism)
+   ========================================================================== */
+@keyframes toastSlideIn {
+  0% {
+    transform: translateX(115%) scale(0.92);
+    opacity: 0;
+  }
+  60% {
+    transform: translateX(-4%) scale(1.01);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(0) scale(1);
+    opacity: 1;
+  }
+}
+
+.toast-slide-in {
+  animation: toastSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.toast-container-fixed {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 99999;
+  pointer-events: none;
+  max-width: 420px;
+  width: calc(100% - 40px);
+}
+
+.toast-floating {
+  pointer-events: auto;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  transition: all 0.2s ease;
+}
+
+.toast-floating:hover {
+  transform: translateY(-2px);
+}
+
+/* ==========================================================================
+   HIGH-CONTRAST CLARITY & ACCESSIBILITY (Dark Mode Text & Headers)
+   ========================================================================== */
+[data-bs-theme="dark"] .card-title,
+[data-bs-theme="dark"] .card-header .card-title,
+[data-bs-theme="dark"] .card-header h3,
+[data-bs-theme="dark"] .card-header h4 {
+  color: #ffffff !important;
+  font-weight: 600;
+}
+
+[data-bs-theme="dark"] .card-header span:not(.badge):not(.status-dot) {
+  color: #ffffff;
+}
+
+[data-bs-theme="dark"] .text-secondary {
+  color: rgba(255, 255, 255, 0.65) !important;
+}
+
+[data-bs-theme="dark"] .list-group-item {
+  color: #ffffff;
+}
+
+
