@@ -14,13 +14,21 @@ async function proxy(request: NextRequest) {
   if (!backend || !token) {
     return NextResponse.json({ detail: "BACKEND_URL yoki ADMIN_API_TOKEN sozlanmagan" }, { status: 500 });
   }
-  if (!path.startsWith("/admin/")) {
+  if (!path.startsWith("/admin/") && !path.startsWith("/api/")) {
     return NextResponse.json({ detail: "Proxy path ruxsat etilmagan" }, { status: 400 });
   }
   const target = `${backend.replace(/\/$/, "")}${path}`;
+  const orgId = request.headers.get("x-organization-id") || request.nextUrl.searchParams.get("organization_id");
+  const headers: Record<string, string> = {
+    "X-Admin-Token": token,
+    "Content-Type": "application/json",
+  };
+  if (orgId) {
+    headers["X-Organization-Id"] = orgId;
+  }
   const init: RequestInit = {
     method: request.method,
-    headers: { "X-Admin-Token": token, "Content-Type": "application/json" },
+    headers,
     cache: "no-store",
   };
   if (request.method !== "GET" && request.method !== "HEAD") init.body = await request.text();

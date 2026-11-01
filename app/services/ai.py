@@ -113,7 +113,50 @@ class SalesAI:
                 return True
         return False
 
-    async def answer(self, customer_text: str, context: list[ChannelPost], history: list[dict]) -> dict:
+    async def answer(
+        self,
+        customer_text: str,
+        context: list[ChannelPost],
+        history: list[dict],
+        organization_id: int | None = None,
+        db: any = None,
+    ) -> dict:
+        # SaaS Entitlement and Usage Checks
+        if db is not None and organization_id is not None:
+            try:
+                from app.services.entitlement_service import entitlement_service
+                from app.services.usage_service import usage_service
+
+                has_auto_reply = await entitlement_service.has_feature(db, organization_id, "ai_auto_reply")
+                if not has_auto_reply:
+                    logger.warning("Org %s has no 'ai_auto_reply' feature entitlement", organization_id)
+                    return {
+                        "reply": "Kechirasiz, tarif rejangizda AI avto-javob berish xizmati faol emas. Operator sizga javob beradi.",
+                        "handoff": True,
+                        "reason": "Tarifda avtomatik AI javob berish faol emas",
+                        "intent": "plan_restricted",
+                        "order_created": False,
+                        "order_data": None,
+                        "attach_photo": False,
+                        "source_post_id": None,
+                    }
+
+                limit_check = await usage_service.check_limit(db, organization_id, "ai_messages", increment=1)
+                if not limit_check["allowed"]:
+                    logger.warning("Org %s exceeded ai_messages limit (%s/%s)", organization_id, limit_check["used"], limit_check["limit"])
+                    return {
+                        "reply": "Oylik AI xabarlar limitingizga yetdingiz. Suhbat operatorga topshirildi.",
+                        "handoff": True,
+                        "reason": "Oylik AI xabarlar limiti to'lgan",
+                        "intent": "limit_exceeded",
+                        "order_created": False,
+                        "order_data": None,
+                        "attach_photo": False,
+                        "source_post_id": None,
+                    }
+            except Exception:
+                logger.exception("SaaS entitlement/usage check xatolik berdi")
+
         if self.is_greeting(customer_text):
             return {
                 "reply": "Assalomu alaykum! 😊 Do'konimizga xush kelibsiz. Sizga qaysi noutbuk yoki mahsulotimiz haqida ma'lumot kerak?",
@@ -215,6 +258,18 @@ Javobingni FAQAT quyidagi JSON formatida qaytar:
 
             order_created = bool(data.get("order_created", False))
             order_data = data.get("order_data") if order_created else None
+
+            # SaaS Usage Increment & Cost Tracking
+            if db is not None and organization_id is not None:
+                try:
+                    from app.services.usage_service import usage_service
+                    from app.services.cost_service import cost_service
+                    await usage_service.increment_usage(db, organization_id, "ai_messages", 1)
+                    prompt_toks = (len(instructions) + len(payload_str)) // 4
+                    completion_toks = len(reply) // 4
+                    await cost_service.track_ai_call_cost(db, organization_id, self.gemini_model, prompt_toks, completion_toks)
+                except Exception:
+                    logger.exception("SaaS usage / cost tracking xatolik berdi")
 
             return {
                 "reply": reply or "Savolingizni mutaxassisimizga yetkazaman.",

@@ -9,7 +9,7 @@ from app.api.bot_commands import handle_callback_query, handle_private_command
 from app.core.config import settings
 from app.core.db import SessionLocal
 from app.core.logging import get_logger
-from app.models import BusinessConnection, Conversation, Message, Order
+from app.models import BusinessConnection, ConnectedChannel, Conversation, Message, Order
 from app.services import settings_service
 from app.services.ai import sales_ai
 from app.services.conversations import get_or_create_conversation, save_message
@@ -47,6 +47,8 @@ async def _store_channel_post(message: dict) -> None:
         active_channels = await settings_service.get_active_channel_usernames(db)
         if not active_channels or username.lower() not in [c.lower() for c in active_channels]:
             return
+        chan_row = (await db.execute(select(ConnectedChannel).where(ConnectedChannel.channel_username == username.lower()))).scalar_one_or_none()
+        org_id = chan_row.organization_id if chan_row else 1
         text = message.get("text") or message.get("caption") or ""
         photos = message.get("photo") or []
         file_id = photos[-1].get("file_id") if photos else None
@@ -72,6 +74,7 @@ async def _store_channel_post(message: dict) -> None:
             photo_file_id=file_id,
             photo_bytes=photo_bytes,
             photo_mime_type=mime,
+            organization_id=org_id,
         )
         await db.commit()
 
@@ -112,6 +115,8 @@ async def _handle_business_message(message: dict) -> None:
         if connection is None or not connection.is_enabled:
             return
 
+        org_id = connection.organization_id or 1
+
         # A real account-owner reply means the human has taken over this chat.
         if sender.get("id") and connection.owner_user_id == int(sender["id"]):
             result = await db.execute(select(Conversation).where(
@@ -144,6 +149,7 @@ async def _handle_business_message(message: dict) -> None:
                 chat_id=chat_id_int,
                 customer_name=customer_name,
                 username=sender.get("username"),
+                organization_id=org_id,
             )
             await save_message(
                 db,
@@ -151,6 +157,7 @@ async def _handle_business_message(message: dict) -> None:
                 telegram_message_id=msg_id_int,
                 direction="customer",
                 text=incoming_text or "[Matn bo'lmagan xabar]",
+                organization_id=org_id,
             )
             conversation.status = "human_takeover"
             conversation.handoff_reason = "Telegram Business ulanishida can_reply huquqi yo'q"
@@ -168,6 +175,7 @@ async def _handle_business_message(message: dict) -> None:
             chat_id=chat_id_int,
             customer_name=customer_name,
             username=sender.get("username"),
+            organization_id=org_id,
         )
         incoming_saved = await save_message(
             db,
@@ -175,6 +183,7 @@ async def _handle_business_message(message: dict) -> None:
             telegram_message_id=msg_id_int,
             direction="customer",
             text=incoming_text or "[Matn bo'lmagan xabar]",
+            organization_id=org_id,
         )
         conversation.last_message_at = datetime.now(timezone.utc)
         await db.flush()
@@ -221,10 +230,10 @@ async def _handle_business_message(message: dict) -> None:
         try:
             if sales_ai.is_greeting(incoming_text):
                 evidence = []
-                decision = await sales_ai.answer(incoming_text, evidence, history)
+                decision = await sales_ai.answer(incoming_text, evidence, history, organization_id=org_id, db=db)
             else:
-                evidence = await knowledge.search(db, incoming_text, limit=6)
-                decision = await sales_ai.answer(incoming_text, evidence, history)
+                evidence = await knowledge.search(db, incoming_text, limit=6, organization_id=org_id)
+                decision = await sales_ai.answer(incoming_text, evidence, history, organization_id=org_id, db=db)
         finally:
             stop_typing.set()
             typing_task.cancel()
@@ -242,6 +251,7 @@ async def _handle_business_message(message: dict) -> None:
                     direction="assistant",
                     text=handoff_reply,
                     reply_to_telegram_message_id=msg_id_int,
+                    organization_id=org_id,
                 )
             except Exception:
                 logger.exception("Handoff javobini yuborishda xatolik: conversation=%s", conversation.id)
@@ -261,6 +271,7 @@ async def _handle_business_message(message: dict) -> None:
         if decision.get("order_created") and decision.get("order_data"):
             order_info = decision["order_data"]
             new_order = Order(
+                organization_id=org_id,
                 conversation_id=conversation.id,
                 customer_name=order_info.get("customer_name") or customer_name,
                 phone=order_info.get("phone") or "",

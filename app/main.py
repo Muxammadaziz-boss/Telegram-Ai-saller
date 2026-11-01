@@ -6,6 +6,8 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 from app.api.admin import router as admin_router
 from app.api.internal import router as internal_router
+from app.api.platform import router as platform_router
+from app.api.saas import router as saas_router
 from app.api.webhooks import router as webhook_router
 from app.core.config import settings
 from app.core.db import SessionLocal, engine
@@ -26,8 +28,36 @@ async def lifespan(application: FastAPI):
     async with engine.begin() as conn:
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         await conn.run_sync(Base.metadata.create_all)
+        # Ensure multi-tenant organization_id columns exist on legacy tables
+        legacy_tables = [
+            "conversations",
+            "messages",
+            "channel_posts",
+            "connected_channels",
+            "orders",
+            "business_connections",
+            "system_settings",
+            "admins",
+            "products",
+            "customers",
+        ]
+        for tbl in legacy_tables:
+            try:
+                await conn.execute(text(f"ALTER TABLE {tbl} ADD COLUMN IF NOT EXISTS organization_id INTEGER REFERENCES organizations(id) ON DELETE CASCADE"))
+            except Exception as e:
+                logger.warning("Table %s column migration: %s", tbl, e)
+
     # Mount static files after storage directory is guaranteed to exist.
     application.mount("/storage", StaticFiles(directory=storage_path), name="storage")
+
+    # Initialize SaaS Plans, Defaults, and Default Organization
+    try:
+        async with SessionLocal() as db:
+            from app.services import saas_service
+            await saas_service.seed_plans_and_defaults(db)
+            logger.info("SaaS tariflar va birlamchi tashkilot sinxronlandi")
+    except Exception:
+        logger.exception("SaaS rejalari va tashkilotni yuklashda xatolik yuz berdi")
 
     # Ensure owner exists if ADMIN_TELEGRAM_ID is configured
     if settings.admin_telegram_id:
@@ -77,6 +107,8 @@ app.add_middleware(
 app.include_router(webhook_router)
 app.include_router(admin_router)
 app.include_router(internal_router)
+app.include_router(saas_router)
+app.include_router(platform_router)
 
 
 

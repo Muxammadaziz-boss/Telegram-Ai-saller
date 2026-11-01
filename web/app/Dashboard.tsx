@@ -56,7 +56,19 @@ import {
   IconUsers,
   IconUsersGroup,
   IconX,
+  IconBuildingSkyscraper,
+  IconGauge,
+  IconCreditCard,
+  IconCoin,
+  IconChartBar,
 } from "@tabler/icons-react";
+
+import { UsageTab } from "./components/saas/UsageTab";
+import { BillingTab } from "./components/saas/BillingTab";
+import { PricingTab } from "./components/saas/PricingTab";
+import { PlatformOwnerTab } from "./components/saas/PlatformOwnerTab";
+import { OnboardingModal } from "./components/saas/OnboardingModal";
+import { UpgradeModal } from "./components/saas/UpgradeModal";
 
 type Overview = {
   conversations: number;
@@ -214,9 +226,15 @@ const INITIAL_ORDERS: OrderItem[] = [
 ];
 
 async function api<T>(path: string, options?: RequestInit): Promise<T> {
+  const currentOrgId = typeof window !== "undefined" ? localStorage.getItem("active_org_id") || "1" : "1";
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "X-Organization-Id": currentOrgId,
+    ...(options?.headers as Record<string, string> || {}),
+  };
   const response = await fetch(`/api/proxy?path=${encodeURIComponent(path)}`, {
     ...options,
-    headers: { "Content-Type": "application/json", ...(options?.headers || {}) },
+    headers,
     cache: "no-store",
   });
   let rawText = "";
@@ -232,6 +250,11 @@ async function api<T>(path: string, options?: RequestInit): Promise<T> {
     data = {};
   }
   if (!response.ok) {
+    if (data.error === "FEATURE_NOT_AVAILABLE" || data.error === "LIMIT_EXCEEDED" || response.status === 402) {
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("saas-upgrade-needed", { detail: data }));
+      }
+    }
     const errorDetail =
       data.detail ||
       (typeof data.message === "string" ? data.message : "") ||
@@ -466,8 +489,31 @@ function MiniSparkline({
 
 export default function Dashboard({ initialAuthenticated = false }: { initialAuthenticated?: boolean }) {
   const [tab, setTab] = useState<
-    "overview" | "inbox" | "knowledge" | "products" | "orders" | "customers" | "analytics" | "settings" | "admins" | "team" | "logs" | "profile"
+    "overview" | "inbox" | "knowledge" | "products" | "orders" | "customers" | "analytics" | "settings" | "admins" | "team" | "logs" | "profile" | "usage" | "billing" | "pricing" | "platform"
   >("overview");
+
+  // SaaS Multi-Tenant & Subscription States
+  const [userOrganizations, setUserOrganizations] = useState<any[]>([]);
+  const [activeOrgId, setActiveOrgId] = useState<number>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("active_org_id");
+      return saved ? parseInt(saved, 10) : 1;
+    }
+    return 1;
+  });
+  const [showOrgDropdown, setShowOrgDropdown] = useState(false);
+  const [showOnboardingModal, setShowOnboardingModal] = useState(false);
+  const [subscriptionData, setSubscriptionData] = useState<any>(null);
+  const [usageData, setUsageData] = useState<any>(null);
+  const [plansList, setPlansList] = useState<any[]>([]);
+  const [platformMetrics, setPlatformMetrics] = useState<any>(null);
+  const [platformOrgs, setPlatformOrgs] = useState<any[]>([]);
+  const [upgradeModalConfig, setUpgradeModalConfig] = useState<{
+    isOpen: boolean;
+    featureName?: string;
+    requiredPlan?: string;
+    message?: string;
+  }>({ isOpen: false });
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("dark");
@@ -851,6 +897,152 @@ export default function Dashboard({ initialAuthenticated = false }: { initialAut
     () => admins.find((a) => a.telegram_user_id === activeAdminTelegramId) || (admins.length > 0 ? admins[0] : null),
     [admins, activeAdminTelegramId]
   );
+
+  // Load SaaS tenant, subscription, usage, and financial metrics
+  const loadSaaSData = useCallback(async (orgId?: number) => {
+    try {
+      const effectiveOrgId = orgId || activeOrgId;
+      try {
+        const sub = await api<any>(`/api/subscription?organization_id=${effectiveOrgId}`);
+        setSubscriptionData(sub);
+      } catch {}
+
+      try {
+        const usage = await api<any>(`/api/usage?organization_id=${effectiveOrgId}`);
+        setUsageData(usage);
+      } catch {}
+
+      try {
+        const pl = await api<any>("/api/plans");
+        setPlansList(pl.plans || []);
+      } catch {}
+
+      try {
+        const orgs = await api<any>("/api/organizations");
+        setUserOrganizations(orgs.organizations || []);
+      } catch {}
+
+      if (currentAdmin?.role === "owner") {
+        try {
+          const m = await api<any>("/api/platform/metrics");
+          setPlatformMetrics(m);
+        } catch {}
+        try {
+          const o = await api<any>("/api/platform/organizations");
+          setPlatformOrgs(o.organizations || []);
+        } catch {}
+      }
+    } catch (e) {
+      console.error("loadSaaSData error:", e);
+    }
+  }, [activeOrgId, currentAdmin?.role]);
+
+  useEffect(() => {
+    if (authenticated) {
+      loadSaaSData(activeOrgId);
+    }
+  }, [authenticated, activeOrgId, loadSaaSData]);
+
+  // Handle Saas Upgrade event
+  useEffect(() => {
+    const handleUpgradeNeeded = (evt: any) => {
+      const detail = evt.detail || {};
+      setUpgradeModalConfig({
+        isOpen: true,
+        featureName: detail.feature || "Ushbu xususiyat",
+        requiredPlan: detail.required_plan || "pro",
+        message: detail.detail || "Ushbu imkoniyatdan foydalanish uchun yuqoriroq tarifga o'tish lozim.",
+      });
+    };
+    window.addEventListener("saas-upgrade-needed", handleUpgradeNeeded);
+    return () => window.removeEventListener("saas-upgrade-needed", handleUpgradeNeeded);
+  }, []);
+
+  const handleUpgradePlan = async (planCode: string, billingCycle: "monthly" | "yearly" = "monthly") => {
+    setBusy(true);
+    try {
+      await api("/api/subscription/upgrade", {
+        method: "POST",
+        body: JSON.stringify({ new_plan_code: planCode, billing_cycle: billingCycle }),
+      });
+      setSuccess(`${planCode.toUpperCase()} tarif rejasiga muvaffaqiyatli o'tildi!`);
+      await loadSaaSData(activeOrgId);
+    } catch (err: any) {
+      setError(err.message || "Tarifni o'zgartirishda xatolik");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleCancelSubscription = async () => {
+    setBusy(true);
+    try {
+      await api("/api/subscription/cancel", { method: "POST" });
+      setSuccess("Obunani bekor qilish rejalashtirildi (davr oxirigacha faol).");
+      await loadSaaSData(activeOrgId);
+    } catch (err: any) {
+      setError(err.message || "Obunani bekor qilishda xatolik");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleResumeSubscription = async () => {
+    setBusy(true);
+    try {
+      await api("/api/subscription/resume", { method: "POST" });
+      setSuccess("Obunangiz yana to'liq faollashtirildi!");
+      await loadSaaSData(activeOrgId);
+    } catch (err: any) {
+      setError(err.message || "Obunani qayta faollashtirishda xatolik");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleCreateOrganization = async (data: any) => {
+    setBusy(true);
+    try {
+      const res = await api<any>("/api/organizations", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+      setSuccess(`${data.name} muvaffaqiyatli yaratildi! 7 kunlik sinov muddati boshlandi.`);
+      if (res.organization?.id) {
+        switchOrganization(res.organization.id);
+      }
+    } catch (err: any) {
+      setError(err.message || "Tashkilot yaratishda xatolik");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const switchOrganization = (orgId: number) => {
+    setActiveOrgId(orgId);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("active_org_id", String(orgId));
+    }
+    setSuccess(`Faol tashkilot almashtirildi: #${orgId}`);
+    load();
+    loadSaaSData(orgId);
+  };
+
+  const handleUpdatePlanConfig = async (planCode: string, payload: any) => {
+    setBusy(true);
+    try {
+      await api(`/api/platform/plans/${planCode}`, {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      });
+      setSuccess(`${planCode.toUpperCase()} tarifi parametrlari yangilandi!`);
+      await loadSaaSData(activeOrgId);
+    } catch (err: any) {
+      setError(err.message || "Tarifni tahrirlashda xatolik");
+    } finally {
+      setBusy(false);
+    }
+  };
 
 
 
@@ -1712,6 +1904,85 @@ export default function Dashboard({ initialAuthenticated = false }: { initialAut
                 </a>
               </li>
 
+              {/* SAAS & SUBSCRIPTION SECTION */}
+              <div className="nav-section-title">SAAS & BILLING</div>
+
+              <li className={`nav-item ${tab === "usage" ? "active" : ""}`}>
+                <a
+                  className="nav-link"
+                  href="#usage"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setTab("usage");
+                  }}
+                  title="Foydalanish va Limitlar"
+                >
+                  <span className="nav-link-icon d-md-none d-lg-inline-block">
+                    <IconGauge size={18} />
+                  </span>
+                  <span className="nav-link-title">Usage & Limits</span>
+                </a>
+              </li>
+
+              <li className={`nav-item ${tab === "billing" ? "active" : ""}`}>
+                <a
+                  className="nav-link"
+                  href="#billing"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setTab("billing");
+                  }}
+                  title="Obuna va To'lovlar"
+                >
+                  <span className="nav-link-icon d-md-none d-lg-inline-block">
+                    <IconCreditCard size={18} />
+                  </span>
+                  <span className="nav-link-title">Subscription</span>
+                  {subscriptionData?.is_trial && (
+                    <span className="badge badge-sm bg-blue-lt ms-auto">Trial</span>
+                  )}
+                </a>
+              </li>
+
+              <li className={`nav-item ${tab === "pricing" ? "active" : ""}`}>
+                <a
+                  className="nav-link"
+                  href="#pricing"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setTab("pricing");
+                  }}
+                  title="Tariflar va Rejalar"
+                >
+                  <span className="nav-link-icon d-md-none d-lg-inline-block">
+                    <IconCrown size={18} />
+                  </span>
+                  <span className="nav-link-title">Plans & Pricing</span>
+                </a>
+              </li>
+
+              {currentAdmin?.role === "owner" && (
+                <>
+                  <div className="nav-section-title">PLATFORM OWNER</div>
+                  <li className={`nav-item ${tab === "platform" ? "active" : ""}`}>
+                    <a
+                      className="nav-link"
+                      href="#platform"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setTab("platform");
+                      }}
+                      title="Platform Owner Dashboard (MRR, Tenants, AI Costs)"
+                    >
+                      <span className="nav-link-icon d-md-none d-lg-inline-block">
+                        <IconBuildingSkyscraper size={18} className="text-warning" />
+                      </span>
+                      <span className="nav-link-title text-warning fw-semibold">Platform Owner</span>
+                    </a>
+                  </li>
+                </>
+              )}
+
               {/* SYSTEM SECTION */}
               <div className="nav-section-title">SYSTEM</div>
 
@@ -1794,6 +2065,68 @@ export default function Dashboard({ initialAuthenticated = false }: { initialAut
                   onChange={(e) => setInboxSearch(e.target.value)}
                 />
               </div>
+            </div>
+
+            {/* Organization Switcher Dropdown */}
+            <div className="nav-item dropdown ms-2 position-relative">
+              <button
+                type="button"
+                className="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1.5 rounded-pill px-3"
+                onClick={() => setShowOrgDropdown(!showOrgDropdown)}
+                style={{ height: 38, borderColor: "rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.03)" }}
+              >
+                <IconBuildingSkyscraper size={16} className="text-primary" />
+                <span className="fw-semibold text-white small text-truncate" style={{ maxWidth: 130 }}>
+                  {userOrganizations.find((o) => o.id === activeOrgId)?.name || "AI Sales Central"}
+                </span>
+                <span className="badge bg-primary text-white text-uppercase" style={{ fontSize: "10px" }}>
+                  {subscriptionData?.plan?.name || "PRO"}
+                </span>
+                <IconChevronDown size={14} className="text-secondary" />
+              </button>
+              {showOrgDropdown && (
+                <div
+                  className="dropdown-menu dropdown-menu-start show shadow-lg border-secondary border-opacity-25 p-2"
+                  style={{ minWidth: 260, position: "absolute", top: "100%", left: 0, zIndex: 1050 }}
+                >
+                  <div className="dropdown-header small text-secondary text-uppercase fw-bold px-2 py-1">
+                    Tashkilotlar (Tenants)
+                  </div>
+                  {userOrganizations.map((org) => (
+                    <button
+                      key={org.id}
+                      type="button"
+                      className={`dropdown-item d-flex align-items-center justify-content-between rounded py-2 px-2.5 mb-1 ${
+                        activeOrgId === org.id ? "active bg-primary text-white" : ""
+                      }`}
+                      onClick={() => {
+                        switchOrganization(org.id);
+                        setShowOrgDropdown(false);
+                      }}
+                    >
+                      <div className="d-flex align-items-center gap-2 text-truncate">
+                        <IconBuildingSkyscraper size={16} />
+                        <span className="text-truncate fw-medium">{org.name}</span>
+                      </div>
+                      <span className={`badge ${activeOrgId === org.id ? "bg-white text-primary" : "bg-body-secondary text-secondary"} small`}>
+                        {org.subscription?.plan_name || "START"}
+                      </span>
+                    </button>
+                  ))}
+                  <div className="dropdown-divider my-1" />
+                  <button
+                    type="button"
+                    className="dropdown-item d-flex align-items-center gap-2 rounded py-2 text-primary fw-medium"
+                    onClick={() => {
+                      setShowOrgDropdown(false);
+                      setShowOnboardingModal(true);
+                    }}
+                  >
+                    <IconPlus size={16} />
+                    <span>Yangi Biznes Qo'shish (7 kun bepul)</span>
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Navbar Items Right */}
@@ -1929,6 +2262,10 @@ export default function Dashboard({ initialAuthenticated = false }: { initialAut
                   {tab === "products" && "SALES / PRODUCTS CATALOG"}
                   {tab === "orders" && "SALES / ORDERS MANAGEMENT"}
                   {tab === "customers" && "SALES / CUSTOMERS DIRECTORY"}
+                  {tab === "usage" && "SAAS / USAGE & LIMITS METERING"}
+                  {tab === "billing" && "SAAS / SUBSCRIPTION & INVOICES"}
+                  {tab === "pricing" && "SAAS / COMMERCIAL PLANS MATRIX"}
+                  {tab === "platform" && "SAAS / PLATFORM OWNER CONTROL"}
                   {tab === "analytics" && "INTELLIGENCE / ANALYTICS"}
                   {tab === "settings" && "INTELLIGENCE / AI CONFIGURATION"}
                   {tab === "admins" && "SYSTEM / ADMINISTRATION"}
@@ -1943,6 +2280,10 @@ export default function Dashboard({ initialAuthenticated = false }: { initialAut
                   {tab === "products" && "Mahsulotlar Katalogi"}
                   {tab === "orders" && "Buyurtmalar Jurnali"}
                   {tab === "customers" && "Mijozlar Ro'yxati"}
+                  {tab === "usage" && "Foydalanish va Resurs Limitlari"}
+                  {tab === "billing" && "Obuna va Hisob-Kitoblar"}
+                  {tab === "pricing" && "Tariflar va Imkoniyatlar"}
+                  {tab === "platform" && "Platforma Egasi Boshqaruv Markazi"}
                   {tab === "analytics" && "Savdo va AI Statistikasi"}
                   {tab === "settings" && "AI va Tizim Sozlamalari"}
                   {tab === "admins" && "Administratorlar Boshqaruvi"}
@@ -2431,37 +2772,37 @@ export default function Dashboard({ initialAuthenticated = false }: { initialAut
                         </span>
                       </div>
                       <div className="card-body p-3">
-                        <ul className="list-unstyled space-y-2.5 mb-0">
-                          <li className="d-flex align-items-center justify-content-between mb-2.5">
-                            <span className="text-secondary small">AI Model:</span>
-                            <span className="badge bg-blue-lt fw-bold">{aiModel}</span>
+                        <ul className="list-unstyled mb-0 space-y-2">
+                          <li className="d-flex align-items-center justify-content-between py-1 border-bottom border-secondary border-opacity-10">
+                            <span className="text-secondary small text-nowrap">AI Model:</span>
+                            <span className="badge bg-blue-lt fw-bold text-truncate" style={{ maxWidth: 140 }}>{aiModel}</span>
                           </li>
-                          <li className="d-flex align-items-center justify-content-between mb-2.5">
-                            <span className="text-secondary small">Telegram Webhook:</span>
-                            <span className="badge bg-green-lt text-green">Faol va Ulangan</span>
+                          <li className="d-flex align-items-center justify-content-between py-1 border-bottom border-secondary border-opacity-10">
+                            <span className="text-secondary small text-nowrap">Telegram Webhook:</span>
+                            <span className="badge bg-green-lt text-green text-nowrap">Faol va Ulangan</span>
                           </li>
-                          <li className="d-flex align-items-center justify-content-between mb-2.5">
-                            <span className="text-secondary small">O'rtacha javob tezligi:</span>
-                            <span className="fw-bold text-white small">1.8 soniya</span>
+                          <li className="d-flex align-items-center justify-content-between py-1 border-bottom border-secondary border-opacity-10">
+                            <span className="text-secondary small text-nowrap">O'rtacha javob tezligi:</span>
+                            <span className="fw-bold text-white small text-nowrap">~1.8 soniya</span>
                           </li>
-                          <li className="d-flex align-items-center justify-content-between mb-2.5">
-                            <span className="text-secondary small">Dublyor tasdiqlash:</span>
-                            <span className="badge bg-blue-lt">Yoqilgan</span>
+                          <li className="d-flex align-items-center justify-content-between py-1 border-bottom border-secondary border-opacity-10">
+                            <span className="text-secondary small text-nowrap">Dublyor tasdiqlash:</span>
+                            <span className="badge bg-blue-lt text-nowrap">Yoqilgan</span>
                           </li>
-                          <li className="d-flex align-items-center justify-content-between mb-2.5">
-                            <span className="text-secondary small">Kanal sinxronizatsiyasi:</span>
-                            <span className="text-green fw-bold small">Avtomatik</span>
+                          <li className="d-flex align-items-center justify-content-between py-1">
+                            <span className="text-secondary small text-nowrap">Kanal sinxronlash:</span>
+                            <span className="text-green fw-bold small text-nowrap">Avtomatik</span>
                           </li>
                         </ul>
                         <hr className="my-2.5" />
                         <button
                           type="button"
-                          className="btn btn-outline-primary btn-sm w-100 d-flex align-items-center justify-content-center gap-1.5"
+                          className="btn btn-outline-primary btn-sm w-100 d-flex align-items-center justify-content-center gap-1.5 text-nowrap"
                           onClick={handleSyncKnowledge}
                           disabled={busy}
                         >
                           <IconRefresh size={16} className={busy ? "spin" : ""} />
-                          <span>Kanalni hozir tekshirish</span>
+                          <span className="text-nowrap">Kanalni hozir tekshirish</span>
                         </button>
                       </div>
                     </div>
@@ -4491,7 +4832,7 @@ export default function Dashboard({ initialAuthenticated = false }: { initialAut
                         >
                           <div className="d-flex align-items-center gap-2">
                             <IconShieldLock size={18} className="text-primary" />
-                            <span className="fw-bold text-white small" style={{ fontSize: "0.85rem", letterSpacing: "0.2px" }}>
+                            <span className="fw-bold small" style={{ fontSize: "0.88rem", letterSpacing: "0.2px", color: "#ffffff" }}>
                               Biriktirilgan Ruxsatlar
                             </span>
                           </div>
@@ -4747,6 +5088,49 @@ export default function Dashboard({ initialAuthenticated = false }: { initialAut
                 </div>
               </div>
             )}
+
+            {/* 13. SAAS USAGE & LIMITS TAB */}
+            {tab === "usage" && (
+              <UsageTab
+                usageData={usageData}
+                loading={loading}
+                onRefresh={() => loadSaaSData(activeOrgId)}
+                onUpgradeClick={() => setTab("pricing")}
+              />
+            )}
+
+            {/* 14. SAAS BILLING & SUBSCRIPTION TAB */}
+            {tab === "billing" && (
+              <BillingTab
+                subscription={subscriptionData}
+                loading={loading}
+                onRefresh={() => loadSaaSData(activeOrgId)}
+                onUpgradeClick={() => setTab("pricing")}
+                onCancelSubscription={handleCancelSubscription}
+                onResumeSubscription={handleResumeSubscription}
+              />
+            )}
+
+            {/* 15. SAAS PRICING & PLANS TAB */}
+            {tab === "pricing" && (
+              <PricingTab
+                plans={plansList}
+                currentPlanCode={subscriptionData?.plan?.code || "pro"}
+                onSelectPlan={handleUpgradePlan}
+                loading={busy}
+              />
+            )}
+
+            {/* 16. PLATFORM OWNER TAB */}
+            {tab === "platform" && currentAdmin?.role === "owner" && (
+              <PlatformOwnerTab
+                metrics={platformMetrics}
+                organizations={platformOrgs}
+                loading={loading}
+                onRefresh={() => loadSaaSData(activeOrgId)}
+                onUpdatePlan={handleUpdatePlanConfig}
+              />
+            )}
           </div>
         </div>
 
@@ -4774,6 +5158,23 @@ export default function Dashboard({ initialAuthenticated = false }: { initialAut
           </div>
         </footer>
       </div>
+
+      {/* Onboarding Wizard Modal */}
+      <OnboardingModal
+        isOpen={showOnboardingModal}
+        onClose={() => setShowOnboardingModal(false)}
+        onComplete={handleCreateOrganization}
+      />
+
+      {/* Feature / Limit Upgrade Modal */}
+      <UpgradeModal
+        isOpen={upgradeModalConfig.isOpen}
+        onClose={() => setUpgradeModalConfig({ isOpen: false })}
+        featureName={upgradeModalConfig.featureName}
+        requiredPlan={upgradeModalConfig.requiredPlan}
+        message={upgradeModalConfig.message}
+        onUpgradeToPlan={(planCode) => handleUpgradePlan(planCode, "monthly")}
+      />
     </div>
   );
 }

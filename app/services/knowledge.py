@@ -130,6 +130,7 @@ class KnowledgeService:
         *,
         channel_username: str,
         telegram_message_id: int,
+        organization_id: int | None = 1,
         text: str = "",
         posted_at: datetime | None = None,
         source_url: str | None = None,
@@ -138,14 +139,24 @@ class KnowledgeService:
         photo_mime_type: str = "image/jpeg",
     ) -> ChannelPost:
         channel = channel_username.lstrip("@").strip()
-        result = await db.execute(select(ChannelPost).where(
+        query = select(ChannelPost).where(
             ChannelPost.channel_username == channel,
             ChannelPost.telegram_message_id == telegram_message_id,
-        ))
+        )
+        if organization_id:
+            query = query.where(ChannelPost.organization_id == organization_id)
+
+        result = await db.execute(query)
         post = result.scalar_one_or_none()
         if post is None:
-            post = ChannelPost(channel_username=channel, telegram_message_id=telegram_message_id)
+            post = ChannelPost(
+                channel_username=channel,
+                telegram_message_id=telegram_message_id,
+                organization_id=organization_id or 1,
+            )
             db.add(post)
+        elif organization_id and post.organization_id is None:
+            post.organization_id = organization_id
 
         image_path = None
         image_description = post.image_description if post else ""
@@ -179,7 +190,7 @@ class KnowledgeService:
         await db.flush()
         return post
 
-    async def search(self, db: AsyncSession, query: str, limit: int = 6) -> list[ChannelPost]:
+    async def search(self, db: AsyncSession, query: str, limit: int = 6, organization_id: int | None = 1) -> list[ChannelPost]:
         vector = None
         try:
             vector = await self.embed(query)
@@ -188,12 +199,10 @@ class KnowledgeService:
             vector = None
         if vector:
             distance = ChannelPost.embedding.cosine_distance(vector)
-            stmt = (
-                select(ChannelPost)
-                .where(ChannelPost.embedding.is_not(None), distance < 0.62)
-                .order_by(distance)
-                .limit(limit)
-            )
+            stmt = select(ChannelPost).where(ChannelPost.embedding.is_not(None), distance < 0.62)
+            if organization_id:
+                stmt = stmt.where(ChannelPost.organization_id == organization_id)
+            stmt = stmt.order_by(distance).limit(limit)
             rows = (await db.execute(stmt)).scalars().all()
             if rows:
                 return list(rows)
@@ -207,10 +216,13 @@ class KnowledgeService:
             ChannelPost.text.ilike(f"%{_escape_like(token)}%") | ChannelPost.image_description.ilike(f"%{_escape_like(token)}%")
             for token in tokens
         ]
-        stmt = select(ChannelPost).where(or_(*conditions)).order_by(ChannelPost.posted_at.desc().nullslast()).limit(limit)
+        stmt = select(ChannelPost).where(or_(*conditions))
+        if organization_id:
+            stmt = stmt.where(ChannelPost.organization_id == organization_id)
+        stmt = stmt.order_by(ChannelPost.posted_at.desc().nullslast()).limit(limit)
         return list((await db.execute(stmt)).scalars().all())
 
-    async def sync_channel_posts(self, db: AsyncSession, channel_username: str) -> int:
+    async def sync_channel_posts(self, db: AsyncSession, channel_username: str, organization_id: int | None = 1) -> int:
         """Sync posts from public Telegram channel web preview without MTProto login."""
         import re
         from html import unescape
@@ -269,6 +281,7 @@ class KnowledgeService:
                     db,
                     channel_username=clean_name,
                     telegram_message_id=msg_id,
+                    organization_id=organization_id,
                     text=text,
                     posted_at=posted_at,
                     source_url=f"https://t.me/{clean_name}/{msg_id}",

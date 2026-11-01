@@ -16,6 +16,7 @@ async def get_or_create_conversation(
     chat_id: int,
     customer_name: str,
     username: str | None,
+    organization_id: int | None = None,
 ) -> Conversation:
     result = await db.execute(select(Conversation).where(
         Conversation.business_connection_id == business_connection_id,
@@ -26,7 +27,10 @@ async def get_or_create_conversation(
         connection = await db.get(BusinessConnection, business_connection_id)
         if connection is None or not connection.is_enabled:
             raise ValueError("Business connection topilmadi yoki faol emas")
+        
+        org_id = organization_id or (connection.organization_id if connection else None) or 1
         conversation = Conversation(
+            organization_id=org_id,
             business_connection_id=business_connection_id,
             chat_id=chat_id,
             customer_name=customer_name or "Mijoz",
@@ -49,6 +53,8 @@ async def get_or_create_conversation(
         conversation.customer_name = customer_name or conversation.customer_name
         conversation.username = username or conversation.username
         conversation.last_message_at = _now()
+        if organization_id and not conversation.organization_id:
+            conversation.organization_id = organization_id
     return conversation
 
 
@@ -60,6 +66,7 @@ async def save_message(
     direction: str,
     text: str,
     reply_to_telegram_message_id: int | None = None,
+    organization_id: int | None = None,
 ) -> Message | None:
     exists = await db.execute(select(Message.id).where(
         Message.conversation_id == conversation_id,
@@ -67,7 +74,14 @@ async def save_message(
     ))
     if exists.scalar_one_or_none() is not None:
         return None
+
+    org_id = organization_id
+    if org_id is None:
+        conv_res = await db.execute(select(Conversation.organization_id).where(Conversation.id == conversation_id))
+        org_id = conv_res.scalar_one_or_none() or 1
+
     message = Message(
+        organization_id=org_id,
         conversation_id=conversation_id,
         telegram_message_id=telegram_message_id,
         reply_to_telegram_message_id=reply_to_telegram_message_id,
