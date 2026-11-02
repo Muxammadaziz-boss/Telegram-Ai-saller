@@ -6,6 +6,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 from app.api.admin import router as admin_router
 from app.api.internal import router as internal_router
+from app.api.onboarding import router as onboarding_router
 from app.api.platform import router as platform_router
 from app.api.saas import router as saas_router
 from app.api.webhooks import router as webhook_router
@@ -47,6 +48,13 @@ async def lifespan(application: FastAPI):
             except Exception as e:
                 logger.warning("Table %s column migration: %s", tbl, e)
 
+        # Synchronize serial primary key sequences to avoid duplicate key errors
+        for tbl in ["organizations", "users", "organization_members", "plans", "subscriptions"]:
+            try:
+                await conn.execute(text(f"SELECT setval(pg_get_serial_sequence('{tbl}', 'id'), COALESCE((SELECT MAX(id) FROM {tbl}), 0) + 1, false)"))
+            except Exception:
+                pass
+
     # Mount static files after storage directory is guaranteed to exist.
     application.mount("/storage", StaticFiles(directory=storage_path), name="storage")
 
@@ -70,7 +78,7 @@ async def lifespan(application: FastAPI):
             logger.exception("Owner admin tekshirishda xatolik yuz berdi")
 
     # Register bot commands in Telegram menu
-    if settings.telegram_bot_token:
+    if settings.telegram_bot_token and telegram is not None:
         try:
             bot_commands = [
                 {"command": "admin", "description": "Admin boshqaruv paneli"},
@@ -105,6 +113,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(webhook_router)
+app.include_router(onboarding_router)
 app.include_router(admin_router)
 app.include_router(internal_router)
 app.include_router(saas_router)

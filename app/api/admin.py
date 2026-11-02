@@ -7,10 +7,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.db import get_db
 from app.core.permissions import ALL_PERMISSIONS, ROLE_DEFAULTS
-from app.models import Admin, ChannelPost, ConnectedChannel, Conversation, Message, Order
+from app.models import Admin, ChannelPost, ConnectedChannel, Conversation, Message, Order, Organization
 from app.schemas import AdminCreate, AdminOut, AdminReply, AdminUpdatePermission, AdminUpdateRole, ChannelCreate, ChannelOut, ChannelSyncRequest, SettingUpdate, StatusUpdate
 from app.services import admin_service, settings_service
-from app.services.telegram import TelegramAPIError, telegram
+from app.services.telegram import TelegramAPIError, get_telegram_service, telegram
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -146,8 +146,18 @@ async def admin_reply(conversation_id: int, payload: AdminReply, db: AsyncSessio
     if not payload.text or not payload.text.strip():
         raise HTTPException(status_code=400, detail="Xabar matni bo'sh bo'lishi mumkin emas")
 
+    org_id = row.organization_id
+    org = await db.get(Organization, org_id) if org_id else None
+    org_token = org.telegram_bot_token if org else None
     try:
-        sent = await telegram.send_business_text(row.business_connection_id, row.chat_id, payload.text)
+        tg_svc = get_telegram_service(org_token)
+    except Exception:
+        tg_svc = telegram
+        if not tg_svc:
+            raise HTTPException(status_code=400, detail="Telegram bot token sozlanmagan. Iltimos, tashkilot sozlamalarida bot tokenni kiriting.")
+
+    try:
+        sent = await tg_svc.send_business_text(row.business_connection_id, row.chat_id, payload.text)
     except TelegramAPIError as exc:
         err_msg = str(exc)
         if "BUSINESS_PEER_INVALID" in err_msg:
@@ -179,7 +189,11 @@ async def admin_reply(conversation_id: int, payload: AdminReply, db: AsyncSessio
 
 @router.api_route("/users/{user_id}/avatar", methods=["GET", "HEAD"])
 async def get_user_avatar(user_id: int):
-    photo_bytes = await telegram.get_user_profile_photo_bytes(user_id)
+    try:
+        tg_svc = telegram or get_telegram_service()
+        photo_bytes = await tg_svc.get_user_profile_photo_bytes(user_id)
+    except Exception:
+        photo_bytes = None
     if not photo_bytes:
         raise HTTPException(status_code=404, detail="Profil rasmi topilmadi")
     return Response(

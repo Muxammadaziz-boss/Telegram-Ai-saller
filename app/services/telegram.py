@@ -8,8 +8,12 @@ class TelegramAPIError(RuntimeError):
 
 
 class TelegramService:
-    def __init__(self) -> None:
-        self.base_url = f"https://api.telegram.org/bot{settings.telegram_bot_token}"
+    def __init__(self, bot_token: str | None = None) -> None:
+        token = bot_token or settings.telegram_bot_token
+        if not token:
+            raise TelegramAPIError("TELEGRAM_BOT_TOKEN sozlanmagan")
+        self.bot_token = token
+        self.base_url = f"https://api.telegram.org/bot{token}"
         self._client: httpx.AsyncClient | None = None
 
     def _get_client(self) -> httpx.AsyncClient:
@@ -21,8 +25,6 @@ class TelegramService:
         return self._client
 
     async def call(self, method: str, payload: dict) -> dict:
-        if not settings.telegram_bot_token:
-            raise TelegramAPIError("TELEGRAM_BOT_TOKEN sozlanmagan")
         client = self._get_client()
         response = await client.post(f"{self.base_url}/{method}", json=payload)
         try:
@@ -35,6 +37,17 @@ class TelegramService:
             err_desc = result.get("description", f"Telegram {method} xatosi (HTTP {response.status_code})")
             raise TelegramAPIError(err_desc)
         return result.get("result", {})
+
+    async def download_photo(self, file_id: str, destination: Path) -> Path:
+        file_info = await self.call("getFile", {"file_id": file_id})
+        file_path = file_info["file_path"]
+        url = f"https://api.telegram.org/file/bot{self.bot_token}/{file_path}"
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        async with httpx.AsyncClient(timeout=60) as client:
+            response = await client.get(url)
+            response.raise_for_status()
+        destination.write_bytes(response.content)
+        return destination
 
     async def read_business_message(
         self,
@@ -80,7 +93,6 @@ class TelegramService:
             "text": clean_text[:4096],
         })
 
-
     async def send_business_photo(
         self,
         business_connection_id: str,
@@ -102,7 +114,7 @@ class TelegramService:
         path = Path(photo_path)
         if not path.is_file():
             raise TelegramAPIError("Saqlangan mahsulot rasmi topilmadi")
-        if not settings.telegram_bot_token:
+        if not self.bot_token:
             raise TelegramAPIError("TELEGRAM_BOT_TOKEN sozlanmagan")
         data = {
             "business_connection_id": business_connection_id,
@@ -188,17 +200,6 @@ class TelegramService:
             "disable_web_page_preview": True,
         })
 
-    async def download_photo(self, file_id: str, destination: Path) -> Path:
-        file_info = await self.call("getFile", {"file_id": file_id})
-        file_path = file_info["file_path"]
-        url = f"https://api.telegram.org/file/bot{settings.telegram_bot_token}/{file_path}"
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        async with httpx.AsyncClient(timeout=60) as client:
-            response = await client.get(url)
-            response.raise_for_status()
-        destination.write_bytes(response.content)
-        return destination
-
     async def get_user_profile_photo_bytes(self, user_id: int) -> bytes | None:
         import time
         if not hasattr(self, "_avatar_cache"):
@@ -219,7 +220,7 @@ class TelegramService:
             file_id = photo_size["file_id"]
             file_info = await self.call("getFile", {"file_id": file_id})
             file_path = file_info["file_path"]
-            url = f"https://api.telegram.org/file/bot{settings.telegram_bot_token}/{file_path}"
+            url = f"https://api.telegram.org/file/bot{self.bot_token}/{file_path}"
             client = self._get_client()
             response = await client.get(url)
             if response.status_code == 200:
@@ -233,4 +234,21 @@ class TelegramService:
         return None
 
 
-telegram = TelegramService()
+_services_cache: dict[str, TelegramService] = {}
+
+
+def get_telegram_service(bot_token: str | None = None) -> TelegramService:
+    """Factory: return a TelegramService for the given token (or global fallback)."""
+    token = (bot_token or "").strip() or settings.telegram_bot_token
+    if not token:
+        raise TelegramAPIError("Telegram bot token sozlanmagan. Iltimos, tashkilot sozlamalarida bot tokenni kiriting.")
+    if token not in _services_cache:
+        _services_cache[token] = TelegramService(bot_token=token)
+    return _services_cache[token]
+
+
+# Global instance using the default token from settings (for backward-compatibility)
+try:
+    telegram = TelegramService()
+except Exception:
+    telegram = None  # In case default TELEGRAM_BOT_TOKEN is empty

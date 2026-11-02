@@ -43,6 +43,7 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
+
     memberships: Mapped[list["OrganizationMember"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
 
@@ -59,6 +60,13 @@ class Organization(Base):
     ai_language: Mapped[str] = mapped_column(String(16), default="uz")
     ai_personality: Mapped[str] = mapped_column(String(64), default="Professional & Courteous")
     custom_system_prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Per‑organization AI provider API keys (optional, override global defaults)
+    openai_api_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    gemini_api_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Telegram bot token dedicated to this organization (owner supplies on onboarding)
+    telegram_bot_token: Mapped[str | None] = mapped_column(String(255), nullable=True, unique=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
@@ -79,6 +87,7 @@ class OrganizationMember(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
 
     organization: Mapped[Organization] = relationship(back_populates="members")
     user: Mapped[User] = relationship(back_populates="memberships")
@@ -103,6 +112,7 @@ class Plan(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
 
+
 class Subscription(Base):
     """Organization's active subscription status, billing cycle, and trial."""
     __tablename__ = "subscriptions"
@@ -124,6 +134,7 @@ class Subscription(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
+
     organization: Mapped[Organization] = relationship(back_populates="subscription")
     plan: Mapped[Plan] = relationship()
 
@@ -140,6 +151,7 @@ class UsageRecord(Base):
     used: Mapped[int] = mapped_column(BigInteger, default=0)
     limit: Mapped[int] = mapped_column(BigInteger, default=0)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
 
 
 class WebhookEvent(Base):
@@ -188,6 +200,7 @@ class AIModelConfiguration(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
 
+
 # ============================================================================
 # 2. BUSINESS ENTITIES (SCOPED BY ORGANIZATION_ID)
 # ============================================================================
@@ -201,6 +214,7 @@ class BusinessConnection(Base):
     is_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     rights: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
 
 
 class Conversation(Base):
@@ -289,6 +303,7 @@ class Product(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
 
+
 class Customer(Base):
     """Tenant customer directory."""
     __tablename__ = "customers"
@@ -305,6 +320,7 @@ class Customer(Base):
     notes: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
 
 
 class ConnectedChannel(Base):
@@ -331,6 +347,7 @@ class SystemSetting(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
 
+
 class Admin(Base):
     """Legacy admin table preserved for backward-compatibility with Telegram bot commands."""
     __tablename__ = "admins"
@@ -346,3 +363,4 @@ class Admin(Base):
     added_by: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+

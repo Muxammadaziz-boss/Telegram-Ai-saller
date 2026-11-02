@@ -41,6 +41,10 @@ class Settings(BaseSettings):
     storage_dir: str = "./storage"
     allowed_origins: str = "http://localhost:3000"  # Comma-separated for multiple
 
+    jwt_secret: str = ""
+    jwt_algorithm: str = "HS256"
+    jwt_expire_minutes: int = 1440  # 24 hours
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:

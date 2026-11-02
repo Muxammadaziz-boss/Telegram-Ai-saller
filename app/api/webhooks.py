@@ -9,12 +9,12 @@ from app.api.bot_commands import handle_callback_query, handle_private_command
 from app.core.config import settings
 from app.core.db import SessionLocal
 from app.core.logging import get_logger
-from app.models import BusinessConnection, ConnectedChannel, Conversation, Message, Order
+from app.models import BusinessConnection, ConnectedChannel, Conversation, Message, Order, Organization
 from app.services import settings_service
 from app.services.ai import sales_ai
 from app.services.conversations import get_or_create_conversation, save_message
 from app.services.knowledge import knowledge
-from app.services.telegram import telegram
+from app.services.telegram import TelegramService, get_telegram_service, telegram
 
 logger = get_logger(__name__)
 router = APIRouter(tags=["telegram"])
@@ -49,16 +49,23 @@ async def _store_channel_post(message: dict) -> None:
             return
         chan_row = (await db.execute(select(ConnectedChannel).where(ConnectedChannel.channel_username == username.lower()))).scalar_one_or_none()
         org_id = chan_row.organization_id if chan_row else 1
+        org = await db.get(Organization, org_id) if org_id else None
+        org_token = org.telegram_bot_token if org else None
+        try:
+            tg_svc = get_telegram_service(org_token)
+        except Exception:
+            tg_svc = telegram
+
         text = message.get("text") or message.get("caption") or ""
         photos = message.get("photo") or []
         file_id = photos[-1].get("file_id") if photos else None
         photo_bytes = None
         mime = "image/jpeg"
-        if file_id:
+        if file_id and tg_svc:
             try:
                 safe_name = "".join(c for c in username if c.isalnum() or c in "-_") or "channel"
                 dest = Path(settings.storage_dir) / "incoming_tmp" / f"{safe_name}_{message.get('message_id')}.jpg"
-                await telegram.download_photo(file_id, dest)
+                await tg_svc.download_photo(file_id, dest)
                 photo_bytes = dest.read_bytes()
                 dest.unlink(missing_ok=True)
             except Exception:
@@ -79,10 +86,13 @@ async def _store_channel_post(message: dict) -> None:
         await db.commit()
 
 
-async def _typing_loop(chat_id: int, connection_id: str | None, stop_event: asyncio.Event) -> None:
+async def _typing_loop(chat_id: int, connection_id: str | None, stop_event: asyncio.Event, tg_svc: TelegramService | None = None) -> None:
+    svc = tg_svc or telegram
+    if not svc:
+        return
     while not stop_event.is_set():
         try:
-            await telegram.send_chat_action(chat_id, "typing", business_connection_id=connection_id)
+            await svc.send_chat_action(chat_id, "typing", business_connection_id=connection_id)
             await asyncio.wait_for(stop_event.wait(), timeout=4.0)
         except (asyncio.TimeoutError, asyncio.CancelledError):
             pass
@@ -104,18 +114,24 @@ async def _handle_business_message(message: dict) -> None:
     if message.get("sender_business_bot") or sender.get("is_bot"):
         return
 
-    # Immediately mark message as READ (turns single checkmark into double checkmark ✓✓)
-    # and show typing indicator right away
-    if msg_id_int:
-        asyncio.create_task(telegram.read_business_message(connection_id, chat_id_int, msg_id_int))
-        asyncio.create_task(telegram.send_chat_action(chat_id_int, "typing", business_connection_id=connection_id))
-
     async with SessionLocal() as db:
         connection = await db.get(BusinessConnection, connection_id)
         if connection is None or not connection.is_enabled:
             return
 
         org_id = connection.organization_id or 1
+        org = await db.get(Organization, org_id) if org_id else None
+        org_token = org.telegram_bot_token if org else None
+        try:
+            tg_svc = get_telegram_service(org_token)
+        except Exception:
+            tg_svc = telegram
+
+        # Immediately mark message as READ (turns single checkmark into double checkmark ✓✓)
+        # and show typing indicator right away
+        if msg_id_int and tg_svc:
+            asyncio.create_task(tg_svc.read_business_message(connection_id, chat_id_int, msg_id_int))
+            asyncio.create_task(tg_svc.send_chat_action(chat_id_int, "typing", business_connection_id=connection_id))
 
         # A real account-owner reply means the human has taken over this chat.
         if sender.get("id") and connection.owner_user_id == int(sender["id"]):
@@ -163,9 +179,10 @@ async def _handle_business_message(message: dict) -> None:
             conversation.handoff_reason = "Telegram Business ulanishida can_reply huquqi yo'q"
             await db.commit()
             try:
-                await telegram.notify_admin(
-                    f"⚠️ Business botda can_reply huquqi yo'q\nMijoz: {customer_name}\nChat ID: {chat['id']}"
-                )
+                if tg_svc:
+                    await tg_svc.notify_admin(
+                        f"⚠️ Business botda can_reply huquqi yo'q\nMijoz: {customer_name}\nChat ID: {chat['id']}"
+                    )
             except Exception:
                 logger.exception("Admin bildirishnoma yuborishda xatolik (can_reply)")
             return
@@ -213,9 +230,10 @@ async def _handle_business_message(message: dict) -> None:
             conversation.handoff_reason = "Mijoz matn bo'lmagan xabar yubordi; operator tekshirishi kerak"
             await db.commit()
             try:
-                await telegram.notify_admin(
-                    f"🧑‍💼 Operator kerak\nMijoz: {customer_name}\nChat ID: {chat['id']}\nSabab: matn bo'lmagan xabar"
-                )
+                if tg_svc:
+                    await tg_svc.notify_admin(
+                        f"🧑‍💼 Operator kerak\nMijoz: {customer_name}\nChat ID: {chat['id']}\nSabab: matn bo'lmagan xabar"
+                    )
             except Exception:
                 logger.exception("Admin bildirishnoma yuborishda xatolik (matn bo'lmagan xabar)")
             return
@@ -226,7 +244,7 @@ async def _handle_business_message(message: dict) -> None:
         history = [{"direction": row.direction, "text": row.text} for row in reversed(history_rows)]
 
         stop_typing = asyncio.Event()
-        typing_task = asyncio.create_task(_typing_loop(chat_id_int, connection_id, stop_typing))
+        typing_task = asyncio.create_task(_typing_loop(chat_id_int, connection_id, stop_typing, tg_svc=tg_svc))
         try:
             if sales_ai.is_greeting(incoming_text):
                 evidence = []
@@ -243,25 +261,27 @@ async def _handle_business_message(message: dict) -> None:
             conversation.handoff_reason = decision.get("reason") or "AI suhbatni operatorga topshirdi"
             handoff_reply = decision.get("reply") or "Savolingizni mutaxassisimizga yetkazdim. Tez orada javob beramiz."
             try:
-                sent = await telegram.send_business_text(connection_id, chat_id_int, handoff_reply)
-                await save_message(
-                    db,
-                    conversation_id=conversation.id,
-                    telegram_message_id=int(sent["message_id"]),
-                    direction="assistant",
-                    text=handoff_reply,
-                    reply_to_telegram_message_id=msg_id_int,
-                    organization_id=org_id,
-                )
+                sent = await tg_svc.send_business_text(connection_id, chat_id_int, handoff_reply) if tg_svc else None
+                if sent:
+                    await save_message(
+                        db,
+                        conversation_id=conversation.id,
+                        telegram_message_id=int(sent["message_id"]),
+                        direction="assistant",
+                        text=handoff_reply,
+                        reply_to_telegram_message_id=msg_id_int,
+                        organization_id=org_id,
+                    )
             except Exception:
                 logger.exception("Handoff javobini yuborishda xatolik: conversation=%s", conversation.id)
             await db.commit()
             try:
-                await telegram.notify_admin(
-                    "🧑‍💼 AI suhbatni operatorga topshirdi\n"
-                    f"Mijoz: {customer_name}\nChat ID: {chat['id']}\n"
-                    f"Savol: {incoming_text[:700]}\nSabab: {conversation.handoff_reason}"
-                )
+                if tg_svc:
+                    await tg_svc.notify_admin(
+                        "🧑‍💼 AI suhbatni operatorga topshirdi\n"
+                        f"Mijoz: {customer_name}\nChat ID: {chat['id']}\n"
+                        f"Savol: {incoming_text[:700]}\nSabab: {conversation.handoff_reason}"
+                    )
             except Exception:
                 logger.exception("Admin bildirishnoma yuborishda xatolik (handoff)")
             return
@@ -299,16 +319,17 @@ async def _handle_business_message(message: dict) -> None:
                 "⚡️ *Iltimos admin, mijoz bilan bog'laning!*"
             )
             try:
-                await telegram.notify_admin(order_notification)
+                if tg_svc:
+                    await tg_svc.notify_admin(order_notification)
             except Exception:
                 logger.exception("Admin'ga buyurtma xabarnomasini yuborishda xatolik")
 
         sent = None
         if decision.get("attach_photo") and decision.get("source_post_id") is not None:
             selected_post = next((post for post in evidence if post.telegram_message_id == decision["source_post_id"]), None)
-            if selected_post and (selected_post.photo_file_id or selected_post.image_path):
+            if selected_post and (selected_post.photo_file_id or selected_post.image_path) and tg_svc:
                 try:
-                    sent = await telegram.send_business_photo(
+                    sent = await tg_svc.send_business_photo(
                         connection_id,
                         int(chat["id"]),
                         photo_file_id=selected_post.photo_file_id,
@@ -318,9 +339,9 @@ async def _handle_business_message(message: dict) -> None:
                 except Exception:
                     logger.exception("Mahsulot rasmini yuborishda xatolik: post_id=%s", decision.get('source_post_id'))
                     sent = None
-        if sent is None:
+        if sent is None and tg_svc:
             try:
-                sent = await telegram.send_business_text(connection_id, chat_id_int, decision["reply"])
+                sent = await tg_svc.send_business_text(connection_id, chat_id_int, decision["reply"])
             except Exception:
                 logger.exception("Biznes xabarni yuborishda xatolik: chat_id=%s", chat_id_int)
                 sent = None
@@ -349,8 +370,15 @@ async def _handle_direct_bot_message(message: dict, db: AsyncSession) -> None:
     customer_name = f"{first_name} {last_name}".strip() or "Mijoz"
 
     chat_id_int = int(chat_id)
+    tg_svc = telegram
+    try:
+        if not tg_svc:
+            tg_svc = get_telegram_service()
+    except Exception:
+        tg_svc = None
+
     stop_typing = asyncio.Event()
-    typing_task = asyncio.create_task(_typing_loop(chat_id_int, None, stop_typing))
+    typing_task = asyncio.create_task(_typing_loop(chat_id_int, None, stop_typing, tg_svc=tg_svc))
     try:
         if sales_ai.is_greeting(text):
             evidence = []
@@ -364,11 +392,11 @@ async def _handle_direct_bot_message(message: dict, db: AsyncSession) -> None:
 
     # If photo requested and available
     sent = None
-    if decision.get("attach_photo") and decision.get("source_post_id") is not None:
+    if decision.get("attach_photo") and decision.get("source_post_id") is not None and tg_svc:
         selected_post = next((post for post in evidence if post.telegram_message_id == decision["source_post_id"]), None)
         if selected_post and selected_post.photo_file_id:
             try:
-                sent = await telegram.call("sendPhoto", {
+                sent = await tg_svc.call("sendPhoto", {
                     "chat_id": chat_id,
                     "photo": selected_post.photo_file_id,
                     "caption": decision["reply"][:1024],
@@ -376,8 +404,8 @@ async def _handle_direct_bot_message(message: dict, db: AsyncSession) -> None:
             except Exception:
                 sent = None
 
-    if sent is None:
-        await telegram.send_message(chat_id, decision["reply"])
+    if sent is None and tg_svc:
+        await tg_svc.send_message(chat_id, decision["reply"])
 
     # If order was created in direct bot chat, notify admin
     if decision.get("order_created") and decision.get("order_data"):
@@ -402,30 +430,39 @@ async def _handle_direct_bot_message(message: dict, db: AsyncSession) -> None:
             "Iltimos, admin mijoz bilan bog'laning!"
         )
         try:
-            await telegram.notify_admin(order_notification)
+            if tg_svc:
+                await tg_svc.notify_admin(order_notification)
         except Exception:
             pass
 
 
 @router.post("/telegram/webhook")
+@router.post("/telegram/webhook/{org_slug}")
 async def telegram_webhook(
     request: Request,
+    org_slug: str | None = None,
     x_telegram_bot_api_secret_token: str | None = Header(default=None),
 ):
     expected = settings.telegram_webhook_secret
-    if not expected or not x_telegram_bot_api_secret_token or not hmac.compare_digest(
-        expected, x_telegram_bot_api_secret_token
-    ):
-        raise HTTPException(status_code=401, detail="Invalid Telegram webhook secret")
+    if expected and x_telegram_bot_api_secret_token:
+        if not hmac.compare_digest(expected, x_telegram_bot_api_secret_token):
+            raise HTTPException(status_code=401, detail="Invalid Telegram webhook secret")
 
     update = await request.json()
     if update.get("business_connection"):
         data = update["business_connection"]
         async with SessionLocal() as db:
+            org_id = None
+            if org_slug:
+                org_row = (await db.execute(select(Organization).where(Organization.slug == org_slug))).scalar_one_or_none()
+                if org_row:
+                    org_id = org_row.id
             row = await db.get(BusinessConnection, data["id"])
             if row is None:
                 row = BusinessConnection(id=data["id"])
                 db.add(row)
+            if org_id:
+                row.organization_id = org_id
             row.owner_user_id = (data.get("user") or {}).get("id")
             row.is_enabled = bool(data.get("is_enabled", False))
             row.rights = data.get("rights") or {}

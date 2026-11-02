@@ -38,7 +38,10 @@ class SalesAI:
             return "openai"
         return "none"
 
-    async def _generate_gemini(self, instructions: str, payload_str: str) -> dict:
+    async def _generate_gemini(self, instructions: str, payload_str: str, api_key: str | None = None) -> dict:
+        gemini_key = api_key or self.gemini_key
+        if not gemini_key:
+            raise ValueError("Gemini API key mavjud emas")
         client = self._get_http_client()
         candidate_models = [self.gemini_model]
         for fallback in ("gemini-3.1-flash-lite", "gemini-3.5-flash", "gemini-flash-latest", "gemini-3.5-flash-lite"):
@@ -47,7 +50,7 @@ class SalesAI:
 
         last_error = None
         for model in candidate_models:
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={self.gemini_key}"
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={gemini_key}"
             body = {
                 "systemInstruction": {
                     "parts": [{"text": instructions}]
@@ -75,10 +78,11 @@ class SalesAI:
             raise last_error
         raise RuntimeError("Barcha Gemini modellari muvaffaqiyatsiz bo'ldi")
 
-    async def _generate_openai(self, instructions: str, payload_str: str) -> dict:
-        if not self.openai_client:
+    async def _generate_openai(self, instructions: str, payload_str: str, api_key: str | None = None) -> dict:
+        client = AsyncOpenAI(api_key=api_key, base_url=settings.openai_base_url or None) if api_key else self.openai_client
+        if not client:
             raise ValueError("OpenAI client mavjud emas")
-        response = await self.openai_client.responses.create(
+        response = await client.responses.create(
             model=settings.openai_model,
             instructions=instructions,
             input=payload_str,
@@ -168,12 +172,55 @@ class SalesAI:
                 "attach_photo": False,
                 "source_post_id": None,
             }
-        if self.provider == "none":
+
+        # Resolve per-organization AI keys and settings
+        org_gemini_key = None
+        org_openai_key = None
+        custom_system_prompt = None
+        ai_language = "uz"
+        ai_personality = "Professional & Courteous"
+
+        if db is not None and organization_id is not None:
+            try:
+                from app.models import Organization
+                org = await db.get(Organization, organization_id)
+                if org:
+                    org_gemini_key = org.gemini_api_key
+                    org_openai_key = org.openai_api_key
+                    custom_system_prompt = org.custom_system_prompt
+                    ai_language = org.ai_language or "uz"
+                    ai_personality = org.ai_personality or "Professional & Courteous"
+            except Exception:
+                logger.exception("Organization ma'lumotlarini yuklashda xatolik: org_id=%s", organization_id)
+
+        # Decide provider: prioritize org-specific credentials
+        if org_gemini_key:
+            active_provider = "gemini"
+            active_gemini_key = org_gemini_key
+            active_openai_key = None
+        elif org_openai_key:
+            active_provider = "openai"
+            active_gemini_key = None
+            active_openai_key = org_openai_key
+        elif self.gemini_key:
+            active_provider = "gemini"
+            active_gemini_key = self.gemini_key
+            active_openai_key = None
+        elif self.openai_client:
+            active_provider = "openai"
+            active_gemini_key = None
+            active_openai_key = settings.openai_api_key
+        else:
+            active_provider = "none"
+            active_gemini_key = None
+            active_openai_key = None
+
+        if active_provider == "none":
             return {
-                "reply": "Hozircha maslahatchimiz sizga yordam beradi. Suhbatingizni operatorga topshirdim.",
+                "reply": "Kechirasiz, tashkilot uchun AI API kaliti (Gemini yoki OpenAI) hali sozlanmagan. Iltimos, boshqaruv panelida API kalitni kiriting.",
                 "handoff": True,
-                "reason": "AI API kaliti sozlanmagan",
-                "intent": "unknown",
+                "reason": "Tashkilot AI API kaliti kiritilmagan",
+                "intent": "api_key_missing",
                 "order_created": False,
                 "order_data": None,
                 "attach_photo": False,
@@ -240,6 +287,11 @@ Javobingni FAQAT quyidagi JSON formatida qaytar:
   "source_post_id": null
 }
 """
+        if custom_system_prompt:
+            instructions = f"QO'SHIMCHA TASHKILOT KO'RSATMASI:\n{custom_system_prompt}\n\nMuloqot tili: {ai_language}. Uslubi: {ai_personality}.\n\n" + instructions
+        elif ai_personality or ai_language:
+            instructions = f"Muloqot tili: {ai_language}. Uslubi: {ai_personality}.\n\n" + instructions
+
         payload = {
             "customer_message": customer_text,
             "recent_conversation": history[-10:],
@@ -247,10 +299,10 @@ Javobingni FAQAT quyidagi JSON formatida qaytar:
         }
         try:
             payload_str = json.dumps(payload, ensure_ascii=False)
-            if self.provider == "gemini":
-                data = await self._generate_gemini(instructions, payload_str)
+            if active_provider == "gemini":
+                data = await self._generate_gemini(instructions, payload_str, api_key=active_gemini_key)
             else:
-                data = await self._generate_openai(instructions, payload_str)
+                data = await self._generate_openai(instructions, payload_str, api_key=active_openai_key)
             reply = str(data.get("reply", "")).strip()
             allowed_photo_ids = {post.telegram_message_id for post in context if post.photo_file_id or post.image_path}
             requested_photo_id = data.get("source_post_id")
