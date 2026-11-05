@@ -58,32 +58,21 @@ class CheckoutRequest(BaseModel):
 
 # --- Tenant & Auth Resolvers ---
 
-async def get_current_admin_optional(
-    x_admin_token: str | None = Header(default=None),
-    x_admin_telegram_id: str | None = Header(default=None),
-    db: AsyncSession = Depends(get_db),
-) -> Admin | None:
-    from app.api.admin import get_current_admin
-    try:
-        return await get_current_admin(x_admin_token, x_admin_telegram_id, db)
-    except HTTPException:
-        return None
+from app.api.admin import get_current_admin
+from app.dependencies.tenant import get_admin_tenant_id
 
 
 async def resolve_organization_id(
     x_organization_id: str | None = Header(default=None),
-    admin: Admin | None = Depends(get_current_admin_optional),
+    admin: Admin = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ) -> int:
-    """Resolve active tenant organization_id from header or fallback to default org 1."""
-    if x_organization_id:
-        try:
-            return int(x_organization_id)
-        except ValueError:
-            pass
-    if admin and admin.organization_id:
-        return admin.organization_id
-    return 1
+    """Resolve active tenant organization_id and strictly enforce verified membership."""
+    return await get_admin_tenant_id(
+        current_admin=admin,
+        x_organization_id=x_organization_id,
+        db=db,
+    )
 
 
 # --- Endpoints ---
@@ -202,10 +191,10 @@ async def check_feature_entitlement(
 
 @router.get("/organizations")
 async def list_user_organizations(
-    admin: Admin | None = Depends(get_current_admin_optional),
+    admin: Admin = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    """List all organizations accessible to the current user."""
+    """List all organizations accessible to the authenticated user."""
     # Look up user by admin's telegram_user_id
     if admin and admin.telegram_user_id:
         u_res = await db.execute(select(User).where(User.telegram_user_id == admin.telegram_user_id))
@@ -213,16 +202,18 @@ async def list_user_organizations(
         if user:
             orgs = await get_user_organizations(db, user.id)
             return {"organizations": orgs}
-    
-    # Fallback to default org
-    default_org = await get_organization_details(db, 1)
-    return {"organizations": [default_org] if default_org else []}
+
+    if admin and admin.organization_id:
+        org = await get_organization_details(db, admin.organization_id)
+        return {"organizations": [org] if org else []}
+
+    raise HTTPException(status_code=403, detail="Siz hech qaysi tashkilotga a'zo emassiz")
 
 
 @router.post("/organizations")
 async def create_organization(
     req: CreateOrgRequest,
-    admin: Admin | None = Depends(get_current_admin_optional),
+    admin: Admin = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """Onboarding endpoint: create a new organization with 7-day free trial."""
@@ -233,10 +224,10 @@ async def create_organization(
 
     if not user:
         # Create or fetch master user
-        master_tg = (admin.telegram_user_id if admin else None) or settings.admin_telegram_id or 6990611858
+        master_tg = admin.telegram_user_id or settings.admin_telegram_id or 6990611858
         user = User(
             email=f"owner_{master_tg}@aisales.uz",
-            full_name=admin.name if admin else "Owner",
+            full_name=admin.name or "Owner",
             telegram_user_id=master_tg,
             is_active=True,
         )

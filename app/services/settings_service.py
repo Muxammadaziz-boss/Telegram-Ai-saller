@@ -20,10 +20,14 @@ def clean_channel_username(raw: str) -> str:
     return raw.strip("/").strip()
 
 
-async def get_setting(db: AsyncSession, key: str, default: str = "") -> str:
+async def get_setting(db: AsyncSession, key: str, default: str = "", organization_id: int | None = None) -> str:
     """Retrieve a setting value from the database, falling back to default."""
-    result = await db.execute(select(SystemSetting).where(SystemSetting.key == key))
-    row = result.scalar_one_or_none()
+    stmt = select(SystemSetting).where(SystemSetting.key == key)
+    if organization_id is not None:
+        stmt = stmt.where((SystemSetting.organization_id == organization_id) | (SystemSetting.organization_id.is_(None)))
+        stmt = stmt.order_by(SystemSetting.organization_id.desc().nullslast())
+    result = await db.execute(stmt)
+    row = result.scalars().first()
     if row is not None and row.value:
         return row.value
     return default
@@ -34,19 +38,25 @@ async def set_setting(
     key: str,
     value: str,
     description: str | None = None,
+    organization_id: int | None = None,
 ) -> SystemSetting:
     """Insert or update a setting value."""
-    result = await db.execute(select(SystemSetting).where(SystemSetting.key == key))
+    stmt = select(SystemSetting).where(SystemSetting.key == key)
+    if organization_id is not None:
+        stmt = stmt.where(SystemSetting.organization_id == organization_id)
+    result = await db.execute(stmt)
     row = result.scalar_one_or_none()
     if row is None:
-        row = SystemSetting(key=key, value=value, description=description)
+        row = SystemSetting(key=key, value=value, description=description, organization_id=organization_id)
         db.add(row)
     else:
         row.value = value
         if description is not None:
             row.description = description
+        if organization_id is not None and row.organization_id is None:
+            row.organization_id = organization_id
     await db.flush()
-    logger.info("Sozlama yangilandi: key=%s, value=%s", key, value)
+    logger.info("Sozlama yangilandi: key=%s, value=%s, org_id=%s", key, value, organization_id)
     return row
 
 
@@ -54,12 +64,15 @@ async def set_setting(
 # Connected Channels Management (Multi-channel support)
 # ---------------------------------------------------------------------------
 
-async def list_channels(db: AsyncSession) -> list[ConnectedChannel]:
-    """List all connected channels, auto-migrating legacy channels if empty."""
-    res = await db.execute(select(ConnectedChannel).order_by(ConnectedChannel.created_at.desc()))
+async def list_channels(db: AsyncSession, organization_id: int | None = None) -> list[ConnectedChannel]:
+    """List connected channels scoped by organization."""
+    stmt = select(ConnectedChannel)
+    if organization_id is not None:
+        stmt = stmt.where(ConnectedChannel.organization_id == organization_id)
+    res = await db.execute(stmt.order_by(ConnectedChannel.created_at.desc()))
     channels = list(res.scalars().all())
 
-    if not channels:
+    if not channels and organization_id in (None, 1):
         # Check if legacy channels exist in SystemSetting or ChannelPost
         legacy_candidates: list[str] = []
         custom_ch = await get_setting(db, "public_channel", default="")
@@ -88,6 +101,7 @@ async def list_channels(db: AsyncSession) -> list[ConnectedChannel]:
                     channel_username=cand,
                     title=f"@{cand}",
                     is_active=True,
+                    organization_id=organization_id or 1,
                     posts_count=p_cnt,
                     last_synced_at=datetime.now(timezone.utc) if p_cnt > 0 else None,
                 )
@@ -99,9 +113,10 @@ async def list_channels(db: AsyncSession) -> list[ConnectedChannel]:
     # Update posts count for each channel
     for ch in channels:
         try:
-            p_cnt = (await db.execute(
-                select(func.count(ChannelPost.id)).where(ChannelPost.channel_username == ch.channel_username)
-            )).scalar() or 0
+            count_stmt = select(func.count(ChannelPost.id)).where(ChannelPost.channel_username == ch.channel_username)
+            if organization_id is not None:
+                count_stmt = count_stmt.where(ChannelPost.organization_id == organization_id)
+            p_cnt = (await db.execute(count_stmt)).scalar() or 0
             if ch.posts_count != p_cnt:
                 ch.posts_count = p_cnt
         except Exception:
@@ -110,9 +125,9 @@ async def list_channels(db: AsyncSession) -> list[ConnectedChannel]:
     return channels
 
 
-async def get_active_channel_usernames(db: AsyncSession) -> list[str]:
+async def get_active_channel_usernames(db: AsyncSession, organization_id: int | None = None) -> list[str]:
     """Get clean usernames of all active connected channels."""
-    channels = await list_channels(db)
+    channels = await list_channels(db, organization_id=organization_id)
     return [c.channel_username for c in channels if c.is_active]
 
 
@@ -121,55 +136,71 @@ async def add_channel(
     raw_channel: str,
     title: str | None = None,
     added_by: int | None = None,
+    organization_id: int | None = None,
 ) -> ConnectedChannel:
     """Add a new connected channel or reactivate if already exists."""
     clean = clean_channel_username(raw_channel)
     if not clean:
         raise ValueError("Kanal username yoki havolasi noto'g'ri")
 
-    res = await db.execute(select(ConnectedChannel).where(ConnectedChannel.channel_username == clean))
+    stmt = select(ConnectedChannel).where(ConnectedChannel.channel_username == clean)
+    if organization_id is not None:
+        stmt = stmt.where(ConnectedChannel.organization_id == organization_id)
+    res = await db.execute(stmt)
     existing = res.scalar_one_or_none()
     if existing:
         existing.is_active = True
         if title:
             existing.title = title
+        if organization_id is not None and existing.organization_id is None:
+            existing.organization_id = organization_id
         await db.flush()
         return existing
 
-    p_cnt = (await db.execute(
-        select(func.count(ChannelPost.id)).where(ChannelPost.channel_username == clean)
-    )).scalar() or 0
+    count_stmt = select(func.count(ChannelPost.id)).where(ChannelPost.channel_username == clean)
+    if organization_id is not None:
+        count_stmt = count_stmt.where(ChannelPost.organization_id == organization_id)
+    p_cnt = (await db.execute(count_stmt)).scalar() or 0
 
     new_channel = ConnectedChannel(
         channel_username=clean,
         title=title or f"@{clean}",
         is_active=True,
         added_by=added_by,
+        organization_id=organization_id,
         posts_count=p_cnt,
     )
     db.add(new_channel)
     await db.flush()
-    logger.info("Yangi kanal ulandi: @%s", clean)
+    logger.info("Kanal ulandi: username=%s, org_id=%s, added_by=%s", clean, organization_id, added_by)
     return new_channel
 
 
-async def remove_channel(db: AsyncSession, channel_id_or_username: int | str) -> bool:
-    """Remove a channel from connected channels."""
-    if isinstance(channel_id_or_username, int) or (isinstance(channel_id_or_username, str) and str(channel_id_or_username).isdigit()):
-        cid = int(channel_id_or_username)
-        res = await db.execute(select(ConnectedChannel).where(ConnectedChannel.id == cid))
+async def remove_channel(
+    db: AsyncSession,
+    identifier: str,
+    organization_id: int | None = None,
+) -> ConnectedChannel | None:
+    """Soft-remove (deactivate) or delete a connected channel."""
+    stmt = select(ConnectedChannel)
+    if identifier.isdigit():
+        stmt = stmt.where(ConnectedChannel.id == int(identifier))
     else:
-        clean = clean_channel_username(str(channel_id_or_username))
-        res = await db.execute(select(ConnectedChannel).where(ConnectedChannel.channel_username == clean))
+        clean = clean_channel_username(identifier)
+        stmt = stmt.where(ConnectedChannel.channel_username == clean)
+    if organization_id is not None:
+        stmt = stmt.where(ConnectedChannel.organization_id == organization_id)
 
+    res = await db.execute(stmt)
     channel = res.scalar_one_or_none()
-    if not channel:
-        return False
+    if channel is None:
+        return None
 
+    channel.is_active = False
     await db.delete(channel)
     await db.flush()
-    logger.info("Kanal o'chirildi: @%s", channel.channel_username)
-    return True
+    logger.info("Kanal o'chirildi: id=%s, username=%s, org_id=%s", channel.id, channel.channel_username, organization_id)
+    return channel
 
 
 async def update_channel_stats(db: AsyncSession, channel_username: str, count: int) -> None:

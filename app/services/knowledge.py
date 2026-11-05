@@ -152,7 +152,7 @@ class KnowledgeService:
             post = ChannelPost(
                 channel_username=channel,
                 telegram_message_id=telegram_message_id,
-                organization_id=organization_id or 1,
+                organization_id=organization_id,
             )
             db.add(post)
         elif organization_id and post.organization_id is None:
@@ -190,7 +190,7 @@ class KnowledgeService:
         await db.flush()
         return post
 
-    async def search(self, db: AsyncSession, query: str, limit: int = 6, organization_id: int | None = 1) -> list[ChannelPost]:
+    async def search(self, db: AsyncSession, query: str, limit: int = 6, organization_id: int | None = None) -> list[ChannelPost]:
         vector = None
         try:
             vector = await self.embed(query)
@@ -200,7 +200,7 @@ class KnowledgeService:
         if vector:
             distance = ChannelPost.embedding.cosine_distance(vector)
             stmt = select(ChannelPost).where(ChannelPost.embedding.is_not(None), distance < 0.62)
-            if organization_id:
+            if organization_id is not None:
                 stmt = stmt.where(ChannelPost.organization_id == organization_id)
             stmt = stmt.order_by(distance).limit(limit)
             rows = (await db.execute(stmt)).scalars().all()
@@ -217,18 +217,26 @@ class KnowledgeService:
             for token in tokens
         ]
         stmt = select(ChannelPost).where(or_(*conditions))
-        if organization_id:
+        if organization_id is not None:
             stmt = stmt.where(ChannelPost.organization_id == organization_id)
         stmt = stmt.order_by(ChannelPost.posted_at.desc().nullslast()).limit(limit)
         return list((await db.execute(stmt)).scalars().all())
 
-    async def sync_channel_posts(self, db: AsyncSession, channel_username: str, organization_id: int | None = 1) -> int:
+    async def sync_channel_posts(self, db: AsyncSession, channel_username: str, organization_id: int | None = None) -> int:
         """Sync posts from public Telegram channel web preview without MTProto login."""
         import re
         from html import unescape
         clean_name = channel_username.lstrip("@").strip()
         if not clean_name:
             return 0
+
+        # Resolve organization_id if not provided
+        if organization_id is None:
+            ch_row = (await db.execute(select(ConnectedChannel).where(ConnectedChannel.channel_username == clean_name))).scalars().first()
+            if ch_row and ch_row.organization_id:
+                organization_id = ch_row.organization_id
+            else:
+                organization_id = 1
         url = f"https://t.me/s/{clean_name}"
         logger.info("Kanal postlari sinxronlanmoqda: %s", url)
 
@@ -298,18 +306,18 @@ class KnowledgeService:
                 pass
             return imported
 
-    async def sync_all_channels(self, db: AsyncSession) -> dict[str, int]:
-        """Sync posts from all active connected channels."""
+    async def sync_all_channels(self, db: AsyncSession, organization_id: int | None = None) -> dict[str, int]:
+        """Sync posts from all active connected channels for the given organization."""
         from app.services import settings_service
-        channels = await settings_service.get_active_channel_usernames(db)
+        channels = await settings_service.list_channels(db, organization_id=organization_id)
         results: dict[str, int] = {}
         for ch in channels:
             try:
-                cnt = await self.sync_channel_posts(db, ch)
-                results[ch] = cnt
+                cnt = await self.sync_channel_posts(db, ch.channel_username, organization_id=ch.organization_id or organization_id)
+                results[ch.channel_username] = cnt
             except Exception:
-                logger.exception("Kanalni sinxronlashda xatolik: %s", ch)
-                results[ch] = 0
+                logger.exception("Kanalni sinxronlashda xatolik: %s", ch.channel_username)
+                results[ch.channel_username] = 0
         return results
 
 

@@ -443,10 +443,29 @@ async def telegram_webhook(
     org_slug: str | None = None,
     x_telegram_bot_api_secret_token: str | None = Header(default=None),
 ):
+    # 1. Fail closed in production if secret is not configured
+    if settings.is_production and not settings.telegram_webhook_secret:
+        logger.error("TELEGRAM_WEBHOOK_SECRET is not configured in production; failing closed")
+        raise HTTPException(
+            status_code=500,
+            detail="Webhook configuration error in production",
+        )
+
+    # 2. Strict webhook secret token validation when secret is configured
     expected = settings.telegram_webhook_secret
-    if expected and x_telegram_bot_api_secret_token:
+    if expected:
+        if not x_telegram_bot_api_secret_token:
+            logger.warning("Telegram webhook request missing X-Telegram-Bot-Api-Secret-Token header")
+            raise HTTPException(
+                status_code=401,
+                detail="Missing Telegram webhook secret token",
+            )
         if not hmac.compare_digest(expected, x_telegram_bot_api_secret_token):
-            raise HTTPException(status_code=401, detail="Invalid Telegram webhook secret")
+            logger.warning("Telegram webhook request provided invalid secret token")
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid Telegram webhook secret token",
+            )
 
     update = await request.json()
     if update.get("business_connection"):
