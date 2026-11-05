@@ -68,3 +68,4 @@ curl -F "url=https://your-domain.com/telegram/webhook" \
 - [x] **Next.js Dashboard Users:** Clear cookies or re-login once deployed so the client acquires the new identity-bound session payload.
 - [x] **API Consumers:** External API calls to `/admin/*` must include `Authorization: Bearer <JWT_TOKEN>` or `X-Admin-Token: <ADMIN_API_TOKEN>`. The deprecated `X-Admin-Telegram-ID` header is ignored.
 - [x] **Multi-Tenant Header:** When an operator belongs to multiple organizations, send `X-Organization-Id: <id>` to switch active tenant context. The backend validates membership before serving requests.
+

@@ -89,3 +89,4 @@ tests/test_admin_service.py::test_has_permission PASSED                  [100%]
 ```
 
 Total active test suite: **31 passed in 55.52s**, 0 failed, 0 errors, 0 regressions.
+
