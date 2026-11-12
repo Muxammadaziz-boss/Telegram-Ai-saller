@@ -172,6 +172,22 @@ async def handle_callback_query(callback_query: dict, db: AsyncSession) -> None:
                                 "🔧 *Admin boshqaruvi*\nQuyidagi amallardan birini tanlang:",
                                 _admin_keyboard(admin))
 
+        elif data.startswith("admin:takeover:"):
+            try:
+                conv_id = int(data.split(":")[-1])
+                from app.models import Conversation
+                conv = await db.get(Conversation, conv_id)
+                if conv:
+                    conv.status = "human_takeover"
+                    conv.handoff_reason = f"Operator {admin.name or user_id} Telegram orqali qabul qildi"
+                    await db.commit()
+                    await telegram.answer_callback(callback_id, "✅ Suhbat sizga biriktirildi! Mijozga to'g'ridan-to'g'ri javob berishingiz mumkin.", show_alert=True)
+                    await _edit_message(chat_id, message_id, f"✅ *Suhbat qabul qilindi*\nMijoz: {conv.customer_name}\nSiz ushbu suhbatni o'z zimmangizga oldingiz.", [])
+                else:
+                    await telegram.answer_callback(callback_id, "Suhbat topilmadi")
+            except Exception:
+                await telegram.answer_callback(callback_id, "Xatolik yuz berdi")
+
         elif data == "admin:list":
             admins = await admin_service.list_admins(db)
             lines = ["👥 *Adminlar ro'yxati:*\n"]

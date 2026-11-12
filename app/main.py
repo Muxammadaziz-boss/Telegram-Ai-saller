@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
 from fastapi import FastAPI
@@ -18,6 +19,36 @@ from app.services import admin_service
 from app.services.telegram import telegram
 
 logger = get_logger(__name__)
+
+
+async def _subscription_maintenance_loop():
+    """Background task checking and expiring overdue trials periodically."""
+    while True:
+        try:
+            await asyncio.sleep(1800)  # Check every 30 minutes
+            async with SessionLocal() as db:
+                from datetime import datetime, timezone
+                from sqlalchemy import update
+                from app.models import Subscription
+
+                now = datetime.now(timezone.utc)
+                stmt = (
+                    update(Subscription)
+                    .where(
+                        Subscription.status == "trialing",
+                        Subscription.trial_end_at.is_not(None),
+                        Subscription.trial_end_at < now,
+                    )
+                    .values(status="trial_expired")
+                )
+                res = await db.execute(stmt)
+                if res.rowcount and res.rowcount > 0:
+                    await db.commit()
+                    logger.info("Muddati tugagan %s ta sinov obunasi 'trial_expired' holatiga o'tkazildi", res.rowcount)
+        except asyncio.CancelledError:
+            break
+        except Exception:
+            logger.exception("Obunalarni tekshirish fon vazifasida xatolik")
 
 
 @asynccontextmanager
@@ -93,8 +124,14 @@ async def lifespan(application: FastAPI):
         except Exception:
             logger.exception("setMyCommands o'rnatishda xatolik yuz berdi")
 
+    maintenance_task = asyncio.create_task(_subscription_maintenance_loop())
     logger.info("Application ready")
     yield
+    maintenance_task.cancel()
+    try:
+        await maintenance_task
+    except asyncio.CancelledError:
+        pass
     await engine.dispose()
     logger.info("Application shut down")
 

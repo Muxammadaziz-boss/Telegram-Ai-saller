@@ -12,6 +12,32 @@ from app.models import ChannelPost
 logger = get_logger(__name__)
 
 
+def chunk_text(text: str, max_chars: int = 1500, overlap: int = 200) -> list[str]:
+    """Split long catalog/post text into overlapping semantic chunks."""
+    text = text.strip()
+    if len(text) <= max_chars:
+        return [text] if text else []
+    chunks = []
+    start = 0
+    while start < len(text):
+        end = start + max_chars
+        if end >= len(text):
+            chunks.append(text[start:].strip())
+            break
+        break_pos = text.rfind("\n", start, end)
+        if break_pos == -1 or break_pos < start + (max_chars // 2):
+            break_pos = text.rfind(". ", start, end)
+        if break_pos == -1 or break_pos < start + (max_chars // 2):
+            break_pos = text.rfind(" ", start, end)
+        if break_pos == -1 or break_pos <= start:
+            break_pos = end
+        chunk = text[start:break_pos].strip()
+        if chunk:
+            chunks.append(chunk)
+        start = max(start + 1, break_pos - overlap)
+    return chunks
+
+
 class KnowledgeService:
     def __init__(self) -> None:
         self.gemini_key = settings.gemini_api_key

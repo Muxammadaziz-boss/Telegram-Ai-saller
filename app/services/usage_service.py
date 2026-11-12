@@ -302,7 +302,8 @@ class UsageService:
 
     @staticmethod
     async def check_limit(db: AsyncSession, organization_id: int, metric: str, increment: int = 1) -> dict:
-        return await check_limit(db, organization_id, metric, increment)
+        allowed, used, limit = await check_limit(db, organization_id, metric, increment)
+        return {"allowed": allowed, "used": used, "limit": limit}
 
     @staticmethod
     async def require_limit(db: AsyncSession, organization_id: int, metric: str, increment: int = 1) -> bool:

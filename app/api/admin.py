@@ -3,6 +3,7 @@ import hmac
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from fastapi.responses import Response
+from pydantic import BaseModel
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,6 +21,7 @@ from app.models import (
     Order,
     Organization,
     OrganizationMember,
+    Product,
     SystemSetting,
     User,
 )
@@ -420,6 +422,128 @@ async def sync_knowledge_posts(
     channel_names = list(results.keys())
     primary = channel_names[0] if channel_names else ""
     return {"ok": True, "channel": primary, "synced_posts": total, "channels": results}
+
+
+# ---------------------------------------------------------------------------
+# Product Catalog Endpoints
+# ---------------------------------------------------------------------------
+
+class ProductCreate(BaseModel):
+    id: str | None = None
+    code: str | None = None
+    name: str
+    category: str = "Gaming"
+    specs: str = ""
+    price: str = "$0"
+    stock: str = "In Stock"
+    warranty: str = "2 oy kafolat"
+
+
+class ProductUpdate(BaseModel):
+    name: str | None = None
+    category: str | None = None
+    specs: str | None = None
+    price: str | None = None
+    stock: str | None = None
+    warranty: str | None = None
+    is_active: bool | None = None
+
+
+DEFAULT_INITIAL_PRODUCTS = [
+    {"code": "LAP-01", "name": "Asus TUF Gaming FX505GE", "category": "Gaming", "specs": "Core i7-8750H, 16GB RAM, 512GB SSD, GTX 1050Ti 4GB", "price": "$340", "stock": "In Stock", "warranty": "2 oy kafolat"},
+    {"code": "LAP-02", "name": "Lenovo ThinkPad E14 Gen 2", "category": "Biznes", "specs": "Core i5-1135G7, 16GB RAM, 256GB NVMe, Iris Xe", "price": "$430", "stock": "In Stock", "warranty": "3 oy kafolat"},
+    {"code": "LAP-03", "name": "Apple MacBook Air M1", "category": "Ultrabuk", "specs": "Apple M1 chip, 8GB RAM, 256GB SSD, Retina 13.3", "price": "$610", "stock": "In Stock", "warranty": "6 oy kafolat"},
+    {"code": "LAP-04", "name": "HP Victus 15 (2023)", "category": "Gaming", "specs": "Ryzen 5 7535HS, 16GB DDR5, 512GB SSD, RTX 2050 4GB", "price": "$490", "stock": "Low Stock", "warranty": "3 oy kafolat"},
+    {"code": "LAP-05", "name": "Dell Latitude 5420", "category": "Ofis", "specs": "Core i5-1145G7, 16GB RAM, 512GB SSD, FHD IPS", "price": "$320", "stock": "In Stock", "warranty": "2 oy kafolat"},
+    {"code": "LAP-06", "name": "Acer Nitro 5 AN515", "category": "Gaming", "specs": "Core i5-11400H, 16GB RAM, 512GB SSD, RTX 3050 4GB", "price": "$530", "stock": "Pre-order", "warranty": "3 oy kafolat"},
+]
+
+
+@router.get("/products")
+async def get_products(
+    db: AsyncSession = Depends(get_db),
+    org_id: int = Depends(get_admin_tenant_id),
+):
+    stmt = select(Product).where(Product.organization_id == org_id, Product.is_active.is_(True)).order_by(Product.id.asc())
+    products = (await db.execute(stmt)).scalars().all()
+    if not products:
+        for item in DEFAULT_INITIAL_PRODUCTS:
+            db.add(Product(
+                organization_id=org_id,
+                code=item["code"],
+                name=item["name"],
+                category=item["category"],
+                specs=item["specs"],
+                price=item["price"],
+                stock=item["stock"],
+                warranty=item["warranty"],
+                is_active=True,
+            ))
+        await db.commit()
+        products = (await db.execute(stmt)).scalars().all()
+
+    return [{
+        "id": p.code or f"LAP-{p.id:02d}",
+        "db_id": p.id,
+        "name": p.name,
+        "category": p.category,
+        "specs": p.specs,
+        "price": p.price,
+        "stock": p.stock,
+        "warranty": p.warranty,
+    } for p in products]
+
+
+@router.post("/products")
+async def create_product(
+    payload: ProductCreate,
+    db: AsyncSession = Depends(get_db),
+    org_id: int = Depends(get_admin_tenant_id),
+):
+    code = payload.code or payload.id or f"LAP-{int(datetime.now().timestamp()) % 10000:04d}"
+    product = Product(
+        organization_id=org_id,
+        code=code,
+        name=payload.name,
+        category=payload.category,
+        specs=payload.specs,
+        price=payload.price,
+        stock=payload.stock,
+        warranty=payload.warranty,
+        is_active=True,
+    )
+    db.add(product)
+    await db.commit()
+    await db.refresh(product)
+    return {
+        "id": product.code,
+        "db_id": product.id,
+        "name": product.name,
+        "category": product.category,
+        "specs": product.specs,
+        "price": product.price,
+        "stock": product.stock,
+        "warranty": product.warranty,
+    }
+
+
+@router.delete("/products/{code_or_id}")
+async def delete_product(
+    code_or_id: str,
+    db: AsyncSession = Depends(get_db),
+    org_id: int = Depends(get_admin_tenant_id),
+):
+    is_num = code_or_id.isdigit()
+    cond = (Product.code == code_or_id)
+    if is_num:
+        cond = cond | (Product.id == int(code_or_id))
+    stmt = select(Product).where(Product.organization_id == org_id, cond)
+    product = (await db.execute(stmt)).scalar_one_or_none()
+    if not product:
+        raise HTTPException(status_code=404, detail="Mahsulot topilmadi")
+    product.is_active = False
+    await db.commit()
+    return {"ok": True, "deleted": code_or_id}
 
 
 # ---------------------------------------------------------------------------

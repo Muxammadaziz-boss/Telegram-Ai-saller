@@ -611,19 +611,23 @@ export default function Dashboard({ initialAuthenticated = false }: { initialAut
     setLoading(true);
     setError("");
     try {
-      const [o, c, p, a, s, chList] = await Promise.all([
+      const [o, c, p, a, s, chList, prodsList] = await Promise.all([
         api<Overview>("/admin/overview"),
         api<Conversation[]>("/admin/conversations"),
         api<KnowledgePost[]>("/admin/knowledge"),
         api<AdminUser[]>("/admin/admins").catch(() => []),
         api<{ public_channel?: string }>("/admin/settings").catch(() => ({ public_channel: "" })),
         api<ConnectedChannel[]>("/admin/channels").catch(() => []),
+        api<ProductItem[]>("/admin/products").catch(() => INITIAL_PRODUCTS),
       ]);
       setOverview(o);
       setConversations(c);
       setPosts(p);
       setAdmins(a);
       setChannels(chList);
+      if (prodsList && prodsList.length > 0) {
+        setProducts(prodsList);
+      }
       if (chList.length > 0) {
         setChannel(chList[0].channel_username);
       } else if (s?.public_channel) {
@@ -1185,7 +1189,7 @@ export default function Dashboard({ initialAuthenticated = false }: { initialAut
     setEditingProduct(null);
   };
 
-  const handleCreateProduct = () => {
+  const handleCreateProduct = async () => {
     if (!newProduct.name || !newProduct.price) {
       setError("Iltimos, noutbuk nomi va narxini kiriting");
       return;
@@ -1200,10 +1204,29 @@ export default function Dashboard({ initialAuthenticated = false }: { initialAut
       stock: (newProduct.stock as any) || "In Stock",
       warranty: newProduct.warranty || "2 oy kafolat",
     };
-    setProducts((prev) => [item, ...prev]);
-    setSuccess(`${item.name} katalogga qo'shildi!`);
-    setIsAddingProduct(false);
-    setNewProduct({ category: "Gaming", stock: "In Stock", warranty: "2 oy kafolat" });
+    try {
+      await api("/admin/products", {
+        method: "POST",
+        body: JSON.stringify(item),
+      });
+      setProducts((prev) => [item, ...prev]);
+      setSuccess(`${item.name} katalogga qo'shildi!`);
+      setIsAddingProduct(false);
+      setNewProduct({ category: "Gaming", stock: "In Stock", warranty: "2 oy kafolat" });
+    } catch (e: any) {
+      setError(e.message || "Mahsulotni qo'shishda xatolik");
+    }
+  };
+
+  const handleDeleteProduct = async (prod: ProductItem) => {
+    if (!confirm(`${prod.name} o'chirilsinmi?`)) return;
+    try {
+      await api(`/admin/products/${encodeURIComponent(prod.id)}`, { method: "DELETE" });
+      setProducts((prev) => prev.filter((p) => p.id !== prod.id));
+      setSuccess(`${prod.name} katalogdan o'chirildi!`);
+    } catch (e: any) {
+      setError(e.message || "Mahsulotni o'chirishda xatolik");
+    }
   };
 
   async function handleSyncKnowledge() {
@@ -3533,12 +3556,7 @@ export default function Dashboard({ initialAuthenticated = false }: { initialAut
                                   </button>
                                   <button
                                     className="btn btn-sm btn-outline-danger"
-                                    onClick={() => {
-                                      if (confirm(`${prod.name} o'chirilsinmi?`)) {
-                                        setProducts((prev) => prev.filter((p) => p.id !== prod.id));
-                                        setSuccess(`${prod.name} katalogdan o'chirildi!`);
-                                      }
-                                    }}
+                                    onClick={() => handleDeleteProduct(prod)}
                                     title="O'chirish"
                                   >
                                     <IconTrash size={14} />

@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     telegram_webhook_secret: str = ""
     telegram_public_channel: str = ""
     telegram_admin_chat_id: str = ""
+    public_webhook_url: str = ""
 
     openai_api_key: str = ""
     openai_base_url: str = ""

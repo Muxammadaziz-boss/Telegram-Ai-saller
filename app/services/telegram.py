@@ -200,6 +200,58 @@ class TelegramService:
             "disable_web_page_preview": True,
         })
 
+    async def notify_organization_admins(
+        self,
+        db,
+        organization_id: int,
+        text: str,
+        reply_markup: dict | None = None,
+    ) -> None:
+        """Send push notification to all admins/operators of an organization with Telegram user IDs."""
+        from sqlalchemy import select
+        from app.models import Admin, OrganizationMember, User
+
+        notified = False
+        admin_ids: list[int] = []
+        try:
+            admin_res = await db.execute(
+                select(Admin.telegram_user_id)
+                .where(Admin.organization_id == organization_id, Admin.is_active.is_(True))
+            )
+            admin_ids = [row[0] for row in admin_res.fetchall() if row[0]]
+
+            member_res = await db.execute(
+                select(User.telegram_user_id)
+                .join(OrganizationMember, OrganizationMember.user_id == User.id)
+                .where(
+                    OrganizationMember.organization_id == organization_id,
+                    OrganizationMember.is_active.is_(True),
+                    User.telegram_user_id.is_not(None),
+                )
+            )
+            for row in member_res.fetchall():
+                if row[0] and row[0] not in admin_ids:
+                    admin_ids.append(row[0])
+        except Exception:
+            pass
+
+        for tid in admin_ids:
+            try:
+                payload = {
+                    "chat_id": str(tid),
+                    "text": text[:4096],
+                    "disable_web_page_preview": True,
+                }
+                if reply_markup:
+                    payload["reply_markup"] = reply_markup
+                await self.call("sendMessage", payload)
+                notified = True
+            except Exception:
+                pass
+
+        if not notified:
+            await self.notify_admin(text)
+
     async def get_user_profile_photo_bytes(self, user_id: int) -> bytes | None:
         import time
         if not hasattr(self, "_avatar_cache"):

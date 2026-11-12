@@ -1,5 +1,7 @@
 import asyncio
+from collections import OrderedDict
 import hmac
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from fastapi import APIRouter, Header, HTTPException, Request
@@ -28,6 +30,26 @@ def _date(value: str | None) -> datetime | None:
         return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
     except ValueError:
         return None
+
+
+_PROCESSED_UPDATES: OrderedDict[int, float] = OrderedDict()
+_MAX_PROCESSED_UPDATES = 10000
+
+
+def is_duplicate_update(update_id: int | None) -> bool:
+    """Return True if update_id has already been processed recently (TTL 15 mins)."""
+    if update_id is None:
+        return False
+    now = time.time()
+    # Prune updates older than 15 minutes (900 seconds)
+    while _PROCESSED_UPDATES and now - next(iter(_PROCESSED_UPDATES.values())) > 900:
+        _PROCESSED_UPDATES.popitem(last=False)
+    if update_id in _PROCESSED_UPDATES:
+        return True
+    _PROCESSED_UPDATES[update_id] = now
+    if len(_PROCESSED_UPDATES) > _MAX_PROCESSED_UPDATES:
+        _PROCESSED_UPDATES.popitem(last=False)
+    return False
 
 
 def _clean_channel_username(raw: str) -> str:
@@ -277,11 +299,22 @@ async def _handle_business_message(message: dict) -> None:
             await db.commit()
             try:
                 if tg_svc:
-                    await tg_svc.notify_admin(
-                        "🧑‍💼 AI suhbatni operatorga topshirdi\n"
-                        f"Mijoz: {customer_name}\nChat ID: {chat['id']}\n"
-                        f"Savol: {incoming_text[:700]}\nSabab: {conversation.handoff_reason}"
+                    alert_text = (
+                        "🧑‍💼 *AI suhbatni operatorga topshirdi*\n"
+                        f"Mijoz: {customer_name}\n"
+                        f"Chat ID: `{chat['id']}`\n"
+                        f"Savol: {incoming_text[:600]}\n"
+                        f"Sabab: {conversation.handoff_reason}"
                     )
+                    takeover_markup = {
+                        "inline_keyboard": [
+                            [{"text": "💬 Suhbatni qabul qilish", "callback_data": f"admin:takeover:{conversation.id}"}]
+                        ]
+                    }
+                    if hasattr(tg_svc, "notify_organization_admins"):
+                        await tg_svc.notify_organization_admins(db, org_id, alert_text, reply_markup=takeover_markup)
+                    else:
+                        await tg_svc.notify_admin(alert_text)
             except Exception:
                 logger.exception("Admin bildirishnoma yuborishda xatolik (handoff)")
             return
@@ -320,7 +353,10 @@ async def _handle_business_message(message: dict) -> None:
             )
             try:
                 if tg_svc:
-                    await tg_svc.notify_admin(order_notification)
+                    if hasattr(tg_svc, "notify_organization_admins"):
+                        await tg_svc.notify_organization_admins(db, org_id, order_notification)
+                    else:
+                        await tg_svc.notify_admin(order_notification)
             except Exception:
                 logger.exception("Admin'ga buyurtma xabarnomasini yuborishda xatolik")
 
@@ -468,6 +504,10 @@ async def telegram_webhook(
             )
 
     update = await request.json()
+    update_id = update.get("update_id")
+    if is_duplicate_update(update_id):
+        logger.info("Takroriy update_id chetlab o'tildi: %s", update_id)
+        return {"ok": True, "duplicate": True}
     if update.get("business_connection"):
         data = update["business_connection"]
         async with SessionLocal() as db:
