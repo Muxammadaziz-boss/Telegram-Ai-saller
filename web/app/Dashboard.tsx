@@ -337,6 +337,8 @@ function AppLogo({
   );
 }
 
+const DEFAULT_TG_AVATAR = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='44' height='44' viewBox='0 0 44 44'><rect width='44' height='44' rx='22' fill='%236366f1'/><text x='50%' y='54%' font-size='14' font-weight='bold' fill='white' text-anchor='middle' dominant-baseline='middle'>TG</text></svg>";
+
 function TelegramUserAvatar({
   userId,
   name,
@@ -1887,7 +1889,7 @@ export default function Dashboard({
                     <div className="auth-tg-avatar-wrap">
                       <img
                         key={loginTelegramId}
-                        src={loginTelegramId ? `/api/proxy?path=/admin/users/${loginTelegramId}/avatar` : ""}
+                        src={loginTelegramId ? `/api/proxy?path=/admin/users/${loginTelegramId}/avatar` : DEFAULT_TG_AVATAR}
                         alt="Telegram Avatar"
                         onError={(e) => {
                           (e.target as HTMLImageElement).src = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44"><rect width="44" height="44" rx="22" fill="%236366f1"/><text x="50%" y="54%" font-size="14" font-weight="bold" fill="white" text-anchor="middle" dominant-baseline="middle">TG</text></svg>`;
@@ -2184,7 +2186,7 @@ export default function Dashboard({
           <div className="collapse navbar-collapse show" id="sidebar-menu">
             {zone === "platform" ? (
               <ul className="navbar-nav pt-lg-3">
-                <div className="nav-section-title">PLATFORM CONTROL</div>
+                <div className="nav-section-title">PLATFORMA BOSHQARUVI</div>
 
                 <li className={`nav-item ${platformSubTab === "overview" ? "active" : ""}`}>
                   <a
@@ -2199,7 +2201,7 @@ export default function Dashboard({
                     <span className="nav-link-icon d-md-none d-lg-inline-block">
                       <IconLayoutDashboard size={18} />
                     </span>
-                    <span className="nav-link-title">Overview</span>
+                    <span className="nav-link-title">Umumiy Ko'rinish</span>
                   </a>
                 </li>
 
@@ -2217,9 +2219,9 @@ export default function Dashboard({
                       <IconBuildingSkyscraper size={18} className="text-warning" />
                     </span>
                     <span className="nav-link-title">Do'konlar</span>
-                    {platformOrgs.length > 0 && (
-                      <span className="badge badge-sm bg-warning-lt text-warning ms-auto">
-                        {platformOrgs.length}
+                    {((platformMetrics?.total_organizations ?? platformOrgs.length) > 0) && (
+                      <span className="badge badge-sm bg-warning-lt text-warning ms-auto font-monospace fw-bold">
+                        {platformMetrics?.total_organizations ?? platformOrgs.length}
                       </span>
                     )}
                   </a>
@@ -2281,7 +2283,7 @@ export default function Dashboard({
                   </a>
                 </li>
 
-                <div className="nav-section-title">SECURITY & SYSTEM</div>
+                <div className="nav-section-title">XAVFSIZLIK VA TIZIM</div>
 
                 <li className={`nav-item ${platformSubTab === "system" ? "active" : ""}`}>
                   <a
@@ -2314,7 +2316,7 @@ export default function Dashboard({
                     <span className="nav-link-icon d-md-none d-lg-inline-block">
                       <IconActivity size={18} />
                     </span>
-                    <span className="nav-link-title">Audit Loglar</span>
+                    <span className="nav-link-title">Audit Tarixi</span>
                   </a>
                 </li>
               </ul>
@@ -2685,7 +2687,7 @@ export default function Dashboard({
                   <span>Platform Owner Rejimi</span>
                 </span>
                 <span className="badge bg-body-secondary text-secondary small d-none d-md-inline">
-                  {platformOrgs.length} ta do'kon
+                  {(platformMetrics?.total_organizations ?? platformOrgs.length) || 0} ta do'kon
                 </span>
               </div>
             ) : (
@@ -2797,7 +2799,7 @@ export default function Dashboard({
                   title={`${currentAdmin?.name || "Super Admin"} (@${currentAdmin?.username || "Dr4x1l"}) • Telegram ID: ${activeAdminTelegramId}`}
                   onClick={() => setTab("profile")}
                 >
-                  {!navAvatarError ? (
+                  {!navAvatarError && Boolean(activeAdminTelegramId) && Number(activeAdminTelegramId) > 0 ? (
                     <img
                       key={activeAdminTelegramId}
                       src={`/api/proxy?path=/admin/users/${activeAdminTelegramId}/avatar`}
@@ -5628,7 +5630,7 @@ export default function Dashboard({
                     <div className="card-body text-center py-4">
                       {/* Telegram Avatar Display */}
                       <div className="position-relative d-inline-block mb-3">
-                        {!profileAvatarError ? (
+                        {!profileAvatarError && Boolean(activeAdminTelegramId) && Number(activeAdminTelegramId) > 0 ? (
                           <img
                             key={activeAdminTelegramId}
                             src={`/api/proxy?path=/admin/users/${activeAdminTelegramId}/avatar`}

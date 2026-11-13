@@ -226,98 +226,77 @@ export function PlatformOwnerTab({
   return (
     <div className="space-y-4">
       {/* Platform Owner Header */}
-      <div className="d-flex flex-wrap align-items-center justify-content-between p-3.5 bg-body-tertiary rounded-3 border border-secondary border-opacity-10 gap-3">
-        <div className="d-flex align-items-center gap-3">
-          <div className="p-2.5 bg-yellow-lt rounded-2">
-            <IconCrown size={24} className="text-warning" />
-          </div>
-          <div>
-            <div className="d-flex align-items-center gap-2">
-              <h3 className="card-title fw-bold mb-0">Platforma Egasi Boshqaruv Markazi</h3>
-              <span className="badge bg-yellow text-dark fw-bold">Platform Owner</span>
+      <div className="card shadow-sm border border-secondary border-opacity-15 mb-3">
+        <div className="card-body p-3.5 d-flex flex-wrap align-items-center justify-content-between gap-3">
+          <div className="d-flex align-items-center gap-3">
+            <div
+              className="d-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
+              style={{
+                width: 48,
+                height: 48,
+                background: "linear-gradient(135deg, rgba(234, 179, 8, 0.2) 0%, rgba(202, 138, 4, 0.1) 100%)",
+                border: "1px solid rgba(234, 179, 8, 0.35)",
+              }}
+            >
+              <IconCrown size={26} className="text-warning" />
             </div>
-            <p className="text-secondary small mb-0">
-              Barcha do'konlar, real daromad (MRR), AI xarajatlari va tizim audit nazorati.
-            </p>
-          </div>
-        </div>
-
-        <div className="d-flex align-items-center gap-2">
-          {onSwitchSubTab && (
-            <div className="btn-group btn-group-sm">
-              <button
-                type="button"
-                className={`btn ${subTab === "overview" ? "btn-primary" : "btn-outline-secondary"}`}
-                onClick={() => onSwitchSubTab("overview")}
-              >
-                Overview
-              </button>
-              <button
-                type="button"
-                className={`btn ${subTab === "stores" ? "btn-primary" : "btn-outline-secondary"}`}
-                onClick={() => onSwitchSubTab("stores")}
-              >
-                Do'konlar ({organizations.length})
-              </button>
-              <button
-                type="button"
-                className={`btn ${subTab === "users" ? "btn-primary" : "btn-outline-secondary"}`}
-                onClick={() => onSwitchSubTab("users")}
-              >
-                Foydalanuvchilar
-              </button>
-              <button
-                type="button"
-                className={`btn ${subTab === "plans" ? "btn-primary" : "btn-outline-secondary"}`}
-                onClick={() => onSwitchSubTab("plans")}
-              >
-                Tariflar
-              </button>
-              <button
-                type="button"
-                className={`btn ${subTab === "usage" ? "btn-primary" : "btn-outline-secondary"}`}
-                onClick={() => onSwitchSubTab("usage")}
-              >
-                AI xarajati
-              </button>
-              <button
-                type="button"
-                className={`btn ${subTab === "system" ? "btn-primary" : "btn-outline-secondary"}`}
-                onClick={() => onSwitchSubTab("system")}
-              >
-                Tizim
-              </button>
-              <button
-                type="button"
-                className={`btn ${subTab === "audit" ? "btn-primary" : "btn-outline-secondary"}`}
-                onClick={() => onSwitchSubTab("audit")}
-              >
-                Audit
-              </button>
+            <div>
+              <div className="d-flex align-items-center gap-2 flex-wrap">
+                <h3 className="card-title fw-bold mb-0 text-white" style={{ fontSize: "1.15rem" }}>
+                  Platforma Egasi Boshqaruv Markazi
+                </h3>
+                <span className="badge bg-yellow text-dark fw-bold" style={{ fontSize: "11px" }}>
+                  Platform Owner
+                </span>
+                <span className="badge bg-primary-lt text-primary fw-medium font-monospace" style={{ fontSize: "11px" }}>
+                  {subTab === "overview" && "Umumiy Ko'rinish"}
+                  {subTab === "stores" && "Do'konlar Ro'yxati"}
+                  {subTab === "users" && "Foydalanuvchilar"}
+                  {subTab === "plans" && "Tariflar & Narxlar"}
+                  {subTab === "usage" && "AI Xarajati & Usage"}
+                  {subTab === "system" && "Tizim Holati"}
+                  {subTab === "audit" && "Audit Tarixi"}
+                </span>
+              </div>
+              <p className="text-secondary small mb-0 mt-0.5">
+                Barcha do'konlar portfeli, MRR daromad, AI resurslari va har bir do'kon ichiga to'liq kirish (impersonation).
+              </p>
             </div>
-          )}
+          </div>
 
-          <button
-            type="button"
-            className="btn btn-primary btn-sm d-flex align-items-center gap-1.5 shadow-sm fw-semibold"
-            onClick={() => {
-              resetCreateForm();
-              setShowCreateModal(true);
-            }}
-          >
-            <IconPlus size={16} />
-            <span>+ Yangi Do'kon Ochish</span>
-          </button>
+          <div className="d-flex align-items-center gap-2 flex-shrink-0">
+            <span className="badge bg-body-secondary text-secondary font-monospace d-none d-sm-inline-flex align-items-center gap-1 py-1.5 px-2.5">
+              <IconBuildingSkyscraper size={14} className="text-warning" />
+              <span>{(metrics?.total_organizations ?? organizations.length) || 0} ta do'kon faol</span>
+            </span>
 
-          <button
-            type="button"
-            className="btn btn-outline-secondary btn-sm d-flex align-items-center gap-1.5"
-            onClick={onRefresh}
-            disabled={loading}
-          >
-            <IconRefresh size={15} className={loading ? "spin" : ""} />
-            <span>Yangilash</span>
-          </button>
+            <button
+              type="button"
+              className="btn btn-primary d-flex align-items-center gap-1.5 shadow-sm fw-semibold"
+              onClick={() => {
+                resetCreateForm();
+                setShowCreateModal(true);
+              }}
+              style={{
+                background: "linear-gradient(135deg, #007aff 0%, #0056b3 100%)",
+                border: "none",
+              }}
+            >
+              <IconPlus size={16} />
+              <span>+ Yangi Do'kon Ochish</span>
+            </button>
+
+            <button
+              type="button"
+              className="btn btn-outline-secondary d-flex align-items-center gap-1.5"
+              onClick={onRefresh}
+              disabled={loading}
+              title="Ma'lumotlarni yangilash"
+            >
+              <IconRefresh size={15} className={loading ? "spin" : ""} />
+              <span className="d-none d-md-inline">Yangilash</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -389,11 +368,11 @@ export function PlatformOwnerTab({
                     <span className="badge bg-blue-lt text-blue">Tenants</span>
                   </div>
                   <div className="fs-1 fw-bold text-white font-monospace mb-1">
-                    {metrics?.total_organizations || organizations.length || 1}{" "}
+                    {(metrics?.total_organizations ?? organizations.length) || 0}{" "}
                     <span className="text-secondary small fs-4 fw-normal">ta</span>
                   </div>
                   <div className="text-secondary small">
-                    Faol: <strong className="text-success">{metrics?.active_subscriptions || 1} ta</strong> • Sinov: {metrics?.trial_organizations || 0} ta
+                    Faol: <strong className="text-success">{(metrics?.active_subscriptions ?? organizations.filter(o => o.subscription_status === "active").length) || 0} ta</strong> • Sinov: {metrics?.trial_organizations || 0} ta
                   </div>
                 </div>
               </div>
@@ -432,32 +411,60 @@ export function PlatformOwnerTab({
                       </tr>
                     </thead>
                     <tbody>
-                      {organizations.slice(0, 5).map((org) => (
-                        <tr key={org.id}>
-                          <td>
-                            <div className="fw-bold text-white">{org.name}</div>
-                            <div className="text-secondary small font-monospace">{org.slug}</div>
-                          </td>
-                          <td>
-                            <span className="badge bg-azure-lt font-monospace">{org.plan}</span>
-                          </td>
-                          <td className="font-monospace text-success fw-bold">${org.monthly_revenue_usd}</td>
-                          <td className="font-monospace text-warning">${org.monthly_ai_cost_usd}</td>
-                          <td className="font-monospace text-white">{org.gross_margin_percent}%</td>
-                          <td className="text-end">
-                            {onEnterStore && (
-                              <button
-                                type="button"
-                                className="btn btn-sm btn-primary d-inline-flex align-items-center gap-1"
-                                onClick={() => onEnterStore(org)}
-                              >
-                                <span>Kirish</span>
-                                <IconArrowRight size={14} />
-                              </button>
-                            )}
+                      {loading && organizations.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="text-center py-4 text-secondary">
+                            <IconRefresh size={18} className="spin me-2" />
+                            Ma'lumotlar yuklanmoqda...
                           </td>
                         </tr>
-                      ))}
+                      ) : organizations.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="text-center py-4 text-secondary">
+                            <IconBuildingSkyscraper size={28} className="opacity-40 mb-2 d-block mx-auto text-warning" />
+                            Hozircha faol do'konlar mavjud emas.
+                            <div className="mt-2">
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-primary"
+                                onClick={() => {
+                                  resetCreateForm();
+                                  setShowCreateModal(true);
+                                }}
+                              >
+                                + Yangi Do'kon Ochish
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : (
+                        organizations.slice(0, 5).map((org) => (
+                          <tr key={org.id}>
+                            <td>
+                              <div className="fw-bold text-white">{org.name}</div>
+                              <div className="text-secondary small font-monospace">{org.slug}</div>
+                            </td>
+                            <td>
+                              <span className="badge bg-azure-lt font-monospace">{org.plan}</span>
+                            </td>
+                            <td className="font-monospace text-success fw-bold">${org.monthly_revenue_usd}</td>
+                            <td className="font-monospace text-warning">${org.monthly_ai_cost_usd}</td>
+                            <td className="font-monospace text-white">{org.gross_margin_percent}%</td>
+                            <td className="text-end">
+                              {onEnterStore && (
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-primary d-inline-flex align-items-center gap-1 shadow-sm"
+                                  onClick={() => onEnterStore(org)}
+                                >
+                                  <span>Kirish</span>
+                                  <IconArrowRight size={14} />
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -471,8 +478,19 @@ export function PlatformOwnerTab({
                 </div>
                 <div className="card-body p-4">
                   <div className="space-y-3">
-                    {Object.entries(metrics?.plan_distribution || { start: 1, pro: 0, ultra: 0 }).map(
-                      ([plan, count]) => (
+                    {(() => {
+                      const distribution =
+                        metrics?.plan_distribution ||
+                        organizations.reduce(
+                          (acc: Record<string, number>, o) => {
+                            const p = (o.plan || "start").toLowerCase();
+                            acc[p] = (acc[p] || 0) + 1;
+                            return acc;
+                          },
+                          { start: 0, pro: 0, ultra: 0 }
+                        );
+                      const total = Math.max(1, metrics?.total_organizations || organizations.length || 1);
+                      return Object.entries(distribution).map(([plan, count]) => (
                         <div key={plan}>
                           <div className="d-flex align-items-center justify-content-between mb-1">
                             <span className="fw-semibold text-uppercase font-monospace">{plan}</span>
@@ -485,15 +503,15 @@ export function PlatformOwnerTab({
                               }`}
                               style={{
                                 width: `${Math.max(
-                                  15,
-                                  ((count as number) / Math.max(1, metrics?.total_organizations || 1)) * 100
+                                  count > 0 ? 15 : 0,
+                                  ((count as number) / total) * 100
                                 )}%`,
                               }}
                             />
                           </div>
                         </div>
-                      )
-                    )}
+                      ));
+                    })()}
                   </div>
                 </div>
               </div>
