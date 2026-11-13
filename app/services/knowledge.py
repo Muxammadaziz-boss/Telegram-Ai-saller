@@ -1,15 +1,68 @@
 import base64
 from datetime import datetime
 from pathlib import Path
+import re
 import httpx
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from openai import AsyncOpenAI
 from app.core.config import settings
 from app.core.logging import get_logger
-from app.models import ChannelPost
+from app.models import ChannelPost, ConnectedChannel, Product
 
 logger = get_logger(__name__)
+
+
+def parse_product_from_text(text: str, default_category: str = "General") -> dict | None:
+    """Parse product title, price, specs, warranty from a Telegram post text."""
+    if not text or len(text.strip()) < 8:
+        return None
+    lines = [line.strip() for line in text.strip().split("\n") if line.strip()]
+    if not lines:
+        return None
+
+    # Title is usually the first non-empty line
+    title = lines[0].replace("#", "").replace("*", "").replace("🔹", "").replace("🔥", "").strip()
+    if len(title) > 200:
+        title = title[:197] + "..."
+
+    price = "$0"
+    warranty = "Mavjud"
+    specs_parts = []
+    category = default_category
+
+    # Common price patterns in Uzbek/English/Russian channels
+    price_pattern = re.compile(
+        r"(?:narxi?|price|baho|qiymati)?[:\s]*(\$?\s*\d[\d\s,.]*\s*(?:\$|USD|dollar|so'?m|som|UZS)?)",
+        re.IGNORECASE,
+    )
+
+    for line in lines[1:]:
+        lower = line.lower()
+        if any(w in lower for w in ["narx", "price", "$", "so'm", "som", "usd"]):
+            m = price_pattern.search(line)
+            if m and any(char.isdigit() for char in m.group(1)):
+                price = m.group(1).strip()
+                continue
+        if any(w in lower for w in ["kafolat", "warranty", "garantiya"]):
+            warranty = line.split(":")[-1].strip() or line.strip()
+            continue
+        if any(w in lower for w in ["kategoriya", "toifa", "tur"]):
+            category = line.split(":")[-1].strip() or category
+            continue
+        specs_parts.append(line)
+
+    specs = " / ".join(specs_parts[:4])
+    if len(specs) > 500:
+        specs = specs[:497] + "..."
+
+    return {
+        "name": title,
+        "price": price,
+        "specs": specs,
+        "warranty": warranty,
+        "category": category,
+    }
 
 
 def chunk_text(text: str, max_chars: int = 1500, overlap: int = 200) -> list[str]:
@@ -156,7 +209,7 @@ class KnowledgeService:
         *,
         channel_username: str,
         telegram_message_id: int,
-        organization_id: int | None = 1,
+        organization_id: int | None = None,
         text: str = "",
         posted_at: datetime | None = None,
         source_url: str | None = None,
@@ -262,7 +315,8 @@ class KnowledgeService:
             if ch_row and ch_row.organization_id:
                 organization_id = ch_row.organization_id
             else:
-                organization_id = 1
+                logger.warning("Kanal uchun organization_id topilmadi: %s", clean_name)
+                return 0
         url = f"https://t.me/s/{clean_name}"
         logger.info("Kanal postlari sinxronlanmoqda: %s", url)
 
@@ -345,6 +399,45 @@ class KnowledgeService:
                 logger.exception("Kanalni sinxronlashda xatolik: %s", ch.channel_username)
                 results[ch.channel_username] = 0
         return results
+
+    async def extract_products_from_channel_posts(self, db: AsyncSession, organization_id: int) -> list[Product]:
+        """Parse products, pricing, and specs from channel posts for a given tenant."""
+        stmt = (
+            select(ChannelPost)
+            .where(ChannelPost.organization_id == organization_id)
+            .order_by(ChannelPost.posted_at.desc().nullslast())
+        )
+        posts = (await db.execute(stmt)).scalars().all()
+        created_products: list[Product] = []
+
+        for post in posts:
+            parsed = parse_product_from_text(post.text)
+            if not parsed:
+                continue
+            code = f"PRD-{post.telegram_message_id}"
+            existing = (await db.execute(
+                select(Product).where(Product.organization_id == organization_id, Product.code == code)
+            )).scalar_one_or_none()
+            if existing is None:
+                new_prod = Product(
+                    organization_id=organization_id,
+                    code=code,
+                    name=parsed["name"],
+                    category=parsed["category"],
+                    specs=parsed["specs"],
+                    price=parsed["price"],
+                    stock="In Stock",
+                    warranty=parsed["warranty"],
+                    is_active=True,
+                )
+                db.add(new_prod)
+                created_products.append(new_prod)
+
+        if created_products:
+            await db.commit()
+            for p in created_products:
+                await db.refresh(p)
+        return created_products
 
 
 knowledge = KnowledgeService()

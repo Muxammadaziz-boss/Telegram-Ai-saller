@@ -17,6 +17,7 @@ from app.models import (
     ChannelPost,
     ConnectedChannel,
     Conversation,
+    Customer,
     Message,
     Order,
     Organization,
@@ -466,10 +467,11 @@ async def get_products(
 ):
     stmt = select(Product).where(Product.organization_id == org_id, Product.is_active.is_(True)).order_by(Product.id.asc())
     products = (await db.execute(stmt)).scalars().all()
-    if not products:
+    # For default demo tenant 1 only, seed initial catalog if completely empty
+    if not products and org_id == 1:
         for item in DEFAULT_INITIAL_PRODUCTS:
             db.add(Product(
-                organization_id=org_id,
+                organization_id=1,
                 code=item["code"],
                 name=item["name"],
                 category=item["category"],
@@ -483,7 +485,7 @@ async def get_products(
         products = (await db.execute(stmt)).scalars().all()
 
     return [{
-        "id": p.code or f"LAP-{p.id:02d}",
+        "id": p.code or f"PRD-{p.id:02d}",
         "db_id": p.id,
         "name": p.name,
         "category": p.category,
@@ -500,7 +502,7 @@ async def create_product(
     db: AsyncSession = Depends(get_db),
     org_id: int = Depends(get_admin_tenant_id),
 ):
-    code = payload.code or payload.id or f"LAP-{int(datetime.now().timestamp()) % 10000:04d}"
+    code = payload.code or payload.id or f"PRD-{int(datetime.now().timestamp()) % 10000:04d}"
     product = Product(
         organization_id=org_id,
         code=code,
@@ -527,6 +529,75 @@ async def create_product(
     }
 
 
+@router.put("/products/{code_or_id}")
+async def update_product(
+    code_or_id: str,
+    payload: ProductUpdate,
+    db: AsyncSession = Depends(get_db),
+    org_id: int = Depends(get_admin_tenant_id),
+):
+    is_num = code_or_id.isdigit()
+    cond = (Product.code == code_or_id)
+    if is_num:
+        cond = cond | (Product.id == int(code_or_id))
+    stmt = select(Product).where(Product.organization_id == org_id, cond)
+    product = (await db.execute(stmt)).scalar_one_or_none()
+    if not product:
+        raise HTTPException(status_code=404, detail="Mahsulot topilmadi")
+
+    if payload.name is not None:
+        product.name = payload.name
+    if payload.category is not None:
+        product.category = payload.category
+    if payload.specs is not None:
+        product.specs = payload.specs
+    if payload.price is not None:
+        product.price = payload.price
+    if payload.stock is not None:
+        product.stock = payload.stock
+    if payload.warranty is not None:
+        product.warranty = payload.warranty
+    if payload.is_active is not None:
+        product.is_active = payload.is_active
+
+    await db.commit()
+    await db.refresh(product)
+    return {
+        "id": product.code,
+        "db_id": product.id,
+        "name": product.name,
+        "category": product.category,
+        "specs": product.specs,
+        "price": product.price,
+        "stock": product.stock,
+        "warranty": product.warranty,
+        "is_active": product.is_active,
+    }
+
+
+@router.post("/products/extract-from-posts")
+async def extract_products_from_posts_endpoint(
+    db: AsyncSession = Depends(get_db),
+    org_id: int = Depends(get_admin_tenant_id),
+):
+    """Automatically detect and extract products from channel posts."""
+    from app.services.knowledge import knowledge
+    extracted = await knowledge.extract_products_from_channel_posts(db, org_id)
+    return {
+        "ok": True,
+        "extracted_count": len(extracted),
+        "products": [{
+            "id": p.code,
+            "db_id": p.id,
+            "name": p.name,
+            "price": p.price,
+            "category": p.category,
+            "specs": p.specs,
+            "warranty": p.warranty,
+        } for p in extracted],
+    }
+
+
 @router.delete("/products/{code_or_id}")
 async def delete_product(
     code_or_id: str,
@@ -544,6 +615,223 @@ async def delete_product(
     product.is_active = False
     await db.commit()
     return {"ok": True, "deleted": code_or_id}
+
+
+# ---------------------------------------------------------------------------
+# Order Management Endpoints
+# ---------------------------------------------------------------------------
+
+class OrderCreate(BaseModel):
+    customer_name: str
+    phone: str = ""
+    product_summary: str = ""
+    delivery_address: str = ""
+    amount: str = "$0"
+    status: str = "new"
+    notes: str = ""
+
+
+class OrderUpdate(BaseModel):
+    customer_name: str | None = None
+    phone: str | None = None
+    product_summary: str | None = None
+    delivery_address: str | None = None
+    amount: str | None = None
+    status: str | None = None
+    notes: str | None = None
+
+
+@router.get("/orders")
+async def get_orders(
+    db: AsyncSession = Depends(get_db),
+    org_id: int = Depends(get_admin_tenant_id),
+):
+    stmt = select(Order).where(Order.organization_id == org_id).order_by(Order.created_at.desc())
+    rows = (await db.execute(stmt)).scalars().all()
+    return [{
+        "id": f"ORD-{r.id}",
+        "db_id": r.id,
+        "customer": r.customer_name,
+        "phone": r.phone,
+        "product": r.product_summary,
+        "amount": r.amount,
+        "status": r.status,
+        "date": r.created_at.strftime("%d-%b, %H:%M") if r.created_at else "Yangi",
+        "created_at": r.created_at.isoformat() if r.created_at else None,
+        "address": r.delivery_address,
+        "notes": r.notes,
+    } for r in rows]
+
+
+@router.post("/orders")
+async def create_order(
+    payload: OrderCreate,
+    db: AsyncSession = Depends(get_db),
+    org_id: int = Depends(get_admin_tenant_id),
+):
+    order = Order(
+        organization_id=org_id,
+        customer_name=payload.customer_name,
+        phone=payload.phone,
+        product_summary=payload.product_summary,
+        delivery_address=payload.delivery_address,
+        amount=payload.amount,
+        status=payload.status,
+        notes=payload.notes,
+    )
+    db.add(order)
+    await db.commit()
+    await db.refresh(order)
+    return {
+        "ok": True,
+        "order": {
+            "id": f"ORD-{order.id}",
+            "db_id": order.id,
+            "customer": order.customer_name,
+            "phone": order.phone,
+            "product": order.product_summary,
+            "amount": order.amount,
+            "status": order.status,
+            "date": order.created_at.strftime("%d-%b, %H:%M") if order.created_at else "Yangi",
+        }
+    }
+
+
+@router.patch("/orders/{order_id}")
+async def update_order(
+    order_id: int,
+    payload: OrderUpdate,
+    db: AsyncSession = Depends(get_db),
+    org_id: int = Depends(get_admin_tenant_id),
+):
+    order = await db.get(Order, order_id)
+    if not order or order.organization_id != org_id:
+        raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
+    if payload.customer_name is not None:
+        order.customer_name = payload.customer_name
+    if payload.phone is not None:
+        order.phone = payload.phone
+    if payload.product_summary is not None:
+        order.product_summary = payload.product_summary
+    if payload.delivery_address is not None:
+        order.delivery_address = payload.delivery_address
+    if payload.amount is not None:
+        order.amount = payload.amount
+    if payload.status is not None:
+        order.status = payload.status
+    if payload.notes is not None:
+        order.notes = payload.notes
+    await db.commit()
+    await db.refresh(order)
+    return {
+        "ok": True,
+        "order": {
+            "id": f"ORD-{order.id}",
+            "db_id": order.id,
+            "customer": order.customer_name,
+            "phone": order.phone,
+            "product": order.product_summary,
+            "amount": order.amount,
+            "status": order.status,
+            "date": order.created_at.strftime("%d-%b, %H:%M") if order.created_at else "Yangi",
+        }
+    }
+
+
+@router.delete("/orders/{order_id}")
+async def delete_order(
+    order_id: int,
+    db: AsyncSession = Depends(get_db),
+    org_id: int = Depends(get_admin_tenant_id),
+):
+    order = await db.get(Order, order_id)
+    if not order or order.organization_id != org_id:
+        raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
+    await db.delete(order)
+    await db.commit()
+    return {"ok": True, "deleted_id": order_id}
+
+
+# ---------------------------------------------------------------------------
+# Customer Directory Endpoints
+# ---------------------------------------------------------------------------
+
+class CustomerCreate(BaseModel):
+    name: str
+    username: str | None = None
+    phone: str | None = None
+    telegram_user_id: int | None = None
+    notes: str = ""
+
+
+class CustomerUpdate(BaseModel):
+    name: str | None = None
+    username: str | None = None
+    phone: str | None = None
+    notes: str | None = None
+
+
+@router.get("/customers")
+async def get_customers(
+    db: AsyncSession = Depends(get_db),
+    org_id: int = Depends(get_admin_tenant_id),
+):
+    stmt = select(Customer).where(Customer.organization_id == org_id).order_by(Customer.created_at.desc())
+    rows = (await db.execute(stmt)).scalars().all()
+    return [{
+        "id": c.id,
+        "name": c.name,
+        "username": c.username,
+        "phone": c.phone,
+        "telegram_user_id": c.telegram_user_id,
+        "total_orders": c.total_orders,
+        "total_spent": c.total_spent,
+        "notes": c.notes,
+        "created_at": c.created_at.isoformat() if c.created_at else None,
+    } for c in rows]
+
+
+@router.post("/customers")
+async def create_customer(
+    payload: CustomerCreate,
+    db: AsyncSession = Depends(get_db),
+    org_id: int = Depends(get_admin_tenant_id),
+):
+    cust = Customer(
+        organization_id=org_id,
+        name=payload.name,
+        username=payload.username,
+        phone=payload.phone,
+        telegram_user_id=payload.telegram_user_id,
+        notes=payload.notes,
+    )
+    db.add(cust)
+    await db.commit()
+    await db.refresh(cust)
+    return {"ok": True, "customer": {"id": cust.id, "name": cust.name, "phone": cust.phone}}
+
+
+@router.patch("/customers/{customer_id}")
+async def update_customer(
+    customer_id: int,
+    payload: CustomerUpdate,
+    db: AsyncSession = Depends(get_db),
+    org_id: int = Depends(get_admin_tenant_id),
+):
+    cust = await db.get(Customer, customer_id)
+    if not cust or cust.organization_id != org_id:
+        raise HTTPException(status_code=404, detail="Mijoz topilmadi")
+    if payload.name is not None:
+        cust.name = payload.name
+    if payload.username is not None:
+        cust.username = payload.username
+    if payload.phone is not None:
+        cust.phone = payload.phone
+    if payload.notes is not None:
+        cust.notes = payload.notes
+    await db.commit()
+    await db.refresh(cust)
+    return {"ok": True, "customer": {"id": cust.id, "name": cust.name, "phone": cust.phone, "notes": cust.notes}}
 
 
 # ---------------------------------------------------------------------------

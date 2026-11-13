@@ -87,12 +87,11 @@ async def test_products_catalog_crud():
 
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
-        # 1. GET products (seeds initial laptops if empty)
+        # 1. GET products (returns list)
         resp = await client.get("/admin/products", headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code == 200
         prods = resp.json()
-        assert len(prods) >= 1
-        assert any("Asus TUF Gaming" in p["name"] for p in prods)
+        assert isinstance(prods, list)
 
         # 2. POST create a new product
         new_prod = {

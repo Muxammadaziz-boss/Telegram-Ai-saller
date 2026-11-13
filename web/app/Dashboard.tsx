@@ -134,7 +134,7 @@ type OrderItem = {
   username: string;
   product: string;
   amount: string;
-  status: "New" | "Processing" | "Confirmed" | "Completed" | "Cancelled";
+  status: "New" | "Processing" | "Confirmed" | "Completed" | "Cancelled" | string;
   date: string;
   channel: string;
 };
@@ -210,22 +210,8 @@ const PERMISSION_CATEGORIES = [
   },
 ];
 
-const INITIAL_PRODUCTS: ProductItem[] = [
-  { id: "LAP-01", name: "Asus TUF Gaming FX505GE", category: "Gaming", specs: "i7-8750H / 16GB RAM / 512GB SSD / GTX1050ti 4GB", price: "$340", stock: "In Stock", warranty: "2 oy kafolat" },
-  { id: "LAP-02", name: "Lenovo ThinkPad E14 Gen 4", category: "Business", specs: "Ryzen 5 5625U / 16GB RAM / 512GB NVMe / 14' IPS FHD", price: "$430", stock: "In Stock", warranty: "3 oy kafolat" },
-  { id: "LAP-03", name: "HP Victus 15-fb0028nr", category: "Gaming", specs: "Ryzen 5 5600H / 16GB RAM / 512GB SSD / GTX1650 4GB", price: "$490", stock: "In Stock", warranty: "2 oy kafolat" },
-  { id: "LAP-04", name: "Dell Latitude 5420 Business", category: "Ultrabook", specs: "i5-1145G7 / 16GB RAM / 256GB SSD / Iris Xe", price: "$320", stock: "Low Stock", warranty: "1 oy kafolat" },
-  { id: "LAP-05", name: "Apple MacBook Air M1 (2020)", category: "Premium", specs: "Apple M1 8-Core / 8GB Unified / 256GB SSD / Space Gray", price: "$610", stock: "In Stock", warranty: "3 oy kafolat" },
-  { id: "LAP-06", name: "Acer Nitro 5 AN515-57", category: "Gaming", specs: "i5-11400H / 16GB RAM / 512GB SSD / RTX3050 4GB", price: "$560", stock: "In Stock", warranty: "2 oy kafolat" },
-];
-
-const INITIAL_ORDERS: OrderItem[] = [
-  { id: "ORD-9421", customer: "Azizbek Rahimov", username: "@aziz_tech", product: "Asus TUF Gaming FX505GE", amount: "$340", status: "Confirmed", date: "Bugun, 18:24", channel: "Telegram Business" },
-  { id: "ORD-9420", customer: "Bobur Mirzayev", username: "@bobur_m", product: "Lenovo ThinkPad E14", amount: "$430", status: "Processing", date: "Bugun, 16:15", channel: "Telegram Business" },
-  { id: "ORD-9419", customer: "Sardor Aliyev", username: "@sardor_a", product: "Apple MacBook Air M1", amount: "$610", status: "New", date: "Kecha, 21:04", channel: "Telegram Bot" },
-  { id: "ORD-9418", customer: "Jasur Komilov", username: "@j_komil", product: "HP Victus 15", amount: "$490", status: "Completed", date: "30-okt, 14:10", channel: "Telegram Business" },
-  { id: "ORD-9417", customer: "Dilshod Karimov", username: "@dilshod_k", product: "Dell Latitude 5420", amount: "$320", status: "Completed", date: "29-okt, 19:40", channel: "Telegram Business" },
-];
+const INITIAL_PRODUCTS: ProductItem[] = [];
+const INITIAL_ORDERS: OrderItem[] = [];
 
 async function api<T>(path: string, options?: RequestInit): Promise<T> {
   const currentOrgId = typeof window !== "undefined" ? localStorage.getItem("active_org_id") || "1" : "1";
@@ -686,23 +672,23 @@ export default function Dashboard({
     setLoading(true);
     setError("");
     try {
-      const [o, c, p, a, s, chList, prodsList] = await Promise.all([
+      const [o, c, p, a, s, chList, prodsList, ordersList] = await Promise.all([
         api<Overview>("/admin/overview"),
         api<Conversation[]>("/admin/conversations"),
         api<KnowledgePost[]>("/admin/knowledge"),
         api<AdminUser[]>("/admin/admins").catch(() => []),
         api<{ public_channel?: string }>("/admin/settings").catch(() => ({ public_channel: "" })),
         api<ConnectedChannel[]>("/admin/channels").catch(() => []),
-        api<ProductItem[]>("/admin/products").catch(() => INITIAL_PRODUCTS),
+        api<ProductItem[]>("/admin/products").catch(() => []),
+        api<OrderItem[]>("/admin/orders").catch(() => []),
       ]);
       setOverview(o);
       setConversations(c);
       setPosts(p);
       setAdmins(a);
       setChannels(chList);
-      if (prodsList && prodsList.length > 0) {
-        setProducts(prodsList);
-      }
+      setProducts(prodsList || []);
+      setOrders(ordersList || []);
       if (chList.length > 0) {
         setChannel(chList[0].channel_username);
       } else if (s?.public_channel) {
@@ -1451,41 +1437,95 @@ export default function Dashboard({
     }
   }
 
-  const handleSaveProductEdit = () => {
+  const handleSaveProductEdit = async () => {
     if (!editingProduct) return;
-    setProducts((prev) =>
-      prev.map((p) => (p.id === editingProduct.id ? editingProduct : p))
-    );
-    setSuccess(`${editingProduct.name} muvaffaqiyatli yangilandi!`);
-    setEditingProduct(null);
+    try {
+      const res = await api<any>(`/admin/products/${encodeURIComponent(editingProduct.id)}`, {
+        method: "PUT",
+        body: JSON.stringify(editingProduct),
+      });
+      setProducts((prev) =>
+        prev.map((p) => (p.id === editingProduct.id ? { ...p, ...res } : p))
+      );
+      setSuccess(`${editingProduct.name} muvaffaqiyatli yangilandi!`);
+      setEditingProduct(null);
+    } catch (e: any) {
+      setError(e.message || "Mahsulotni yangilashda xatolik");
+    }
   };
 
   const handleCreateProduct = async () => {
     if (!newProduct.name || !newProduct.price) {
-      setError("Iltimos, noutbuk nomi va narxini kiriting");
+      setError("Iltimos, mahsulot nomi va narxini kiriting");
       return;
     }
-    const newId = `LAP-${String(products.length + 1).padStart(2, "0")}`;
+    const newId = `PRD-${String(products.length + 1).padStart(2, "0")}`;
     const item: ProductItem = {
       id: newId,
       name: newProduct.name,
-      category: newProduct.category || "Gaming",
+      category: newProduct.category || "General",
       specs: newProduct.specs || "Standart parametrlar",
       price: newProduct.price.startsWith("$") ? newProduct.price : `$${newProduct.price}`,
       stock: (newProduct.stock as any) || "In Stock",
-      warranty: newProduct.warranty || "2 oy kafolat",
+      warranty: newProduct.warranty || "Mavjud",
     };
     try {
-      await api("/admin/products", {
+      const res = await api<any>("/admin/products", {
         method: "POST",
         body: JSON.stringify(item),
       });
-      setProducts((prev) => [item, ...prev]);
+      setProducts((prev) => [res || item, ...prev]);
       setSuccess(`${item.name} katalogga qo'shildi!`);
       setIsAddingProduct(false);
-      setNewProduct({ category: "Gaming", stock: "In Stock", warranty: "2 oy kafolat" });
+      setNewProduct({ category: "General", stock: "In Stock", warranty: "Mavjud" });
     } catch (e: any) {
       setError(e.message || "Mahsulotni qo'shishda xatolik");
+    }
+  };
+
+  const handleExtractProductsFromPosts = async () => {
+    setBusy(true);
+    try {
+      const res = await api<any>("/admin/products/extract-from-posts", { method: "POST" });
+      if (res.extracted_count > 0) {
+        setSuccess(`${res.extracted_count} ta yangi mahsulot kanal postlaridan aniqlandi va katalogga qo'shildi!`);
+        const updated = await api<ProductItem[]>("/admin/products");
+        setProducts(updated || []);
+      } else {
+        setSuccess("Kanal postlaridan yangi mahsulot topilmadi yoki barchasi avval qo'shilgan.");
+      }
+    } catch (e: any) {
+      setError(e.message || "Mahsulotlarni aniqlashda xatolik");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleUpdateOrderStatus = async (orderIdStr: string, status: string) => {
+    const rawId = parseInt(orderIdStr.replace("ORD-", ""), 10);
+    try {
+      await api(`/admin/orders/${rawId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      });
+      setOrders((prev) =>
+        prev.map((o) => (o.id === orderIdStr ? { ...o, status } : o))
+      );
+      setSuccess(`Buyurtma #${orderIdStr} statusi yangilandi: ${status}`);
+    } catch (e: any) {
+      setError(e.message || "Buyurtma statusini o'zgartirishda xatolik");
+    }
+  };
+
+  const handleDeleteOrder = async (orderIdStr: string) => {
+    if (!confirm(`${orderIdStr} buyurtmasi o'chirilsinmi?`)) return;
+    const rawId = parseInt(orderIdStr.replace("ORD-", ""), 10);
+    try {
+      await api(`/admin/orders/${rawId}`, { method: "DELETE" });
+      setOrders((prev) => prev.filter((o) => o.id !== orderIdStr));
+      setSuccess(`${orderIdStr} o'chirildi!`);
+    } catch (e: any) {
+      setError(e.message || "Buyurtmani o'chirishda xatolik");
     }
   };
 
@@ -3764,7 +3804,16 @@ export default function Dashboard({
                           Bir nechta kanallarni ulashingiz mumkin. Barcha kanallardagi postlar birlashtirilib AI bilim bazasiga olinadi.
                         </p>
                       </div>
-                      <div className="card-actions">
+                      <div className="card-actions d-flex gap-2">
+                        <button
+                          className="btn btn-outline-info d-flex align-items-center gap-1"
+                          onClick={handleExtractProductsFromPosts}
+                          disabled={busy || posts.length === 0}
+                          title="Telegram kanal postlaridan mahsulotlar va narxlarni aniqlash"
+                        >
+                          <IconSparkles size={18} />
+                          Mahsulotlarni aniqlash
+                        </button>
                         <button
                           className="btn btn-outline-primary d-flex align-items-center gap-1"
                           onClick={() => handleSyncChannel()}
@@ -3996,10 +4045,18 @@ export default function Dashboard({
                           />
                         </div>
                         <button
+                          className="btn btn-outline-info btn-sm d-flex align-items-center gap-1"
+                          onClick={handleExtractProductsFromPosts}
+                          disabled={busy}
+                          title="Telegram kanal postlaridan mahsulotlar va narxlarni avtomatik aniqlash"
+                        >
+                          <IconSparkles size={16} /> Kanal postlaridan aniqlash
+                        </button>
+                        <button
                           className="btn btn-primary btn-sm d-flex align-items-center gap-1"
                           onClick={() => setIsAddingProduct(true)}
                         >
-                          <IconPlus size={16} /> Yangi noutbuk
+                          <IconPlus size={16} /> Yangi mahsulot
                         </button>
                       </div>
                     </div>
@@ -4008,8 +4065,8 @@ export default function Dashboard({
                       <table className="table table-vcenter card-table table-striped">
                         <thead>
                           <tr>
-                            <th className="w-1">Model Kodi</th>
-                            <th>Noutbuk Nomi</th>
+                            <th className="w-1">Mahsulot Kodi</th>
+                            <th>Mahsulot Nomi</th>
                             <th>Kategoriya</th>
                             <th>Xarakteristikasi (Specs)</th>
                             <th>Narxi</th>
@@ -4322,12 +4379,33 @@ export default function Dashboard({
                                 <span className="badge bg-azure-lt">{ord.channel}</span>
                               </td>
                               <td>
-                                <button
-                                  className="btn btn-sm btn-outline-primary"
-                                  onClick={() => alert(`${ord.id} buyurtma tafsilotlari`)}
-                                >
-                                  Ko'rish
-                                </button>
+                                <div className="btn-group btn-group-sm">
+                                  {ord.status?.toLowerCase() !== "confirmed" && ord.status?.toLowerCase() !== "completed" && (
+                                    <button
+                                      className="btn btn-outline-success"
+                                      onClick={() => handleUpdateOrderStatus(ord.id, "Confirmed")}
+                                      title="Tasdiqlash"
+                                    >
+                                      <IconCheck size={14} />
+                                    </button>
+                                  )}
+                                  {ord.status?.toLowerCase() !== "completed" && (
+                                    <button
+                                      className="btn btn-outline-primary"
+                                      onClick={() => handleUpdateOrderStatus(ord.id, "Completed")}
+                                      title="Bajarildi"
+                                    >
+                                      Bajarildi
+                                    </button>
+                                  )}
+                                  <button
+                                    className="btn btn-outline-danger"
+                                    onClick={() => handleDeleteOrder(ord.id)}
+                                    title="O'chirish"
+                                  >
+                                    <IconTrash size={14} />
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           ))}
