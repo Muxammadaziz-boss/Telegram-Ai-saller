@@ -59,6 +59,8 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 1440  # 24 hours
 
+    encryption_key: str = ""  # Fernet key (32 url-safe base64-encoded bytes)
+
     @property
     def is_production(self) -> bool:
         return self.app_env.strip().lower() in ("production", "prod")
@@ -100,10 +102,22 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "Production security failure: DATABASE_URL contains default development credentials."
                 )
+
+            # 5. Encryption Key
+            if (
+                not self.encryption_key
+                or len(self.encryption_key) < 32
+                or self.encryption_key in KNOWN_INSECURE_SECRETS
+            ):
+                raise ValueError(
+                    "Production security failure: ENCRYPTION_KEY must be configured with a 32-byte urlsafe Fernet key."
+                )
         else:
             # Development convenience fallback
             if not self.jwt_secret:
                 self.jwt_secret = "dev_insecure_jwt_secret_key_only_for_local_testing_32chars_long"
+            if not self.encryption_key:
+                self.encryption_key = "MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE="
 
         return self
 

@@ -6,9 +6,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.admin import get_current_admin
+from app.core.config import settings
 from app.core.db import get_db
 from app.core.logging import get_logger
-from app.models import Admin, AuditLog, Plan
+from app.models import Admin, AuditLog, Plan, User
 from app.services.cost_service import cost_service
 
 logger = get_logger(__name__)
@@ -16,14 +17,38 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/api/platform", tags=["platform"])
 
 
-def require_platform_owner(admin: Admin = Depends(get_current_admin)) -> Admin:
-    """Ensure user is platform owner or master admin."""
-    if admin.role != "owner":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Faqat Platforma egasi (Platform Owner) kirishi mumkin",
-        )
-    return admin
+async def require_platform_owner(
+    admin: Admin = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+) -> Admin:
+    """Ensure user is true platform owner or master admin.
+
+    Checks:
+    1. Runtime _is_platform_owner flag attached by auth dependency.
+    2. Admin telegram user ID matching settings.admin_telegram_id.
+    3. User.is_platform_owner == True in database.
+    Rejects tenant owners whose role is merely 'owner' in their local organization.
+    """
+    if getattr(admin, "_is_platform_owner", False):
+        return admin
+
+    if settings.admin_telegram_id and admin.telegram_user_id == settings.admin_telegram_id:
+        return admin
+
+    user = await db.get(User, admin.id)
+    if user and user.is_platform_owner:
+        return admin
+
+    if admin.telegram_user_id:
+        u_res = await db.execute(select(User).where(User.telegram_user_id == admin.telegram_user_id))
+        u = u_res.scalar_one_or_none()
+        if u and u.is_platform_owner:
+            return admin
+
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Faqat Platforma egasi (Platform Owner) kirishi mumkin",
+    )
 
 
 class PlanUpdateRequest(BaseModel):

@@ -203,7 +203,7 @@ async def admin_reply(
         raise HTTPException(status_code=400, detail="Xabar matni bo'sh bo'lishi mumkin emas")
 
     org = await db.get(Organization, org_id) if org_id else None
-    org_token = org.telegram_bot_token if org else None
+    org_token = org.decrypted_bot_token if org else None
     try:
         tg_svc = get_telegram_service(org_token)
     except Exception:
@@ -553,9 +553,13 @@ async def delete_product(
 @router.get("/admins", dependencies=[Depends(require_permission("can_manage_admins"))])
 async def get_admins(
     db: AsyncSession = Depends(get_db),
+    current_admin: Admin = Depends(get_current_admin),
     org_id: int = Depends(get_admin_tenant_id),
 ):
-    stmt = select(Admin).where((Admin.organization_id == org_id) | (Admin.role == "owner"))
+    if getattr(current_admin, "_is_platform_owner", False):
+        stmt = select(Admin).where((Admin.organization_id == org_id) | (Admin.organization_id.is_(None)))
+    else:
+        stmt = select(Admin).where(Admin.organization_id == org_id)
     admins = (await db.execute(stmt.order_by(Admin.created_at.asc()))).scalars().all()
     return [{
         "id": a.id,
@@ -617,7 +621,7 @@ async def delete_admin(
         raise HTTPException(status_code=403, detail="Admin o'chirish uchun ruxsat yo'q")
 
     target = await admin_service.get_admin_by_telegram_id(db, telegram_user_id)
-    if target is None or (target.organization_id and target.organization_id != org_id and current_admin.role != "owner"):
+    if target is None or (target.organization_id and target.organization_id != org_id and not getattr(current_admin, "_is_platform_owner", False)):
         raise HTTPException(status_code=404, detail="Admin topilmadi")
 
     try:
@@ -640,7 +644,7 @@ async def update_admin_permission(
         raise HTTPException(status_code=403, detail="Ruxsatlarni o'zgartirish huquqi yo'q")
 
     target = await admin_service.get_admin_by_telegram_id(db, telegram_user_id)
-    if target is None or (target.organization_id and target.organization_id != org_id and current_admin.role != "owner"):
+    if target is None or (target.organization_id and target.organization_id != org_id and not getattr(current_admin, "_is_platform_owner", False)):
         raise HTTPException(status_code=404, detail="Admin topilmadi")
 
     try:
@@ -659,11 +663,11 @@ async def update_admin_role(
     org_id: int = Depends(get_admin_tenant_id),
     db: AsyncSession = Depends(get_db),
 ):
-    if current_admin.role != "owner":
+    if not (current_admin.role == "owner" or getattr(current_admin, "_is_platform_owner", False)):
         raise HTTPException(status_code=403, detail="Faqat owner boshqa admin rolini o'zgartira oladi")
 
     target = await admin_service.get_admin_by_telegram_id(db, telegram_user_id)
-    if target is None or (target.organization_id and target.organization_id != org_id):
+    if target is None or (target.organization_id and target.organization_id != org_id and not getattr(current_admin, "_is_platform_owner", False)):
         raise HTTPException(status_code=404, detail="Admin topilmadi")
 
     try:
@@ -682,7 +686,7 @@ async def get_settings(
 ):
     channel = await settings_service.get_public_channel(db)
     channels = await settings_service.list_channels(db, organization_id=org_id)
-    all_settings = await settings_service.list_settings(db)
+    all_settings = await settings_service.list_settings(db, organization_id=org_id)
     return {
         "public_channel": channel,
         "connected_channels": [{

@@ -62,13 +62,12 @@ async def get_current_user(
 async def get_current_admin(
     credentials: HTTPAuthorizationCredentials | None = Depends(security_optional),
     x_admin_token: str | None = Header(default=None),
-    x_admin_telegram_id: str | None = Header(default=None),
     db: AsyncSession = Depends(get_db),
 ) -> Admin:
     """Authenticate admin identity strictly via cryptographic JWT token or verified Master Token.
 
     Security Rules:
-    - X-Admin-Telegram-ID is NEVER accepted as proof of identity.
+    - X-Admin-Telegram-ID header impersonation is completely removed.
     - Missing or unverified credentials immediately return 401 Unauthorized.
     - Synthetic unpersisted owner creation is prohibited.
     """
@@ -104,6 +103,8 @@ async def get_current_admin(
                 await db.commit()
 
         if admin is not None:
+            admin._user = user
+            admin._is_platform_owner = user.is_platform_owner
             return admin
 
         # If user is an active organization member with admin privileges
@@ -116,7 +117,7 @@ async def get_current_admin(
         if member is not None:
             role = member.role
             perms = member.permissions or ROLE_DEFAULTS.get(role, {})
-            return Admin(
+            admin_obj = Admin(
                 id=user.id,
                 organization_id=member.organization_id,
                 telegram_user_id=user.telegram_user_id or 0,
@@ -125,6 +126,9 @@ async def get_current_admin(
                 permissions=perms,
                 is_active=True,
             )
+            admin_obj._user = user
+            admin_obj._is_platform_owner = user.is_platform_owner
+            return admin_obj
 
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -140,6 +144,7 @@ async def get_current_admin(
                 owner = await admin_service.ensure_owner(db)
                 await db.commit()
         if owner is not None:
+            owner._is_platform_owner = True
             return owner
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

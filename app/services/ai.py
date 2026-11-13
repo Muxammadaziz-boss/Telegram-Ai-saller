@@ -185,8 +185,8 @@ class SalesAI:
                 from app.models import Organization
                 org = await db.get(Organization, organization_id)
                 if org:
-                    org_gemini_key = org.gemini_api_key
-                    org_openai_key = org.openai_api_key
+                    org_gemini_key = org.decrypted_gemini_api_key
+                    org_openai_key = org.decrypted_openai_api_key
                     custom_system_prompt = org.custom_system_prompt
                     ai_language = org.ai_language or "uz"
                     ai_personality = org.ai_personality or "Professional & Courteous"

@@ -231,12 +231,15 @@ async def set_public_channel(db: AsyncSession, raw_channel: str) -> str:
     return ch.channel_username
 
 
-async def list_settings(db: AsyncSession) -> dict[str, str]:
-    """Return all system settings as a key-value dictionary."""
-    result = await db.execute(select(SystemSetting))
+async def list_settings(db: AsyncSession, organization_id: int | None = None) -> dict[str, str]:
+    """Return all system settings as a key-value dictionary, scoped by organization."""
+    stmt = select(SystemSetting)
+    if organization_id is not None:
+        stmt = stmt.where((SystemSetting.organization_id == organization_id) | (SystemSetting.organization_id.is_(None)))
+    result = await db.execute(stmt)
     rows = result.scalars().all()
     data = {row.key: row.value for row in rows}
-    active = await get_active_channel_usernames(db)
+    active = await get_active_channel_usernames(db, organization_id=organization_id)
     if active:
         data["public_channel"] = active[0]
         data["connected_channels"] = ",".join(active)

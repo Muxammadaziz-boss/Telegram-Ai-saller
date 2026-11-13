@@ -61,11 +61,33 @@ class Organization(Base):
     ai_personality: Mapped[str] = mapped_column(String(64), default="Professional & Courteous")
     custom_system_prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    # Per‑organization AI provider API keys (optional, override global defaults)
-    openai_api_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    gemini_api_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    # Telegram bot token dedicated to this organization (owner supplies on onboarding)
-    telegram_bot_token: Mapped[str | None] = mapped_column(String(255), nullable=True, unique=True)
+    # Per‑organization AI provider API keys (stored encrypted with Fernet)
+    openai_api_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    gemini_api_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Telegram bot token dedicated to this organization (stored encrypted)
+    telegram_bot_token: Mapped[str | None] = mapped_column(Text, nullable=True, unique=True)
+    webhook_secret: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+    @property
+    def decrypted_bot_token(self) -> str | None:
+        if not self.telegram_bot_token:
+            return None
+        from app.core.security import decrypt_secret
+        return decrypt_secret(self.telegram_bot_token)
+
+    @property
+    def decrypted_openai_api_key(self) -> str | None:
+        if not self.openai_api_key:
+            return None
+        from app.core.security import decrypt_secret
+        return decrypt_secret(self.openai_api_key)
+
+    @property
+    def decrypted_gemini_api_key(self) -> str | None:
+        if not self.gemini_api_key:
+            return None
+        from app.core.security import decrypt_secret
+        return decrypt_secret(self.gemini_api_key)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)

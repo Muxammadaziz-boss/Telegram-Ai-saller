@@ -1,13 +1,22 @@
 """Organization onboarding, configuration, and authentication endpoints."""
 
-import hashlib
-from datetime import datetime, timezone
 import httpx
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
+from app.core.security import (
+    decrypt_secret,
+    encrypt_secret,
+    hash_password,
+    is_rate_limited,
+    mask_secret,
+    record_attempt,
+    reset_rate_limit,
+    verify_password,
+)
 from app.dependencies.auth import create_access_token, get_current_user
 from app.models import Organization, OrganizationMember, User
 from app.schemas import (
@@ -20,10 +29,6 @@ from app.schemas import (
 )
 
 router = APIRouter(prefix="/api/v1", tags=["onboarding"])
-
-
-def _hash_password(raw: str) -> str:
-    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
 def _org_to_out(org: Organization) -> dict:
@@ -51,13 +56,22 @@ def _org_to_out(org: Organization) -> dict:
 async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_db)):
     """Register a new platform user."""
     clean_email = payload.email.strip().lower()
+
+    rate_key = f"register:{clean_email}"
+    if is_rate_limited(rate_key, max_attempts=5, window_seconds=60):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Ro'yxatdan o'tish uchun juda ko'p urinish. 1 daqiqadan so'ng qayta urinib ko'ring.",
+        )
+    record_attempt(rate_key)
+
     existing = await db.execute(select(User).where(User.email == clean_email))
     if existing.scalar_one_or_none() is not None:
         raise HTTPException(status_code=400, detail="Bu email allaqachon ro'yxatdan o'tgan")
 
     user = User(
         email=clean_email,
-        hashed_password=_hash_password(payload.password),
+        hashed_password=hash_password(payload.password),
         full_name=payload.full_name.strip(),
     )
     db.add(user)
@@ -72,14 +86,24 @@ async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_db))
 async def login(payload: TokenRequest, db: AsyncSession = Depends(get_db)):
     """Authenticate with email & password to receive a JWT access token."""
     clean_email = payload.email.strip().lower()
+
+    rate_key = f"login:{clean_email}"
+    if is_rate_limited(rate_key, max_attempts=5, window_seconds=60):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Juda ko'p urinishlar qilindi. Iltimos, 1 daqiqadan so'ng qayta urinib ko'ring.",
+        )
+
     result = await db.execute(select(User).where(User.email == clean_email))
     user = result.scalar_one_or_none()
 
-    if user is None or user.hashed_password != _hash_password(payload.password):
+    if user is None or not verify_password(payload.password, user.hashed_password):
+        record_attempt(rate_key)
         raise HTTPException(status_code=401, detail="Email yoki parol noto'g'ri")
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Foydalanuvchi faol emas")
 
+    reset_rate_limit(rate_key)
     token = create_access_token(user.id, user.email)
     return TokenResponse(access_token=token, user_id=user.id, email=user.email)
 
@@ -117,10 +141,8 @@ async def create_organization(
     # Check bot token uniqueness if provided
     token = payload.telegram_bot_token.strip() if payload.telegram_bot_token else None
     if token:
-        existing_token = await db.execute(
-            select(Organization).where(Organization.telegram_bot_token == token)
-        )
-        if existing_token.scalar_one_or_none() is not None:
+        all_orgs = (await db.execute(select(Organization).where(Organization.telegram_bot_token.isnot(None)))).scalars().all()
+        if any(o.decrypted_bot_token == token for o in all_orgs):
             raise HTTPException(status_code=400, detail="Bu Telegram bot token boshqa tashkilotda ishlatilmoqda")
 
     org = Organization(
@@ -130,9 +152,9 @@ async def create_organization(
         ai_language=payload.ai_language,
         ai_personality=payload.ai_personality,
         custom_system_prompt=payload.custom_system_prompt,
-        telegram_bot_token=token,
-        openai_api_key=payload.openai_api_key.strip() if payload.openai_api_key else None,
-        gemini_api_key=payload.gemini_api_key.strip() if payload.gemini_api_key else None,
+        telegram_bot_token=encrypt_secret(token) if token else None,
+        openai_api_key=encrypt_secret(payload.openai_api_key.strip()) if payload.openai_api_key else None,
+        gemini_api_key=encrypt_secret(payload.gemini_api_key.strip()) if payload.gemini_api_key else None,
     )
     db.add(org)
     await db.flush()
@@ -219,15 +241,10 @@ async def update_organization(
     if payload.telegram_bot_token is not None:
         new_token = payload.telegram_bot_token.strip() or None
         if new_token:
-            token_check = await db.execute(
-                select(Organization).where(
-                    Organization.telegram_bot_token == new_token,
-                    Organization.id != org_id,
-                )
-            )
-            if token_check.scalar_one_or_none() is not None:
+            all_orgs = (await db.execute(select(Organization).where(Organization.telegram_bot_token.isnot(None)))).scalars().all()
+            if any(o.decrypted_bot_token == new_token and o.id != org_id for o in all_orgs):
                 raise HTTPException(status_code=400, detail="Bu Telegram bot token boshqa tashkilotda ishlatilmoqda")
-        org.telegram_bot_token = new_token
+        org.telegram_bot_token = encrypt_secret(new_token) if new_token else None
 
     if payload.name is not None:
         org.name = payload.name.strip()
@@ -240,9 +257,11 @@ async def update_organization(
     if payload.custom_system_prompt is not None:
         org.custom_system_prompt = payload.custom_system_prompt
     if payload.openai_api_key is not None:
-        org.openai_api_key = payload.openai_api_key.strip() or None
+        raw_key = payload.openai_api_key.strip() or None
+        org.openai_api_key = encrypt_secret(raw_key) if raw_key else None
     if payload.gemini_api_key is not None:
-        org.gemini_api_key = payload.gemini_api_key.strip() or None
+        raw_key = payload.gemini_api_key.strip() or None
+        org.gemini_api_key = encrypt_secret(raw_key) if raw_key else None
 
     await db.commit()
     await db.refresh(org)
@@ -271,12 +290,12 @@ async def verify_organization_bot(
     if member.scalar_one_or_none() is None:
         raise HTTPException(status_code=403, detail="Siz bu tashkilot a'zosi emassiz")
 
-    if not org.telegram_bot_token:
+    if not org.decrypted_bot_token:
         raise HTTPException(status_code=400, detail="Tashkilotda Telegram bot token kiritilmagan")
 
     async with httpx.AsyncClient(timeout=10.0) as client:
         try:
-            resp = await client.get(f"https://api.telegram.org/bot{org.telegram_bot_token}/getMe")
+            resp = await client.get(f"https://api.telegram.org/bot{org.decrypted_bot_token}/getMe")
             data = resp.json()
             if not data.get("ok"):
                 return {

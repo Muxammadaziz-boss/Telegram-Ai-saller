@@ -253,9 +253,11 @@ async def seed_plans_and_defaults(db: AsyncSession):
         logger.info("Default Organization created: ID=1 (%s)", default_org.name)
 
     # 3. Seed Owner User
-    owner_tg_id = settings.admin_telegram_id or 6990611858
-    user_res = await db.execute(select(User).where(User.telegram_user_id == owner_tg_id))
-    owner_user = user_res.scalar_one_or_none()
+    owner_tg_id = settings.admin_telegram_id if settings.admin_telegram_id else None
+    owner_user = None
+    if owner_tg_id:
+        user_res = await db.execute(select(User).where(User.telegram_user_id == owner_tg_id))
+        owner_user = user_res.scalar_one_or_none()
     if not owner_user:
         # Check by email
         email_res = await db.execute(select(User).where(User.email == "admin@aisales.uz"))

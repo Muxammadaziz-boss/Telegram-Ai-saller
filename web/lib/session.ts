@@ -32,7 +32,6 @@ export function createSessionToken(
     secret = payloadOrSecret;
     payload = {
       userId: 1,
-      telegramUserId: 6990611858,
       email: "admin@aisales.uz",
       role: "owner",
       organizationId: 1,

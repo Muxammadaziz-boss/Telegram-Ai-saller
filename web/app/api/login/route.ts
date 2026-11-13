@@ -2,15 +2,39 @@ import { NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { createSessionToken, SessionPayload, sessionCookieName, sessionTtlSeconds } from "@/lib/session";
 
+// In-memory rate limiting tracker: ip/identifier -> timestamp[]
+const loginAttempts = new Map<string, number[]>();
+
+function checkRateLimit(key: string, maxAttempts = 5, windowMs = 60000): boolean {
+  const now = Date.now();
+  const attempts = (loginAttempts.get(key) || []).filter((t) => now - t < windowMs);
+  if (attempts.length >= maxAttempts) {
+    return false;
+  }
+  attempts.push(now);
+  loginAttempts.set(key, attempts);
+  return true;
+}
+
 export async function POST(request: NextRequest) {
-  const expected = process.env.DASHBOARD_PASSWORD || "";
+  const ip = request.headers.get("x-forwarded-for") || "anonymous";
+  if (!checkRateLimit(ip)) {
+    return NextResponse.json(
+      { detail: "Juda ko'p urinishlar qilindi. 1 daqiqadan so'ng qayta urinib ko'ring." },
+      { status: 429 }
+    );
+  }
+
+  const expectedDashboardPassword = process.env.DASHBOARD_PASSWORD || "";
   const secret = process.env.SESSION_SECRET || "";
-  if (!expected || !secret) {
-    return NextResponse.json({ detail: "DASHBOARD_PASSWORD yoki SESSION_SECRET sozlanmagan" }, { status: 500 });
+  const backendUrl = process.env.BACKEND_URL || "http://127.0.0.1:8000";
+
+  if (!secret) {
+    return NextResponse.json({ detail: "SESSION_SECRET sozlanmagan" }, { status: 500 });
   }
 
   let supplied = "";
-  let telegramIdNum = 6990611858;
+  let telegramIdNum: number | undefined = undefined;
   let email = "admin@aisales.uz";
   let orgId = 1;
 
@@ -33,19 +57,64 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ detail: "Login ma'lumoti noto'g'ri" }, { status: 400 });
   }
 
-  const a = Buffer.from(expected);
-  const b = Buffer.from(supplied);
-  if (a.length !== b.length || !timingSafeEqual(a, b)) {
-    return NextResponse.json({ detail: "Parol noto'g'ri" }, { status: 401 });
+  // 1. Try individual backend authentication (/api/v1/auth/login)
+  let backendToken: string | undefined = undefined;
+  let authenticatedUserId: number | undefined = undefined;
+  let authenticatedRole = "admin";
+
+  try {
+    const backendRes = await fetch(`${backendUrl.replace(/\/$/, "")}/api/v1/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password: supplied }),
+    });
+
+    if (backendRes.ok) {
+      const data = await backendRes.json();
+      backendToken = data.access_token;
+      authenticatedUserId = data.user_id;
+
+      // Fetch user profile from backend to get is_platform_owner and telegram_user_id
+      const profileRes = await fetch(`${backendUrl.replace(/\/$/, "")}/api/v1/auth/me`, {
+        headers: { Authorization: `Bearer ${backendToken}` },
+      });
+      if (profileRes.ok) {
+        const profile = await profileRes.json();
+        if (profile.is_platform_owner) {
+          authenticatedRole = "owner";
+        }
+        if (profile.telegram_user_id) {
+          telegramIdNum = profile.telegram_user_id;
+        }
+      }
+    }
+  } catch {
+    // Backend may be offline or unreachable; fall through to dashboard password check
   }
 
-  const isOwner = telegramIdNum === 6990611858 || email === "admin@aisales.uz";
+  // 2. Fallback to master DASHBOARD_PASSWORD if backend login did not match
+  if (!backendToken) {
+    if (!expectedDashboardPassword) {
+      return NextResponse.json({ detail: "Email yoki parol noto'g'ri" }, { status: 401 });
+    }
+
+    const a = Buffer.from(expectedDashboardPassword);
+    const b = Buffer.from(supplied);
+    if (a.length !== b.length || !timingSafeEqual(a, b)) {
+      return NextResponse.json({ detail: "Parol noto'g'ri" }, { status: 401 });
+    }
+
+    authenticatedUserId = 1;
+    authenticatedRole = "owner";
+  }
+
   const sessionPayload: SessionPayload = {
-    userId: isOwner ? 1 : 2,
+    userId: authenticatedUserId || 1,
     telegramUserId: telegramIdNum,
     email,
-    role: isOwner ? "owner" : "admin",
+    role: authenticatedRole,
     organizationId: orgId,
+    backendToken,
     issuedAt: Math.floor(Date.now() / 1000),
   };
 

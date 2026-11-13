@@ -2,6 +2,7 @@ from pydantic import BaseModel, Field
 
 
 class IngestPost(BaseModel):
+    organization_id: int | None = None
     channel_username: str = Field(min_length=1, max_length=255)
     telegram_message_id: int
     text: str = ""

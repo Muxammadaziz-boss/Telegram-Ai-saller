@@ -34,6 +34,17 @@ async def ingest_post(payload: IngestPost, db: AsyncSession = Depends(get_db)):
             posted_at = datetime.fromisoformat(payload.posted_at.replace("Z", "+00:00"))
         except ValueError:
             raise HTTPException(status_code=400, detail="posted_at ISO formatda bo'lishi kerak")
+    from sqlalchemy import select
+    from app.models import ConnectedChannel
+
+    org_id = payload.organization_id
+    if not org_id:
+        chan_row = (await db.execute(
+            select(ConnectedChannel).where(ConnectedChannel.channel_username == payload.channel_username.lower().lstrip("@"))
+        )).scalar_one_or_none()
+        if chan_row:
+            org_id = chan_row.organization_id
+
     post = await knowledge.upsert_post(
         db,
         channel_username=payload.channel_username,
@@ -44,6 +55,7 @@ async def ingest_post(payload: IngestPost, db: AsyncSession = Depends(get_db)):
         photo_file_id=payload.photo_file_id,
         photo_bytes=image_bytes,
         photo_mime_type=payload.photo_mime_type,
+        organization_id=org_id,
     )
     await db.commit()
     return {"ok": True, "post_id": post.id, "has_image": bool(post.image_path), "has_embedding": bool(post.embedding)}

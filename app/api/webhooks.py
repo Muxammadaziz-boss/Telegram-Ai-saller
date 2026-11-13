@@ -70,9 +70,11 @@ async def _store_channel_post(message: dict) -> None:
         if not active_channels or username.lower() not in [c.lower() for c in active_channels]:
             return
         chan_row = (await db.execute(select(ConnectedChannel).where(ConnectedChannel.channel_username == username.lower()))).scalar_one_or_none()
-        org_id = chan_row.organization_id if chan_row else 1
+        if not chan_row or not chan_row.organization_id:
+            return
+        org_id = chan_row.organization_id
         org = await db.get(Organization, org_id) if org_id else None
-        org_token = org.telegram_bot_token if org else None
+        org_token = org.decrypted_bot_token if org else None
         try:
             tg_svc = get_telegram_service(org_token)
         except Exception:
@@ -141,9 +143,13 @@ async def _handle_business_message(message: dict) -> None:
         if connection is None or not connection.is_enabled:
             return
 
-        org_id = connection.organization_id or 1
+        if not connection.organization_id:
+            logger.warning("BusinessConnection without organization_id: id=%s", connection_id)
+            return
+
+        org_id = connection.organization_id
         org = await db.get(Organization, org_id) if org_id else None
-        org_token = org.telegram_bot_token if org else None
+        org_token = org.decrypted_bot_token if org else None
         try:
             tg_svc = get_telegram_service(org_token)
         except Exception:
@@ -479,16 +485,25 @@ async def telegram_webhook(
     org_slug: str | None = None,
     x_telegram_bot_api_secret_token: str | None = Header(default=None),
 ):
-    # 1. Fail closed in production if secret is not configured
-    if settings.is_production and not settings.telegram_webhook_secret:
+    # 1. Resolve expected secret (organization-specific or global)
+    expected = None
+    if org_slug:
+        async with SessionLocal() as db:
+            org_row = (await db.execute(select(Organization).where(Organization.slug == org_slug))).scalar_one_or_none()
+            if org_row and org_row.webhook_secret:
+                expected = org_row.webhook_secret
+    if not expected:
+        expected = settings.telegram_webhook_secret
+
+    # 2. Fail closed in production if secret is not configured
+    if settings.is_production and not expected:
         logger.error("TELEGRAM_WEBHOOK_SECRET is not configured in production; failing closed")
         raise HTTPException(
             status_code=500,
             detail="Webhook configuration error in production",
         )
 
-    # 2. Strict webhook secret token validation when secret is configured
-    expected = settings.telegram_webhook_secret
+    # 3. Strict webhook secret token validation when secret is configured
     if expected:
         if not x_telegram_bot_api_secret_token:
             logger.warning("Telegram webhook request missing X-Telegram-Bot-Api-Secret-Token header")

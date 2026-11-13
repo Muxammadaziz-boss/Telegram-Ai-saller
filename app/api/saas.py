@@ -60,6 +60,7 @@ class CheckoutRequest(BaseModel):
 
 from app.api.admin import get_current_admin
 from app.dependencies.tenant import get_admin_tenant_id
+from app.services import admin_service
 
 
 async def resolve_organization_id(
@@ -73,6 +74,21 @@ async def resolve_organization_id(
         x_organization_id=x_organization_id,
         db=db,
     )
+
+
+def require_saas_permission(perm: str):
+    """Enforce granular RBAC permission for tenant organization actions."""
+    async def dependency(
+        admin: Admin = Depends(get_current_admin),
+        org_id: int = Depends(resolve_organization_id),
+    ) -> Admin:
+        if not admin_service.has_permission(admin, perm):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Sizda ushbu amal uchun ruxsat yo'q: {perm}",
+            )
+        return admin
+    return dependency
 
 
 # --- Endpoints ---
@@ -117,6 +133,7 @@ async def get_subscription(
 async def upgrade_plan(
     req: UpgradeRequest,
     org_id: int = Depends(resolve_organization_id),
+    admin: Admin = Depends(require_saas_permission("can_manage_billing")),
     db: AsyncSession = Depends(get_db),
 ):
     """Upgrade or downgrade tenant subscription plan."""
@@ -135,6 +152,7 @@ async def upgrade_plan(
 @router.post("/subscription/cancel")
 async def cancel_subscription(
     org_id: int = Depends(resolve_organization_id),
+    admin: Admin = Depends(require_saas_permission("can_manage_billing")),
     db: AsyncSession = Depends(get_db),
 ):
     """Cancel subscription at the end of current billing period."""
@@ -148,6 +166,7 @@ async def cancel_subscription(
 @router.post("/subscription/resume")
 async def resume_subscription(
     org_id: int = Depends(resolve_organization_id),
+    admin: Admin = Depends(require_saas_permission("can_manage_billing")),
     db: AsyncSession = Depends(get_db),
 ):
     """Resume a cancelled subscription before period ends."""
@@ -222,17 +241,25 @@ async def create_organization(
         u_res = await db.execute(select(User).where(User.telegram_user_id == admin.telegram_user_id))
         user = u_res.scalar_one_or_none()
 
+    if not user and admin and admin.id:
+        user = await db.get(User, admin.id)
+
     if not user:
-        # Create or fetch master user
-        master_tg = admin.telegram_user_id or settings.admin_telegram_id or 6990611858
-        user = User(
-            email=f"owner_{master_tg}@aisales.uz",
-            full_name=admin.name or "Owner",
-            telegram_user_id=master_tg,
-            is_active=True,
-        )
-        db.add(user)
-        await db.flush()
+        if settings.admin_telegram_id:
+            master_tg = settings.admin_telegram_id
+            user = User(
+                email=f"owner_{master_tg}@aisales.uz",
+                full_name=admin.name or "Owner",
+                telegram_user_id=master_tg,
+                is_active=True,
+            )
+            db.add(user)
+            await db.flush()
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Foydalanuvchi hisobi topilmadi",
+            )
 
     org = await create_organization_with_trial(
         db,
@@ -271,6 +298,7 @@ async def get_current_organization(
 async def update_current_organization(
     req: UpdateOrgRequest,
     org_id: int = Depends(resolve_organization_id),
+    admin: Admin = Depends(require_saas_permission("can_manage_settings")),
     db: AsyncSession = Depends(get_db),
 ):
     """Update settings of current organization."""
@@ -298,6 +326,7 @@ async def update_current_organization(
 async def create_checkout(
     req: CheckoutRequest,
     org_id: int = Depends(resolve_organization_id),
+    admin: Admin = Depends(require_saas_permission("can_manage_billing")),
     db: AsyncSession = Depends(get_db),
 ):
     """Create a checkout session (Stripe or Mock provider)."""
@@ -319,6 +348,7 @@ async def create_checkout(
 @router.post("/billing/portal")
 async def customer_portal(
     org_id: int = Depends(resolve_organization_id),
+    admin: Admin = Depends(require_saas_permission("can_manage_billing")),
     db: AsyncSession = Depends(get_db),
 ):
     """Redirect URL to Stripe Customer Portal or Mock Portal."""

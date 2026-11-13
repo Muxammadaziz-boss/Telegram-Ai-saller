@@ -60,9 +60,11 @@ async function proxy(request: NextRequest) {
     headers["Authorization"] = `Bearer ${userJwt}`;
   } else if (sessionData.backendToken) {
     headers["Authorization"] = `Bearer ${sessionData.backendToken}`;
-  } else if (sessionData.role === "owner" && process.env.ADMIN_API_TOKEN) {
-    // Only verified Owner session can use master token fallback when JWT_SECRET is not yet configured
-    headers["X-Admin-Token"] = process.env.ADMIN_API_TOKEN;
+  } else {
+    return NextResponse.json(
+      { detail: "JWT_SECRET sozlanmagan — autentifikatsiya amalga oshirilmadi" },
+      { status: 500 }
+    );
   }
 
   // Tenant scoping: Forward target organization ID (backend verifies user's membership)

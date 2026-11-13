@@ -61,6 +61,14 @@ async def lifespan(application: FastAPI):
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         await conn.run_sync(Base.metadata.create_all)
         # Ensure multi-tenant organization_id columns exist on legacy tables
+        try:
+            await conn.execute(text("ALTER TABLE organizations ADD COLUMN IF NOT EXISTS webhook_secret VARCHAR(64)"))
+            await conn.execute(text("ALTER TABLE organizations ALTER COLUMN telegram_bot_token TYPE TEXT"))
+            await conn.execute(text("ALTER TABLE organizations ALTER COLUMN openai_api_key TYPE TEXT"))
+            await conn.execute(text("ALTER TABLE organizations ALTER COLUMN gemini_api_key TYPE TEXT"))
+        except Exception as e:
+            logger.warning("Organizations column migration: %s", e)
+
         legacy_tables = [
             "conversations",
             "messages",

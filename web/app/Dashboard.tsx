@@ -531,8 +531,8 @@ export default function Dashboard({ initialAuthenticated = false }: { initialAut
   const [uiStyle, setUiStyle] = useState<"tabler" | "ios">("tabler");
   const [logoUrl, setLogoUrl] = useState<string>("/logo.svg");
   const [adminAvatarUrl, setAdminAvatarUrl] = useState<string>("");
-  const [activeAdminTelegramId, setActiveAdminTelegramId] = useState<number>(6990611858);
-  const [loginTelegramId, setLoginTelegramId] = useState<string>("6990611858");
+  const [activeAdminTelegramId, setActiveAdminTelegramId] = useState<number>(0);
+  const [loginTelegramId, setLoginTelegramId] = useState<string>("");
   const [navAvatarError, setNavAvatarError] = useState(false);
   const [profileAvatarError, setProfileAvatarError] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -1512,13 +1512,13 @@ export default function Dashboard({ initialAuthenticated = false }: { initialAut
                       <IconUser size={14} className="text-indigo" />
                       <span>Admin Telegram ID</span>
                     </label>
-                    {loginTelegramId === "6990611858" ? (
+                    {loginTelegramId ? (
                       <span className="badge bg-warning-lt text-warning d-inline-flex align-items-center gap-1 py-0.5 px-2 rounded-pill" style={{ fontSize: "11px" }}>
-                        <IconCrown size={12} /> Bosh Admin
+                        <IconCrown size={12} /> ID orqali profil
                       </span>
                     ) : (
                       <span className="badge bg-secondary-lt text-secondary py-0.5 px-2 rounded-pill" style={{ fontSize: "11px" }}>
-                        ID orqali profil
+                        Ixtiyoriy
                       </span>
                     )}
                   </div>
@@ -1526,7 +1526,7 @@ export default function Dashboard({ initialAuthenticated = false }: { initialAut
                     <div className="auth-tg-avatar-wrap">
                       <img
                         key={loginTelegramId}
-                        src={`/api/proxy?path=/admin/users/${loginTelegramId || 6990611858}/avatar`}
+                        src={loginTelegramId ? `/api/proxy?path=/admin/users/${loginTelegramId}/avatar` : ""}
                         alt="Telegram Avatar"
                         onError={(e) => {
                           (e.target as HTMLImageElement).src = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44"><rect width="44" height="44" rx="22" fill="%236366f1"/><text x="50%" y="54%" font-size="14" font-weight="bold" fill="white" text-anchor="middle" dominant-baseline="middle">TG</text></svg>`;
@@ -1539,18 +1539,13 @@ export default function Dashboard({ initialAuthenticated = false }: { initialAut
                         <span className="text-secondary" style={{ fontSize: "0.68rem", letterSpacing: "0.03em", textTransform: "uppercase" }}>
                           Telegram ID Raqami
                         </span>
-                        {loginTelegramId === "6990611858" && (
-                          <span className="text-green fw-semibold" style={{ fontSize: "0.72rem" }}>
-                            ✓ Muxammadaziz
-                          </span>
-                        )}
                       </div>
                       <input
                         id="admin-tg-id"
                         type="text"
                         className="w-100 bg-transparent border-0 p-0 text-white fw-semibold"
                         style={{ outline: "none", fontSize: "0.95rem" }}
-                        placeholder="Telegram ID (masalan: 6990611858)"
+                        placeholder="Telegram ID (ixtiyoriy, masalan: 12345678)"
                         value={loginTelegramId}
                         onChange={(e) => {
                           const val = e.target.value.replace(/\D/g, "");
