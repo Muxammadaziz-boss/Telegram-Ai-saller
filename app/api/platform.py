@@ -9,7 +9,7 @@ from app.api.admin import get_current_admin
 from app.core.config import settings
 from app.core.db import get_db
 from app.core.logging import get_logger
-from app.models import Admin, AuditLog, Plan, User
+from app.models import Admin, AuditLog, Organization, Plan, User
 from app.services.cost_service import cost_service
 
 logger = get_logger(__name__)
@@ -156,5 +156,98 @@ async def get_audit_logs(
             }
             for log in logs
         ]
+    }
+
+
+@router.post("/organizations/{org_slug}/impersonate")
+async def impersonate_organization(
+    org_slug: str,
+    admin: Admin = Depends(require_platform_owner),
+    db: AsyncSession = Depends(get_db),
+):
+    """Platform Owner enters a specific tenant store (audit logged)."""
+    res = await db.execute(select(Organization).where(Organization.slug == org_slug.lower()))
+    org = res.scalar_one_or_none()
+    if not org:
+        raise HTTPException(status_code=404, detail="Do'kon topilmadi")
+
+    # Log audit entry
+    real_user_id = getattr(admin, "_user", None).id if getattr(admin, "_user", None) else admin.id
+    audit = AuditLog(
+        organization_id=org.id,
+        user_id=real_user_id,
+        action="platform_owner_enter_store",
+        resource="organization",
+        resource_id=str(org.id),
+        metadata_json={
+            "impersonated_by_user_id": real_user_id,
+            "admin_name": admin.name,
+            "store_name": org.name,
+            "store_slug": org.slug,
+        },
+    )
+    db.add(audit)
+    await db.commit()
+
+    return {
+        "status": "ok",
+        "message": f"{org.name} do'koniga Platform Owner ko'rinishida muvaffaqiyatli kirildi",
+        "organization": {
+            "id": org.id,
+            "name": org.name,
+            "slug": org.slug,
+            "category": org.category,
+            "status": org.status,
+            "ai_language": org.ai_language,
+            "ai_personality": org.ai_personality,
+        },
+    }
+
+
+@router.get("/users")
+async def get_all_users(
+    admin: Admin = Depends(require_platform_owner),
+    db: AsyncSession = Depends(get_db),
+):
+    """List all registered users across the platform."""
+    res = await db.execute(select(User).order_by(User.created_at.desc()))
+    users = res.scalars().all()
+    return {
+        "users": [
+            {
+                "id": u.id,
+                "email": u.email,
+                "full_name": u.full_name,
+                "telegram_user_id": u.telegram_user_id,
+                "is_platform_owner": u.is_platform_owner,
+                "is_active": u.is_active,
+                "created_at": u.created_at.isoformat() if u.created_at else None,
+            }
+            for u in users
+        ]
+    }
+
+
+@router.get("/system-health")
+async def get_system_health(
+    admin: Admin = Depends(require_platform_owner),
+    db: AsyncSession = Depends(get_db),
+):
+    """Check system health, database, storage, and bot setup."""
+    from sqlalchemy import text
+    db_status = "healthy"
+    try:
+        await db.execute(text("SELECT 1"))
+    except Exception as e:
+        db_status = f"unhealthy: {e}"
+
+    return {
+        "status": "ok" if db_status == "healthy" else "degraded",
+        "database": db_status,
+        "app_env": settings.app_env,
+        "version": "0.1.0",
+        "gemini_configured": bool(settings.gemini_api_key),
+        "openai_configured": bool(settings.openai_api_key),
+        "telegram_configured": bool(settings.telegram_bot_token),
     }
 

@@ -3,7 +3,7 @@
 from datetime import datetime, timezone
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.models import Organization, Plan, Subscription, UsageRecord
+from app.models import Conversation, Organization, Plan, Subscription, UsageRecord
 
 
 # Pricing per 1,000,000 tokens in USD
@@ -135,6 +135,10 @@ async def get_organization_profitability_list(db: AsyncSession) -> list[dict]:
 
         margin = round(((monthly_rev - ai_cost) / monthly_rev) * 100.0, 1) if monthly_rev > 0 else 0.0
 
+        conv_count = await db.scalar(
+            select(func.count(Conversation.id)).where(Conversation.organization_id == org.id)
+        ) or 0
+
         items.append({
             "id": org.id,
             "name": org.name,
@@ -146,6 +150,9 @@ async def get_organization_profitability_list(db: AsyncSession) -> list[dict]:
             "monthly_ai_cost_usd": ai_cost,
             "gross_margin_percent": margin,
             "is_profitable": (monthly_rev >= ai_cost),
+            "conversations_count": conv_count,
+            "bot_configured": bool(org.telegram_bot_token),
+            "created_at": org.created_at.isoformat() if org.created_at else None,
         })
     return items
 

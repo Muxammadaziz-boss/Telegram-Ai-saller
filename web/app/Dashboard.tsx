@@ -6,6 +6,7 @@ import {
   IconAdjustments,
   IconAlertCircle,
   IconArrowUpRight,
+  IconArrowRight,
   IconBolt,
   IconBrandApple,
   IconBrandTelegram,
@@ -41,6 +42,7 @@ import {
   IconRobot,
   IconSearch,
   IconSend,
+  IconServer,
   IconSettings,
   IconShieldCheck,
   IconShieldLock,
@@ -487,7 +489,68 @@ function MiniSparkline({
   );
 }
 
-export default function Dashboard({ initialAuthenticated = false }: { initialAuthenticated?: boolean }) {
+export interface DashboardUser {
+  userId: number;
+  email?: string;
+  role?: string;
+  organizationId?: number;
+  isPlatformOwner?: boolean;
+}
+
+export interface DashboardProps {
+  initialAuthenticated?: boolean;
+  initialUser?: DashboardUser | null;
+  initialZone?: "platform" | "tenant";
+  initialTenantSlug?: string;
+}
+
+export default function Dashboard({
+  initialAuthenticated = false,
+  initialUser = null,
+  initialZone,
+  initialTenantSlug,
+}: DashboardProps) {
+  const [currentUser, setCurrentUser] = useState<DashboardUser | null>(initialUser);
+  const isPlatformOwner = Boolean(
+    currentUser?.isPlatformOwner || currentUser?.role === "owner"
+  );
+
+  const [zone, setZone] = useState<"platform" | "tenant">(() => {
+    if (initialZone) return initialZone;
+    if (typeof window !== "undefined") {
+      if (window.location.pathname.startsWith("/platform")) return "platform";
+      if (window.location.pathname.startsWith("/t/")) return "tenant";
+    }
+    return isPlatformOwner ? "platform" : "tenant";
+  });
+
+  const [platformSubTab, setPlatformSubTab] = useState<
+    "overview" | "stores" | "users" | "plans" | "usage" | "system" | "audit"
+  >("overview");
+
+  const [isOwnerImpersonating, setIsOwnerImpersonating] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      return Boolean(localStorage.getItem("owner_impersonating_store"));
+    }
+    return false;
+  });
+
+  const [activeStoreMeta, setActiveStoreMeta] = useState<{ id: number; name: string; slug: string } | null>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("owner_impersonating_store");
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch {}
+      }
+    }
+    return null;
+  });
+
+  const [platformUsers, setPlatformUsers] = useState<any[]>([]);
+  const [systemHealth, setSystemHealth] = useState<any>(null);
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+
   const [tab, setTab] = useState<
     "overview" | "inbox" | "knowledge" | "products" | "orders" | "customers" | "analytics" | "settings" | "admins" | "team" | "logs" | "profile" | "usage" | "billing" | "pricing" | "platform"
   >(() => {
@@ -658,16 +721,20 @@ export default function Dashboard({ initialAuthenticated = false }: { initialAut
       fetch("/api/auth/status", { cache: "no-store", signal: controller.signal })
         .then((res) => res.json())
         .then((data) => {
-          if (data && data.authenticated) setAuthenticated(true);
+          if (data && data.authenticated) {
+            setAuthenticated(true);
+            if (data.user) {
+              setCurrentUser(data.user);
+              if (data.user.isPlatformOwner && !initialZone) {
+                setZone("platform");
+              }
+            }
+          }
         })
         .catch(() => {})
         .finally(() => clearTimeout(timer));
     }
-  }, [authenticated]);
-
-  useEffect(() => {
-    if (authenticated) void load();
-  }, [authenticated, load]);
+  }, [authenticated, initialZone]);
 
   // Synchronize tab with URL hash on mount and hashchange
   useEffect(() => {
@@ -941,7 +1008,7 @@ export default function Dashboard({ initialAuthenticated = false }: { initialAut
         setUserOrganizations(orgs.organizations || []);
       } catch {}
 
-      if (currentAdmin?.role === "owner") {
+      if (isPlatformOwner || currentAdmin?.role === "owner") {
         try {
           const m = await api<any>("/api/platform/metrics");
           setPlatformMetrics(m);
@@ -954,13 +1021,39 @@ export default function Dashboard({ initialAuthenticated = false }: { initialAut
     } catch (e) {
       console.error("loadSaaSData error:", e);
     }
-  }, [activeOrgId, currentAdmin?.role]);
+  }, [activeOrgId, isPlatformOwner, currentAdmin?.role]);
+
+  const loadPlatformData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [m, o, u, h, a] = await Promise.all([
+        api<any>("/api/platform/metrics").catch(() => null),
+        api<any>("/api/platform/organizations").catch(() => ({ organizations: [] })),
+        api<any>("/api/platform/users").catch(() => ({ users: [] })),
+        api<any>("/api/platform/system-health").catch(() => null),
+        api<any>("/api/platform/audit-logs").catch(() => ({ logs: [] })),
+      ]);
+      if (m) setPlatformMetrics(m);
+      if (o?.organizations) setPlatformOrgs(o.organizations);
+      if (u?.users) setPlatformUsers(u.users);
+      if (h) setSystemHealth(h);
+      if (a?.logs) setAuditLogs(a.logs);
+    } catch (e) {
+      console.error("loadPlatformData error:", e);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    if (authenticated) {
-      loadSaaSData(activeOrgId);
+    if (!authenticated) return;
+    if (zone === "platform") {
+      void loadPlatformData();
+    } else {
+      void load();
+      void loadSaaSData(activeOrgId);
     }
-  }, [authenticated, activeOrgId, loadSaaSData]);
+  }, [authenticated, zone, activeOrgId, loadPlatformData, load, loadSaaSData]);
 
   // Handle Saas Upgrade event
   useEffect(() => {
@@ -1055,13 +1148,73 @@ export default function Dashboard({ initialAuthenticated = false }: { initialAut
         body: JSON.stringify(payload),
       });
       setSuccess(`${planCode.toUpperCase()} tarifi parametrlari yangilandi!`);
-      await loadSaaSData(activeOrgId);
+      if (zone === "platform") {
+        await loadPlatformData();
+      } else {
+        await loadSaaSData(activeOrgId);
+      }
     } catch (err: any) {
       setError(err.message || "Tarifni tahrirlashda xatolik");
     } finally {
       setBusy(false);
     }
   };
+
+  const handleEnterStore = async (store: any) => {
+    setBusy(true);
+    try {
+      await api(`/api/platform/organizations/${store.slug}/impersonate`, { method: "POST" });
+      const meta = { id: store.id, name: store.name, slug: store.slug };
+      if (typeof window !== "undefined") {
+        localStorage.setItem("active_org_id", String(store.id));
+        localStorage.setItem("owner_impersonating_store", JSON.stringify(meta));
+        window.history.pushState(null, "", `/t/${store.slug}`);
+      }
+      setActiveOrgId(store.id);
+      setActiveStoreMeta(meta);
+      setIsOwnerImpersonating(true);
+      setZone("tenant");
+      setTab("overview");
+      setSuccess(`"${store.name}" do'koniga muvaffaqiyatli kirildi!`);
+      await load();
+      await loadSaaSData(store.id);
+    } catch (err: any) {
+      setError(err.message || "Do'konga kirishda xatolik yuz berdi");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleExitStore = () => {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("owner_impersonating_store");
+      window.history.pushState(null, "", "/platform");
+    }
+    setIsOwnerImpersonating(false);
+    setActiveStoreMeta(null);
+    setZone("platform");
+    setPlatformSubTab("stores");
+    setSuccess("Platforma boshqaruviga qaytildi.");
+    loadPlatformData();
+  };
+
+  useEffect(() => {
+    if (initialTenantSlug && platformOrgs.length > 0) {
+      const matched = platformOrgs.find((o) => o.slug === initialTenantSlug);
+      if (matched && matched.id !== activeOrgId) {
+        setActiveOrgId(matched.id);
+        const meta = { id: matched.id, name: matched.name, slug: matched.slug };
+        setActiveStoreMeta(meta);
+        if (typeof window !== "undefined") {
+          localStorage.setItem("active_org_id", String(matched.id));
+          localStorage.setItem("owner_impersonating_store", JSON.stringify(meta));
+        }
+        setIsOwnerImpersonating(true);
+        load();
+        loadSaaSData(matched.id);
+      }
+    }
+  }, [initialTenantSlug, platformOrgs, activeOrgId, load, loadSaaSData]);
 
 
 
@@ -1771,16 +1924,24 @@ export default function Dashboard({ initialAuthenticated = false }: { initialAut
                 href="#"
                 onClick={(e) => {
                   e.preventDefault();
-                  setTab("overview");
+                  if (zone === "platform") {
+                    setPlatformSubTab("overview");
+                  } else {
+                    setTab("overview");
+                  }
                 }}
                 className="d-flex align-items-center gap-2 text-decoration-none"
                 title="AI Sales Control Enterprise"
               >
                 <AppLogo src={logoUrl} size="sm" />
                 <div className="d-flex flex-column text-start app-brand-text">
-                  <span className="fw-bold fs-3 text-white lh-1">AI Sales Control</span>
+                  <span className="fw-bold fs-3 text-white lh-1">
+                    {zone === "platform"
+                      ? "Platform Owner"
+                      : activeStoreMeta?.name || "AI Sales Control"}
+                  </span>
                   <span className="text-secondary small" style={{ fontSize: "0.68rem" }}>
-                    Enterprise v2.4
+                    {zone === "platform" ? "Super Admin Control" : "Enterprise v2.4"}
                   </span>
                 </div>
               </a>
@@ -1813,294 +1974,445 @@ export default function Dashboard({ initialAuthenticated = false }: { initialAut
           </div>
 
           <div className="collapse navbar-collapse show" id="sidebar-menu">
-            <ul className="navbar-nav pt-lg-3">
-              {/* WORKSPACE SECTION */}
-              <div className="nav-section-title">WORKSPACE</div>
+            {zone === "platform" ? (
+              <ul className="navbar-nav pt-lg-3">
+                <div className="nav-section-title">PLATFORM CONTROL</div>
 
-              <li className={`nav-item ${tab === "overview" ? "active" : ""}`}>
-                <a
-                  className="nav-link"
-                  href="#overview"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setTab("overview");
-                  }}
-                  title="Overview (Umumiy ko'rinish)"
-                >
-                  <span className="nav-link-icon d-md-none d-lg-inline-block">
-                    <IconLayoutDashboard size={18} />
-                  </span>
-                  <span className="nav-link-title">Overview</span>
-                </a>
-              </li>
-
-              <li className={`nav-item ${tab === "inbox" ? "active" : ""}`}>
-                <a
-                  className="nav-link"
-                  href="#inbox"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setTab("inbox");
-                  }}
-                  title="Live Inbox (Jonli muloqot)"
-                >
-                  <span className="nav-link-icon d-md-none d-lg-inline-block">
-                    <IconMessages size={18} />
-                  </span>
-                  <span className="nav-link-title">Live Inbox</span>
-                  {overview && overview.human_takeover > 0 && (
-                    <span className="badge badge-sm bg-yellow text-yellow-fg ms-auto">
-                      {overview.human_takeover}
+                <li className={`nav-item ${platformSubTab === "overview" ? "active" : ""}`}>
+                  <a
+                    className="nav-link"
+                    href="#overview"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setPlatformSubTab("overview");
+                    }}
+                    title="Platforma Umumiy Ko'rinishi (MRR, Tushum)"
+                  >
+                    <span className="nav-link-icon d-md-none d-lg-inline-block">
+                      <IconLayoutDashboard size={18} />
                     </span>
-                  )}
-                </a>
-              </li>
+                    <span className="nav-link-title">Overview</span>
+                  </a>
+                </li>
 
-              <li className={`nav-item ${tab === "knowledge" ? "active" : ""}`}>
-                <a
-                  className="nav-link"
-                  href="#knowledge"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setTab("knowledge");
-                  }}
-                  title="Knowledge Base (Ma'lumotlar bazasi)"
-                >
-                  <span className="nav-link-icon d-md-none d-lg-inline-block">
-                    <IconDatabase size={18} />
-                  </span>
-                  <span className="nav-link-title">Knowledge Base</span>
-                  <span className="badge badge-sm bg-blue-lt ms-auto">
-                    {posts.length}
-                  </span>
-                </a>
-              </li>
-
-              {/* SALES SECTION */}
-              <div className="nav-section-title">SALES</div>
-
-              <li className={`nav-item ${tab === "products" ? "active" : ""}`}>
-                <a
-                  className="nav-link"
-                  href="#products"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setTab("products");
-                  }}
-                  title="Products (Mahsulotlar katalogi)"
-                >
-                  <span className="nav-link-icon d-md-none d-lg-inline-block">
-                    <IconPackage size={18} />
-                  </span>
-                  <span className="nav-link-title">Products</span>
-                </a>
-              </li>
-
-              <li className={`nav-item ${tab === "orders" ? "active" : ""}`}>
-                <a
-                  className="nav-link"
-                  href="#orders"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setTab("orders");
-                  }}
-                  title="Orders (Buyurtmalar)"
-                >
-                  <span className="nav-link-icon d-md-none d-lg-inline-block">
-                    <IconShoppingCart size={18} />
-                  </span>
-                  <span className="nav-link-title">Orders</span>
-                  <span className="badge badge-sm bg-green-lt ms-auto">{orders.length}</span>
-                </a>
-              </li>
-
-              <li className={`nav-item ${tab === "customers" ? "active" : ""}`}>
-                <a
-                  className="nav-link"
-                  href="#customers"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setTab("customers");
-                  }}
-                  title="Customers (Mijozlar bazasi)"
-                >
-                  <span className="nav-link-icon d-md-none d-lg-inline-block">
-                    <IconUsers size={18} />
-                  </span>
-                  <span className="nav-link-title">Customers</span>
-                </a>
-              </li>
-
-              {/* INTELLIGENCE SECTION */}
-              <div className="nav-section-title">INTELLIGENCE</div>
-
-              <li className={`nav-item ${tab === "analytics" ? "active" : ""}`}>
-                <a
-                  className="nav-link"
-                  href="#analytics"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setTab("analytics");
-                  }}
-                  title="Analytics (Tahlil va Statistika)"
-                >
-                  <span className="nav-link-icon d-md-none d-lg-inline-block">
-                    <IconTrendingUp size={18} />
-                  </span>
-                  <span className="nav-link-title">Analytics</span>
-                </a>
-              </li>
-
-              <li className={`nav-item ${tab === "settings" ? "active" : ""}`}>
-                <a
-                  className="nav-link"
-                  href="#settings"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setTab("settings");
-                  }}
-                  title="AI Settings (AI sozlamalari)"
-                >
-                  <span className="nav-link-icon d-md-none d-lg-inline-block">
-                    <IconSettings size={18} />
-                  </span>
-                  <span className="nav-link-title">AI Settings</span>
-                </a>
-              </li>
-
-              {/* SAAS & SUBSCRIPTION SECTION */}
-              <div className="nav-section-title">SAAS & BILLING</div>
-
-              <li className={`nav-item ${tab === "usage" ? "active" : ""}`}>
-                <a
-                  className="nav-link"
-                  href="#usage"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setTab("usage");
-                  }}
-                  title="Foydalanish va Limitlar"
-                >
-                  <span className="nav-link-icon d-md-none d-lg-inline-block">
-                    <IconGauge size={18} />
-                  </span>
-                  <span className="nav-link-title">Usage & Limits</span>
-                </a>
-              </li>
-
-              <li className={`nav-item ${tab === "billing" ? "active" : ""}`}>
-                <a
-                  className="nav-link"
-                  href="#billing"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setTab("billing");
-                  }}
-                  title="Obuna va To'lovlar"
-                >
-                  <span className="nav-link-icon d-md-none d-lg-inline-block">
-                    <IconCreditCard size={18} />
-                  </span>
-                  <span className="nav-link-title">Subscription</span>
-                  {subscriptionData?.is_trial && (
-                    <span className="badge badge-sm bg-blue-lt ms-auto">Trial</span>
-                  )}
-                </a>
-              </li>
-
-              <li className={`nav-item ${tab === "pricing" ? "active" : ""}`}>
-                <a
-                  className="nav-link"
-                  href="#pricing"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setTab("pricing");
-                  }}
-                  title="Tariflar va Rejalar"
-                >
-                  <span className="nav-link-icon d-md-none d-lg-inline-block">
-                    <IconCrown size={18} />
-                  </span>
-                  <span className="nav-link-title">Plans & Pricing</span>
-                </a>
-              </li>
-
-              {currentAdmin?.role === "owner" && (
-                <>
-                  <div className="nav-section-title">PLATFORM OWNER</div>
-                  <li className={`nav-item ${tab === "platform" ? "active" : ""}`}>
-                    <a
-                      className="nav-link"
-                      href="#platform"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        setTab("platform");
-                      }}
-                      title="Platform Owner Dashboard (MRR, Tenants, AI Costs)"
-                    >
-                      <span className="nav-link-icon d-md-none d-lg-inline-block">
-                        <IconBuildingSkyscraper size={18} className="text-warning" />
+                <li className={`nav-item ${platformSubTab === "stores" ? "active" : ""}`}>
+                  <a
+                    className="nav-link"
+                    href="#stores"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setPlatformSubTab("stores");
+                    }}
+                    title="Do'konlar Portfeli (Tenants)"
+                  >
+                    <span className="nav-link-icon d-md-none d-lg-inline-block">
+                      <IconBuildingSkyscraper size={18} className="text-warning" />
+                    </span>
+                    <span className="nav-link-title">Do'konlar</span>
+                    {platformOrgs.length > 0 && (
+                      <span className="badge badge-sm bg-warning-lt text-warning ms-auto">
+                        {platformOrgs.length}
                       </span>
-                      <span className="nav-link-title text-warning fw-semibold">Platform Owner</span>
-                    </a>
-                  </li>
-                </>
-              )}
+                    )}
+                  </a>
+                </li>
 
-              {/* SYSTEM SECTION */}
-              <div className="nav-section-title">SYSTEM</div>
+                <li className={`nav-item ${platformSubTab === "users" ? "active" : ""}`}>
+                  <a
+                    className="nav-link"
+                    href="#users"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setPlatformSubTab("users");
+                    }}
+                    title="Foydalanuvchilar Ro'yxati"
+                  >
+                    <span className="nav-link-icon d-md-none d-lg-inline-block">
+                      <IconUsers size={18} />
+                    </span>
+                    <span className="nav-link-title">Foydalanuvchilar</span>
+                    {platformUsers.length > 0 && (
+                      <span className="badge badge-sm bg-blue-lt ms-auto">
+                        {platformUsers.length}
+                      </span>
+                    )}
+                  </a>
+                </li>
 
-              <li className={`nav-item ${tab === "admins" ? "active" : ""}`}>
-                <a
-                  className="nav-link"
-                  href="#admins"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setTab("admins");
-                  }}
-                  title="Administration (Adminlar boshqaruvi)"
-                >
-                  <span className="nav-link-icon d-md-none d-lg-inline-block">
-                    <IconShieldLock size={18} />
-                  </span>
-                  <span className="nav-link-title">Administration</span>
-                </a>
-              </li>
+                <li className={`nav-item ${platformSubTab === "plans" ? "active" : ""}`}>
+                  <a
+                    className="nav-link"
+                    href="#plans"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setPlatformSubTab("plans");
+                    }}
+                    title="Tariflar va Narxlar"
+                  >
+                    <span className="nav-link-icon d-md-none d-lg-inline-block">
+                      <IconCrown size={18} />
+                    </span>
+                    <span className="nav-link-title">Tariflar & Narxlar</span>
+                  </a>
+                </li>
 
-              <li className={`nav-item ${tab === "team" ? "active" : ""}`}>
-                <a
-                  className="nav-link"
-                  href="#team"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setTab("team");
-                  }}
-                  title="Team & Access (Jamoa va Ruxsatlar)"
-                >
-                  <span className="nav-link-icon d-md-none d-lg-inline-block">
-                    <IconUsersGroup size={18} />
-                  </span>
-                  <span className="nav-link-title">Team & Access</span>
-                </a>
-              </li>
+                <li className={`nav-item ${platformSubTab === "usage" ? "active" : ""}`}>
+                  <a
+                    className="nav-link"
+                    href="#usage"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setPlatformSubTab("usage");
+                    }}
+                    title="Global AI Xarajatlari va Foydalanish"
+                  >
+                    <span className="nav-link-icon d-md-none d-lg-inline-block">
+                      <IconGauge size={18} />
+                    </span>
+                    <span className="nav-link-title">AI Xarajati & Usage</span>
+                  </a>
+                </li>
 
-              <li className={`nav-item ${tab === "logs" ? "active" : ""}`}>
-                <a
-                  className="nav-link"
-                  href="#logs"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setTab("logs");
-                  }}
-                  title="Activity Logs"
-                >
-                  <span className="nav-link-icon d-md-none d-lg-inline-block">
-                    <IconActivity size={18} />
-                  </span>
-                  <span className="nav-link-title">Activity Logs</span>
-                </a>
-              </li>
-            </ul>
+                <div className="nav-section-title">SECURITY & SYSTEM</div>
+
+                <li className={`nav-item ${platformSubTab === "system" ? "active" : ""}`}>
+                  <a
+                    className="nav-link"
+                    href="#system"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setPlatformSubTab("system");
+                    }}
+                    title="Tizim Holati"
+                  >
+                    <span className="nav-link-icon d-md-none d-lg-inline-block">
+                      <IconServer size={18} />
+                    </span>
+                    <span className="nav-link-title">Tizim Holati</span>
+                    <span className="badge badge-sm bg-green-lt text-green ms-auto">OK</span>
+                  </a>
+                </li>
+
+                <li className={`nav-item ${platformSubTab === "audit" ? "active" : ""}`}>
+                  <a
+                    className="nav-link"
+                    href="#audit"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setPlatformSubTab("audit");
+                    }}
+                    title="Xavfsizlik va Audit Tarixi"
+                  >
+                    <span className="nav-link-icon d-md-none d-lg-inline-block">
+                      <IconActivity size={18} />
+                    </span>
+                    <span className="nav-link-title">Audit Loglar</span>
+                  </a>
+                </li>
+              </ul>
+            ) : (
+              <ul className="navbar-nav pt-lg-3">
+                {isPlatformOwner && (
+                  <div className="px-3 pb-2">
+                    <button
+                      type="button"
+                      className="btn btn-warning w-100 btn-sm d-flex align-items-center justify-content-center gap-2 fw-semibold shadow-sm"
+                      onClick={handleExitStore}
+                      title="Platforma boshqaruviga qaytish"
+                    >
+                      <IconBuildingSkyscraper size={16} />
+                      <span>Platformaga qaytish</span>
+                    </button>
+                  </div>
+                )}
+                {/* WORKSPACE SECTION */}
+                <div className="nav-section-title">WORKSPACE</div>
+
+                <li className={`nav-item ${tab === "overview" ? "active" : ""}`}>
+                  <a
+                    className="nav-link"
+                    href="#overview"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setTab("overview");
+                    }}
+                    title="Overview (Umumiy ko'rinish)"
+                  >
+                    <span className="nav-link-icon d-md-none d-lg-inline-block">
+                      <IconLayoutDashboard size={18} />
+                    </span>
+                    <span className="nav-link-title">Overview</span>
+                  </a>
+                </li>
+
+                <li className={`nav-item ${tab === "inbox" ? "active" : ""}`}>
+                  <a
+                    className="nav-link"
+                    href="#inbox"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setTab("inbox");
+                    }}
+                    title="Live Inbox (Jonli muloqot)"
+                  >
+                    <span className="nav-link-icon d-md-none d-lg-inline-block">
+                      <IconMessages size={18} />
+                    </span>
+                    <span className="nav-link-title">Live Inbox</span>
+                    {overview && overview.human_takeover > 0 && (
+                      <span className="badge badge-sm bg-yellow text-yellow-fg ms-auto">
+                        {overview.human_takeover}
+                      </span>
+                    )}
+                  </a>
+                </li>
+
+                <li className={`nav-item ${tab === "knowledge" ? "active" : ""}`}>
+                  <a
+                    className="nav-link"
+                    href="#knowledge"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setTab("knowledge");
+                    }}
+                    title="Knowledge Base (Ma'lumotlar bazasi)"
+                  >
+                    <span className="nav-link-icon d-md-none d-lg-inline-block">
+                      <IconDatabase size={18} />
+                    </span>
+                    <span className="nav-link-title">Knowledge Base</span>
+                    <span className="badge badge-sm bg-blue-lt ms-auto">
+                      {posts.length}
+                    </span>
+                  </a>
+                </li>
+
+                {/* SALES SECTION */}
+                <div className="nav-section-title">SALES</div>
+
+                <li className={`nav-item ${tab === "products" ? "active" : ""}`}>
+                  <a
+                    className="nav-link"
+                    href="#products"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setTab("products");
+                    }}
+                    title="Products (Mahsulotlar katalogi)"
+                  >
+                    <span className="nav-link-icon d-md-none d-lg-inline-block">
+                      <IconPackage size={18} />
+                    </span>
+                    <span className="nav-link-title">Products</span>
+                  </a>
+                </li>
+
+                <li className={`nav-item ${tab === "orders" ? "active" : ""}`}>
+                  <a
+                    className="nav-link"
+                    href="#orders"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setTab("orders");
+                    }}
+                    title="Orders (Buyurtmalar)"
+                  >
+                    <span className="nav-link-icon d-md-none d-lg-inline-block">
+                      <IconShoppingCart size={18} />
+                    </span>
+                    <span className="nav-link-title">Orders</span>
+                    <span className="badge badge-sm bg-green-lt ms-auto">{orders.length}</span>
+                  </a>
+                </li>
+
+                <li className={`nav-item ${tab === "customers" ? "active" : ""}`}>
+                  <a
+                    className="nav-link"
+                    href="#customers"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setTab("customers");
+                    }}
+                    title="Customers (Mijozlar bazasi)"
+                  >
+                    <span className="nav-link-icon d-md-none d-lg-inline-block">
+                      <IconUsers size={18} />
+                    </span>
+                    <span className="nav-link-title">Customers</span>
+                  </a>
+                </li>
+
+                {/* INTELLIGENCE SECTION */}
+                <div className="nav-section-title">INTELLIGENCE</div>
+
+                <li className={`nav-item ${tab === "analytics" ? "active" : ""}`}>
+                  <a
+                    className="nav-link"
+                    href="#analytics"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setTab("analytics");
+                    }}
+                    title="Analytics (Tahlil va Statistika)"
+                  >
+                    <span className="nav-link-icon d-md-none d-lg-inline-block">
+                      <IconTrendingUp size={18} />
+                    </span>
+                    <span className="nav-link-title">Analytics</span>
+                  </a>
+                </li>
+
+                <li className={`nav-item ${tab === "settings" ? "active" : ""}`}>
+                  <a
+                    className="nav-link"
+                    href="#settings"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setTab("settings");
+                    }}
+                    title="AI Settings (AI sozlamalari)"
+                  >
+                    <span className="nav-link-icon d-md-none d-lg-inline-block">
+                      <IconSettings size={18} />
+                    </span>
+                    <span className="nav-link-title">AI Settings</span>
+                  </a>
+                </li>
+
+                {/* SAAS & SUBSCRIPTION SECTION */}
+                <div className="nav-section-title">SAAS & BILLING</div>
+
+                <li className={`nav-item ${tab === "usage" ? "active" : ""}`}>
+                  <a
+                    className="nav-link"
+                    href="#usage"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setTab("usage");
+                    }}
+                    title="Foydalanish va Limitlar"
+                  >
+                    <span className="nav-link-icon d-md-none d-lg-inline-block">
+                      <IconGauge size={18} />
+                    </span>
+                    <span className="nav-link-title">Usage & Limits</span>
+                  </a>
+                </li>
+
+                <li className={`nav-item ${tab === "billing" ? "active" : ""}`}>
+                  <a
+                    className="nav-link"
+                    href="#billing"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setTab("billing");
+                    }}
+                    title="Obuna va To'lovlar"
+                  >
+                    <span className="nav-link-icon d-md-none d-lg-inline-block">
+                      <IconCreditCard size={18} />
+                    </span>
+                    <span className="nav-link-title">Subscription</span>
+                    {subscriptionData?.is_trial && (
+                      <span className="badge badge-sm bg-blue-lt ms-auto">Trial</span>
+                    )}
+                  </a>
+                </li>
+
+                <li className={`nav-item ${tab === "pricing" ? "active" : ""}`}>
+                  <a
+                    className="nav-link"
+                    href="#pricing"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setTab("pricing");
+                    }}
+                    title="Tariflar va Rejalar"
+                  >
+                    <span className="nav-link-icon d-md-none d-lg-inline-block">
+                      <IconCrown size={18} />
+                    </span>
+                    <span className="nav-link-title">Plans & Pricing</span>
+                  </a>
+                </li>
+
+                {isPlatformOwner && (
+                  <>
+                    <div className="nav-section-title">PLATFORM OWNER</div>
+                    <li className="nav-item">
+                      <a
+                        className="nav-link"
+                        href="/platform"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          handleExitStore();
+                        }}
+                        title="Platform Owner Dashboard (MRR, Tenants, AI Costs)"
+                      >
+                        <span className="nav-link-icon d-md-none d-lg-inline-block">
+                          <IconBuildingSkyscraper size={18} className="text-warning" />
+                        </span>
+                        <span className="nav-link-title text-warning fw-semibold">Platformaga qaytish</span>
+                      </a>
+                    </li>
+                  </>
+                )}
+
+                {/* SYSTEM SECTION */}
+                <div className="nav-section-title">SYSTEM</div>
+
+                <li className={`nav-item ${tab === "admins" ? "active" : ""}`}>
+                  <a
+                    className="nav-link"
+                    href="#admins"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setTab("admins");
+                    }}
+                    title="Administration (Adminlar boshqaruvi)"
+                  >
+                    <span className="nav-link-icon d-md-none d-lg-inline-block">
+                      <IconShieldLock size={18} />
+                    </span>
+                    <span className="nav-link-title">Administration</span>
+                  </a>
+                </li>
+
+                <li className={`nav-item ${tab === "team" ? "active" : ""}`}>
+                  <a
+                    className="nav-link"
+                    href="#team"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setTab("team");
+                    }}
+                    title="Team & Access (Jamoa va Ruxsatlar)"
+                  >
+                    <span className="nav-link-icon d-md-none d-lg-inline-block">
+                      <IconUsersGroup size={18} />
+                    </span>
+                    <span className="nav-link-title">Team & Access</span>
+                  </a>
+                </li>
+
+                <li className={`nav-item ${tab === "logs" ? "active" : ""}`}>
+                  <a
+                    className="nav-link"
+                    href="#logs"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setTab("logs");
+                    }}
+                    title="Activity Logs"
+                  >
+                    <span className="nav-link-icon d-md-none d-lg-inline-block">
+                      <IconActivity size={18} />
+                    </span>
+                    <span className="nav-link-title">Activity Logs</span>
+                  </a>
+                </li>
+              </ul>
+            )}
           </div>
         </div>
       </aside>
@@ -2109,6 +2421,32 @@ export default function Dashboard({ initialAuthenticated = false }: { initialAut
           PAGE WRAPPER
           ======================================================== */}
       <div className="page-wrapper">
+        {/* STICKY IMPERSONATION BANNER (Platform Owner Inside Tenant View) */}
+        {zone === "tenant" && (isOwnerImpersonating || isPlatformOwner) && (
+          <div
+            className="sticky-top bg-warning text-dark px-3 py-2 d-flex align-items-center justify-content-between shadow-sm"
+            style={{ zIndex: 1045, borderBottom: "2px solid #b45309" }}
+          >
+            <div className="d-flex align-items-center gap-2">
+              <IconAlertCircle size={20} className="text-dark flex-shrink-0" />
+              <span className="fw-semibold">
+                ⚠️ Siz <strong>{activeStoreMeta?.name || userOrganizations.find(o => o.id === activeOrgId)?.name || "Do'kon"}</strong> ichidasiz (Platform Owner ko'rinishi)
+              </span>
+              <span className="badge bg-dark text-white text-uppercase ms-2" style={{ fontSize: "10px" }}>
+                Impersonation Faol
+              </span>
+            </div>
+            <button
+              type="button"
+              className="btn btn-sm btn-dark text-white d-inline-flex align-items-center gap-1.5 rounded-pill px-3 shadow-sm"
+              onClick={handleExitStore}
+            >
+              <span>Platformaga qaytish</span>
+              <IconArrowRight size={14} />
+            </button>
+          </div>
+        )}
+
         {/* ========================================================
             4. FLOATING TOP NAVBAR (STRICT USER SPECIFICATION)
             ======================================================== */}
@@ -2131,67 +2469,79 @@ export default function Dashboard({ initialAuthenticated = false }: { initialAut
               </div>
             </div>
 
-            {/* Organization Switcher Dropdown */}
-            <div className="nav-item dropdown ms-2 position-relative">
-              <button
-                type="button"
-                className="btn btn-sm btn-outline-secondary d-flex align-items-center gap-2 rounded-pill px-3"
-                onClick={() => setShowOrgDropdown(!showOrgDropdown)}
-                style={{ height: 38, borderColor: "rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.04)" }}
-              >
-                <IconBuildingSkyscraper size={16} className="text-primary flex-shrink-0" />
-                <span className="fw-semibold text-white small text-truncate" style={{ maxWidth: 140 }}>
-                  {userOrganizations.find((o) => o.id === activeOrgId)?.name || "AI Sales Central"}
+            {/* Organization Switcher Dropdown OR Platform Mode Badge */}
+            {zone === "platform" ? (
+              <div className="d-flex align-items-center gap-2 ms-2">
+                <span className="badge bg-warning-lt text-warning fw-semibold px-2.5 py-1.5 rounded-pill d-flex align-items-center gap-1">
+                  <IconCrown size={14} />
+                  <span>Platform Owner Rejimi</span>
                 </span>
-                <span className="badge bg-primary text-white text-uppercase" style={{ fontSize: "10px" }}>
-                  {subscriptionData?.plan?.name || "PRO"}
+                <span className="badge bg-body-secondary text-secondary small d-none d-md-inline">
+                  {platformOrgs.length} ta do'kon
                 </span>
-                <IconChevronDown size={14} className="text-secondary flex-shrink-0" />
-              </button>
-              {showOrgDropdown && (
-                <div
-                  className="dropdown-menu dropdown-menu-start show shadow-lg border-secondary border-opacity-25 p-2"
-                  style={{ minWidth: 260, position: "absolute", top: "100%", left: 0, zIndex: 1050 }}
+              </div>
+            ) : (
+              <div className="nav-item dropdown ms-2 position-relative">
+                <button
+                  type="button"
+                  className="btn btn-sm btn-outline-secondary d-flex align-items-center gap-2 rounded-pill px-3"
+                  onClick={() => setShowOrgDropdown(!showOrgDropdown)}
+                  style={{ height: 38, borderColor: "rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.04)" }}
                 >
-                  <div className="dropdown-header small text-secondary text-uppercase fw-bold px-2 py-1">
-                    Tashkilotlar (Tenants)
-                  </div>
-                  {userOrganizations.map((org) => (
+                  <IconBuildingSkyscraper size={16} className="text-primary flex-shrink-0" />
+                  <span className="fw-semibold text-white small text-truncate" style={{ maxWidth: 140 }}>
+                    {userOrganizations.find((o) => o.id === activeOrgId)?.name || "AI Sales Central"}
+                  </span>
+                  <span className="badge bg-primary text-white text-uppercase" style={{ fontSize: "10px" }}>
+                    {subscriptionData?.plan?.name || "PRO"}
+                  </span>
+                  <IconChevronDown size={14} className="text-secondary flex-shrink-0" />
+                </button>
+                {showOrgDropdown && (
+                  <div
+                    className="dropdown-menu dropdown-menu-start show shadow-lg border-secondary border-opacity-25 p-2"
+                    style={{ minWidth: 260, position: "absolute", top: "100%", left: 0, zIndex: 1050 }}
+                  >
+                    <div className="dropdown-header small text-secondary text-uppercase fw-bold px-2 py-1">
+                      Tashkilotlar (Tenants)
+                    </div>
+                    {userOrganizations.map((org) => (
+                      <button
+                        key={org.id}
+                        type="button"
+                        className={`dropdown-item d-flex align-items-center justify-content-between rounded py-2 px-2.5 mb-1 ${
+                          activeOrgId === org.id ? "active bg-primary text-white" : ""
+                        }`}
+                        onClick={() => {
+                          switchOrganization(org.id);
+                          setShowOrgDropdown(false);
+                        }}
+                      >
+                        <div className="d-flex align-items-center gap-2 text-truncate">
+                          <IconBuildingSkyscraper size={16} />
+                          <span className="text-truncate fw-medium">{org.name}</span>
+                        </div>
+                        <span className={`badge ${activeOrgId === org.id ? "bg-white text-primary" : "bg-body-secondary text-secondary"} small`}>
+                          {org.subscription?.plan_name || "START"}
+                        </span>
+                      </button>
+                    ))}
+                    <div className="dropdown-divider my-1" />
                     <button
-                      key={org.id}
                       type="button"
-                      className={`dropdown-item d-flex align-items-center justify-content-between rounded py-2 px-2.5 mb-1 ${
-                        activeOrgId === org.id ? "active bg-primary text-white" : ""
-                      }`}
+                      className="dropdown-item d-flex align-items-center gap-2 rounded py-2 text-primary fw-medium"
                       onClick={() => {
-                        switchOrganization(org.id);
                         setShowOrgDropdown(false);
+                        setShowOnboardingModal(true);
                       }}
                     >
-                      <div className="d-flex align-items-center gap-2 text-truncate">
-                        <IconBuildingSkyscraper size={16} />
-                        <span className="text-truncate fw-medium">{org.name}</span>
-                      </div>
-                      <span className={`badge ${activeOrgId === org.id ? "bg-white text-primary" : "bg-body-secondary text-secondary"} small`}>
-                        {org.subscription?.plan_name || "START"}
-                      </span>
+                      <IconPlus size={16} />
+                      <span>Yangi Biznes Qo'shish (7 kun bepul)</span>
                     </button>
-                  ))}
-                  <div className="dropdown-divider my-1" />
-                  <button
-                    type="button"
-                    className="dropdown-item d-flex align-items-center gap-2 rounded py-2 text-primary fw-medium"
-                    onClick={() => {
-                      setShowOrgDropdown(false);
-                      setShowOnboardingModal(true);
-                    }}
-                  >
-                    <IconPlus size={16} />
-                    <span>Yangi Biznes Qo'shish (7 kun bepul)</span>
-                  </button>
-                </div>
-              )}
-            </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Navbar Items Right */}
             <div className="navbar-nav flex-row order-md-last ms-auto align-items-center gap-2">
@@ -2320,40 +2670,56 @@ export default function Dashboard({ initialAuthenticated = false }: { initialAut
             <div className="row g-2 align-items-center">
               <div className="col">
                 <div className="page-pretitle">
-                  {tab === "overview" && "WORKSPACE / OVERVIEW"}
-                  {tab === "inbox" && "WORKSPACE / LIVE INBOX"}
-                  {tab === "knowledge" && "WORKSPACE / KNOWLEDGE BASE"}
-                  {tab === "products" && "SALES / PRODUCTS CATALOG"}
-                  {tab === "orders" && "SALES / ORDERS MANAGEMENT"}
-                  {tab === "customers" && "SALES / CUSTOMERS DIRECTORY"}
-                  {tab === "usage" && "SAAS / USAGE & LIMITS METERING"}
-                  {tab === "billing" && "SAAS / SUBSCRIPTION & INVOICES"}
-                  {tab === "pricing" && "SAAS / COMMERCIAL PLANS MATRIX"}
-                  {tab === "platform" && "SAAS / PLATFORM OWNER CONTROL"}
-                  {tab === "analytics" && "INTELLIGENCE / ANALYTICS"}
-                  {tab === "settings" && "INTELLIGENCE / AI CONFIGURATION"}
-                  {tab === "admins" && "SYSTEM / ADMINISTRATION"}
-                  {tab === "team" && "SYSTEM / TEAM & ACCESS ROLES"}
-                  {tab === "logs" && "SYSTEM / AUDIT & ACTIVITY LOGS"}
-                  {tab === "profile" && "SYSTEM / ADMIN PROFILE & APPEARANCE"}
+                  {zone === "platform" ? "SAAS / PLATFORM OWNER CONTROL" : (
+                    <>
+                      {tab === "overview" && "WORKSPACE / OVERVIEW"}
+                      {tab === "inbox" && "WORKSPACE / LIVE INBOX"}
+                      {tab === "knowledge" && "WORKSPACE / KNOWLEDGE BASE"}
+                      {tab === "products" && "SALES / PRODUCTS CATALOG"}
+                      {tab === "orders" && "SALES / ORDERS MANAGEMENT"}
+                      {tab === "customers" && "SALES / CUSTOMERS DIRECTORY"}
+                      {tab === "usage" && "SAAS / USAGE & LIMITS METERING"}
+                      {tab === "billing" && "SAAS / SUBSCRIPTION & INVOICES"}
+                      {tab === "pricing" && "SAAS / COMMERCIAL PLANS MATRIX"}
+                      {tab === "platform" && "SAAS / PLATFORM OWNER CONTROL"}
+                      {tab === "analytics" && "INTELLIGENCE / ANALYTICS"}
+                      {tab === "settings" && "INTELLIGENCE / AI CONFIGURATION"}
+                      {tab === "admins" && "SYSTEM / ADMINISTRATION"}
+                      {tab === "team" && "SYSTEM / TEAM & ACCESS ROLES"}
+                      {tab === "logs" && "SYSTEM / AUDIT & ACTIVITY LOGS"}
+                      {tab === "profile" && "SYSTEM / ADMIN PROFILE & APPEARANCE"}
+                    </>
+                  )}
                 </div>
                 <h2 className="page-title">
-                  {tab === "overview" && "Boshqaruv Paneli"}
-                  {tab === "inbox" && "Jonli Suhbatlar (Live Inbox)"}
-                  {tab === "knowledge" && "Telegram Mahsulotlar Bazasi"}
-                  {tab === "products" && "Mahsulotlar Katalogi"}
-                  {tab === "orders" && "Buyurtmalar Jurnali"}
-                  {tab === "customers" && "Mijozlar Ro'yxati"}
-                  {tab === "usage" && "Foydalanish va Resurs Limitlari"}
-                  {tab === "billing" && "Obuna va Hisob-Kitoblar"}
-                  {tab === "pricing" && "Tariflar va Imkoniyatlar"}
-                  {tab === "platform" && "Platforma Egasi Boshqaruv Markazi"}
-                  {tab === "analytics" && "Savdo va AI Statistikasi"}
-                  {tab === "settings" && "AI va Tizim Sozlamalari"}
-                  {tab === "admins" && "Administratorlar Boshqaruvi"}
-                  {tab === "team" && "Jamoa va Ruxsatlar Tizimi"}
-                  {tab === "logs" && "Tizim Amallari Tarixi"}
-                  {tab === "profile" && "Admin Profili va Dizayn Sozlamalari"}
+                  {zone === "platform" ? (
+                    platformSubTab === "overview" ? "Platforma Umumiy Ko'rinishi (MRR & AI Xarajatlari)" :
+                    platformSubTab === "stores" ? "Do'konlar Portfeli (Tenants)" :
+                    platformSubTab === "users" ? "Platforma Foydalanuvchilari" :
+                    platformSubTab === "plans" ? "Tarif Rejalari va Narxlar" :
+                    platformSubTab === "usage" ? "AI Xarajatlari va Resurslar Sarfi" :
+                    platformSubTab === "system" ? "Tizim va Integratsiyalar Holati" :
+                    "Audit va Xavfsizlik Tarixi"
+                  ) : (
+                    <>
+                      {tab === "overview" && "Boshqaruv Paneli"}
+                      {tab === "inbox" && "Jonli Suhbatlar (Live Inbox)"}
+                      {tab === "knowledge" && "Telegram Mahsulotlar Bazasi"}
+                      {tab === "products" && "Mahsulotlar Katalogi"}
+                      {tab === "orders" && "Buyurtmalar Jurnali"}
+                      {tab === "customers" && "Mijozlar Ro'yxati"}
+                      {tab === "usage" && "Foydalanish va Resurs Limitlari"}
+                      {tab === "billing" && "Obuna va Hisob-Kitoblar"}
+                      {tab === "pricing" && "Tariflar va Imkoniyatlar"}
+                      {tab === "platform" && "Platforma Egasi Boshqaruv Markazi"}
+                      {tab === "analytics" && "Savdo va AI Statistikasi"}
+                      {tab === "settings" && "AI va Tizim Sozlamalari"}
+                      {tab === "admins" && "Administratorlar Boshqaruvi"}
+                      {tab === "team" && "Jamoa va Ruxsatlar Tizimi"}
+                      {tab === "logs" && "Tizim Amallari Tarixi"}
+                      {tab === "profile" && "Admin Profili va Dizayn Sozlamalari"}
+                    </>
+                  )}
                 </h2>
               </div>
             </div>
@@ -2365,7 +2731,23 @@ export default function Dashboard({ initialAuthenticated = false }: { initialAut
             ======================================================== */}
         <div className="page-body">
           <div className="container-xl">
-            {/* 1. OVERVIEW TAB */}
+            {zone === "platform" ? (
+              <PlatformOwnerTab
+                subTab={platformSubTab}
+                metrics={platformMetrics}
+                organizations={platformOrgs}
+                usersList={platformUsers}
+                systemHealth={systemHealth}
+                auditLogs={auditLogs}
+                loading={loading}
+                onRefresh={loadPlatformData}
+                onUpdatePlan={handleUpdatePlanConfig}
+                onEnterStore={handleEnterStore}
+                onSwitchSubTab={setPlatformSubTab}
+              />
+            ) : (
+              <>
+                {/* 1. OVERVIEW TAB */}
             {tab === "overview" && (
               <div>
                 {/* LIVE METRICS HEADER BAR */}
@@ -5181,14 +5563,22 @@ export default function Dashboard({ initialAuthenticated = false }: { initialAut
             )}
 
             {/* 16. PLATFORM OWNER TAB */}
-            {tab === "platform" && currentAdmin?.role === "owner" && (
+            {tab === "platform" && (
               <PlatformOwnerTab
+                subTab={platformSubTab}
                 metrics={platformMetrics}
                 organizations={platformOrgs}
+                usersList={platformUsers}
+                systemHealth={systemHealth}
+                auditLogs={auditLogs}
                 loading={loading}
-                onRefresh={() => loadSaaSData(activeOrgId)}
+                onRefresh={loadPlatformData}
                 onUpdatePlan={handleUpdatePlanConfig}
+                onEnterStore={handleEnterStore}
+                onSwitchSubTab={setPlatformSubTab}
               />
+            )}
+              </>
             )}
           </div>
         </div>

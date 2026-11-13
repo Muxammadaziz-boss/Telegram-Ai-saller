@@ -107,3 +107,4 @@ def reset_rate_limit(key: str) -> None:
     """Reset the rate limit tracker for a key upon successful authentication."""
     if key in _rate_limits:
         del _rate_limits[key]
+
