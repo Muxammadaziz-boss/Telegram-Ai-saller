@@ -589,6 +589,18 @@ export default function Dashboard({
     message?: string;
   }>({ isOpen: false });
 
+  // Organization Details & Telegram Bot Integration States
+  const [currentOrgDetails, setCurrentOrgDetails] = useState<any>(null);
+  const [botTokenInput, setBotTokenInput] = useState("");
+  const [showBotToken, setShowBotToken] = useState(false);
+  const [botTokenVerifying, setBotTokenVerifying] = useState(false);
+  const [botTokenResult, setBotTokenResult] = useState<any>(null);
+  const [customPromptInput, setCustomPromptInput] = useState("");
+  const [webhookSetting, setWebhookSetting] = useState(false);
+  const [webhookStatusChecking, setWebhookStatusChecking] = useState(false);
+  const [webhookInfo, setWebhookInfo] = useState<any>(null);
+  const [savingOrgSettings, setSavingOrgSettings] = useState(false);
+
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("dark");
   const [uiStyle, setUiStyle] = useState<"tabler" | "ios">("tabler");
@@ -1008,6 +1020,16 @@ export default function Dashboard({
         setUserOrganizations(orgs.organizations || []);
       } catch {}
 
+      try {
+        const currentOrgRes = await api<any>(`/api/organizations/current?organization_id=${effectiveOrgId}`);
+        if (currentOrgRes) {
+          setCurrentOrgDetails(currentOrgRes);
+          if (currentOrgRes.custom_system_prompt) {
+            setCustomPromptInput(currentOrgRes.custom_system_prompt);
+          }
+        }
+      } catch {}
+
       if (isPlatformOwner || currentAdmin?.role === "owner") {
         try {
           const m = await api<any>("/api/platform/metrics");
@@ -1121,12 +1143,108 @@ export default function Dashboard({
       });
       setSuccess(`${data.name} muvaffaqiyatli yaratildi! 7 kunlik sinov muddati boshlandi.`);
       if (res.organization?.id) {
-        switchOrganization(res.organization.id);
+        const org = res.organization;
+        if (org.slug) {
+          const meta = { id: org.id, name: org.name, slug: org.slug };
+          if (typeof window !== "undefined") {
+            localStorage.setItem("active_org_id", String(org.id));
+            localStorage.setItem("owner_impersonating_store", JSON.stringify(meta));
+            window.history.pushState(null, "", `/t/${org.slug}`);
+          }
+          setActiveStoreMeta(meta);
+          setIsOwnerImpersonating(true);
+          setZone("tenant");
+        }
+        switchOrganization(org.id);
       }
+      setShowOnboardingModal(false);
     } catch (err: any) {
       setError(err.message || "Tashkilot yaratishda xatolik");
     } finally {
       setBusy(false);
+    }
+  };
+
+  const handleVerifyBotToken = async () => {
+    if (!botTokenInput.trim()) {
+      setError("Iltimos, tekshirish uchun Bot Token kiriting");
+      return;
+    }
+    setBotTokenVerifying(true);
+    setBotTokenResult(null);
+    try {
+      const res = await api<any>("/api/organizations/verify-token", {
+        method: "POST",
+        body: JSON.stringify({ token: botTokenInput.trim() }),
+      });
+      setBotTokenResult(res);
+      if (res.valid) {
+        setSuccess(`Bot tasdiqlandi: @${res.bot_username} (${res.bot_name})`);
+      } else {
+        setError(`Bot token xato: ${res.error || "Noto'g'ri token"}`);
+      }
+    } catch (err: any) {
+      setError(err.message || "Bot tokenni tekshirishda xatolik yuz berdi");
+    } finally {
+      setBotTokenVerifying(false);
+    }
+  };
+
+  const handleSaveBotSettings = async () => {
+    setSavingOrgSettings(true);
+    try {
+      const payload: any = {
+        custom_system_prompt: customPromptInput,
+      };
+      if (botTokenInput.trim()) {
+        payload.telegram_bot_token = botTokenInput.trim();
+      }
+      const res = await api<any>(`/api/organizations/current?organization_id=${activeOrgId}`, {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      });
+      if (res.organization) {
+        setCurrentOrgDetails(res.organization);
+        setSuccess("Bot va AI sozlamalari muvaffaqiyatli saqlandi!");
+        setBotTokenInput("");
+        setBotTokenResult(null);
+      }
+    } catch (err: any) {
+      setError(err.message || "Sozlamalarni saqlashda xatolik");
+    } finally {
+      setSavingOrgSettings(false);
+    }
+  };
+
+  const handleSetWebhook = async () => {
+    setWebhookSetting(true);
+    try {
+      const res = await api<any>(`/api/organizations/${activeOrgId}/set-webhook`, {
+        method: "POST",
+      });
+      setSuccess(`Telegram Webhook muvaffaqiyatli o'rnatildi: ${res.webhook_url}`);
+      await handleCheckWebhookStatus();
+    } catch (err: any) {
+      setError(err.message || "Telegram Webhook o'rnatishda xatolik yuz berdi");
+    } finally {
+      setWebhookSetting(false);
+    }
+  };
+
+  const handleCheckWebhookStatus = async () => {
+    setWebhookStatusChecking(true);
+    try {
+      const res = await api<any>(`/api/organizations/${activeOrgId}/webhook-status`);
+      setWebhookInfo(res);
+      if (res.configured && res.webhook_info) {
+        setSuccess(`Webhook holati: ${res.webhook_info.url || "O'rnatilmagan"} (Kutilayotgan: ${res.webhook_info.pending_update_count || 0})`);
+      } else if (!res.configured) {
+        setError(res.reason || "Bot token sozlanmagan");
+      }
+    } catch (err: any) {
+      setError(err.message || "Webhook holatini tekshirishda xatolik");
+    } finally {
+      setWebhookStatusChecking(false);
     }
   };
 
@@ -4495,6 +4613,186 @@ export default function Dashboard({
                         }}
                       >
                         Sozlamalarni saqlash
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Telegram Bot & Webhook Card */}
+                  <div className="card mt-3">
+                    <div className="card-header d-flex align-items-center justify-content-between">
+                      <h3 className="card-title d-flex align-items-center gap-2 mb-0">
+                        <IconBrandTelegram size={20} className="text-primary" />
+                        <span>Telegram Bot va Webhook Integratsiyasi</span>
+                      </h3>
+                      <div>
+                        {currentOrgDetails?.telegram_bot_token_set ? (
+                          <span className="badge bg-success-lt text-success d-inline-flex align-items-center gap-1">
+                            <IconCheck size={14} /> Bot Ulangan
+                          </span>
+                        ) : (
+                          <span className="badge bg-warning-lt text-warning d-inline-flex align-items-center gap-1">
+                            <IconAlertCircle size={14} /> Bot Ulanmagan
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="card-body">
+                      {/* Bot Token Section */}
+                      <div className="mb-3">
+                        <label className="form-label fw-semibold">
+                          Telegram Bot Token (BotFather'dan olingan)
+                        </label>
+                        <div className="input-group">
+                          <input
+                            type={showBotToken ? "text" : "password"}
+                            className="form-control font-monospace"
+                            placeholder={currentOrgDetails?.telegram_bot_token_set ? "••••••••••••••••••••••••••••••••" : "Masalan: 123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ"}
+                            value={botTokenInput}
+                            onChange={(e) => setBotTokenInput(e.target.value)}
+                          />
+                          <button
+                            type="button"
+                            className="btn btn-outline-secondary"
+                            onClick={() => setShowBotToken(!showBotToken)}
+                            title={showBotToken ? "Yashirish" : "Ko'rsatish"}
+                          >
+                            {showBotToken ? <IconEyeOff size={16} /> : <IconEye size={16} />}
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-outline-primary d-inline-flex align-items-center gap-1"
+                            onClick={handleVerifyBotToken}
+                            disabled={botTokenVerifying || !botTokenInput.trim()}
+                          >
+                            {botTokenVerifying ? (
+                              <span className="spinner-border spinner-border-sm" role="status" />
+                            ) : (
+                              <IconCheck size={16} />
+                            )}
+                            Tekshirish
+                          </button>
+                        </div>
+                        <small className="form-hint">
+                          Token shifrlangan holda (AES-128 Fernet) saqlanadi va xavfsiz Telegram Webhook orqali ishlaydi.
+                        </small>
+                      </div>
+
+                      {/* Bot Verification Alert */}
+                      {botTokenResult && (
+                        <div className={`alert ${botTokenResult.valid ? "alert-success" : "alert-danger"} d-flex align-items-center gap-2 py-2 mb-3`}>
+                          {botTokenResult.valid ? <IconCheck size={18} /> : <IconAlertCircle size={18} />}
+                          <div>
+                            {botTokenResult.valid ? (
+                              <>
+                                <strong>Bot tasdiqlandi:</strong> @{botTokenResult.bot_username} ({botTokenResult.bot_name}) • ID: {botTokenResult.bot_id}
+                              </>
+                            ) : (
+                              <>
+                                <strong>Xatolik:</strong> {botTokenResult.error}
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Webhook Endpoint Info */}
+                      <div className="mb-3">
+                        <label className="form-label fw-semibold">Webhook Havolasi</label>
+                        <div className="p-2 rounded bg-dark border border-secondary border-opacity-25 d-flex align-items-center justify-content-between font-monospace small">
+                          <span className="text-info text-truncate">
+                            {currentOrgDetails?.webhook_url || `/telegram/webhook/${currentOrgDetails?.slug || activeOrgId}`}
+                          </span>
+                          <span className="badge bg-secondary-lt text-secondary">POST</span>
+                        </div>
+                        <small className="form-hint">
+                          Telegram har bir yangi xabarni ushbu xavfsiz tenant endpointiga maxsus secret token bilan yuboradi.
+                        </small>
+                      </div>
+
+                      {/* Webhook Actions */}
+                      <div className="d-flex flex-wrap gap-2 mb-3">
+                        <button
+                          type="button"
+                          className="btn btn-outline-success btn-sm d-inline-flex align-items-center gap-1"
+                          onClick={handleSetWebhook}
+                          disabled={webhookSetting || !currentOrgDetails?.telegram_bot_token_set}
+                        >
+                          {webhookSetting ? (
+                            <span className="spinner-border spinner-border-sm" role="status" />
+                          ) : (
+                            <IconRefresh size={14} />
+                          )}
+                          Telegram setWebhook Yangilash
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-outline-info btn-sm d-inline-flex align-items-center gap-1"
+                          onClick={handleCheckWebhookStatus}
+                          disabled={webhookStatusChecking || !currentOrgDetails?.telegram_bot_token_set}
+                        >
+                          {webhookStatusChecking ? (
+                            <span className="spinner-border spinner-border-sm" role="status" />
+                          ) : (
+                            <IconActivity size={14} />
+                          )}
+                          Webhook Holatini Tekshirish
+                        </button>
+                      </div>
+
+                      {/* Webhook Info Display */}
+                      {webhookInfo && (
+                        <div className="card bg-dark border border-secondary border-opacity-25 mb-3">
+                          <div className="card-body p-3">
+                            <div className="fw-semibold text-white small mb-2 d-flex align-items-center justify-content-between">
+                              <span>Telegram Webhook Statusi</span>
+                              <span className={`badge ${webhookInfo.webhook_info?.url ? "bg-success-lt text-success" : "bg-warning-lt text-warning"}`}>
+                                {webhookInfo.webhook_info?.url ? "Faol (O'rnatilgan)" : "O'rnatilmagan"}
+                              </span>
+                            </div>
+                            <div className="small text-secondary">
+                              <div><strong>URL:</strong> <span className="font-monospace text-info">{webhookInfo.webhook_info?.url || "Mavjud emas"}</span></div>
+                              <div><strong>Kutilayotgan yangilanishlar:</strong> {webhookInfo.webhook_info?.pending_update_count ?? 0}</div>
+                              <div><strong>Secret Token:</strong> {webhookInfo.has_webhook_secret ? "Himoyalangan" : "Yo'q"}</div>
+                              {webhookInfo.webhook_info?.last_error_message && (
+                                <div className="text-danger mt-1">
+                                  <strong>So'nggi xatolik:</strong> {webhookInfo.webhook_info.last_error_message}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Custom System Prompt */}
+                      <div className="mb-3">
+                        <label className="form-label fw-semibold">
+                          Do'kon AI Sotuvchisi Uchun Maxsus Tizim Ko'rsatmasi (System Prompt)
+                        </label>
+                        <textarea
+                          className="form-control font-monospace"
+                          rows={4}
+                          placeholder="Do'konning o'ziga xos xususiyatlari, yetkazib berish qoidalari yoki mijozlar bilan muloqot ohangi bo'yicha maxsus ko'rsatma..."
+                          value={customPromptInput}
+                          onChange={(e) => setCustomPromptInput(e.target.value)}
+                        />
+                        <small className="form-hint">
+                          Ushbu ko'rsatma har bir mijoz bilan muloqotda asosiy AI modeliga qo'shimcha kontekst sifatida kiritiladi.
+                        </small>
+                      </div>
+                    </div>
+                    <div className="card-footer text-end">
+                      <button
+                        type="button"
+                        className="btn btn-primary d-inline-flex align-items-center gap-1"
+                        onClick={handleSaveBotSettings}
+                        disabled={savingOrgSettings}
+                      >
+                        {savingOrgSettings ? (
+                          <span className="spinner-border spinner-border-sm" role="status" />
+                        ) : (
+                          <IconCheck size={16} />
+                        )}
+                        Bot va AI Sozlamalarini Saqlash
                       </button>
                     </div>
                   </div>

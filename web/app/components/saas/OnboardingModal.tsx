@@ -2,13 +2,16 @@
 
 import React, { useState } from "react";
 import {
+  IconAlertCircle,
   IconArrowLeft,
   IconArrowRight,
   IconBrandTelegram,
   IconBuildingSkyscraper,
   IconCheck,
+  IconKey,
   IconLanguage,
   IconPackage,
+  IconRefresh,
   IconRobot,
   IconSparkles,
   IconX,
@@ -22,6 +25,7 @@ interface OnboardingModalProps {
     slug: string;
     category: string;
     plan_code: string;
+    telegram_bot_token?: string;
     channel?: string;
     ai_language?: string;
     ai_personality?: string;
@@ -34,7 +38,17 @@ export function OnboardingModal({ isOpen, onClose, onComplete }: OnboardingModal
 
   // Form state
   const [businessName, setBusinessName] = useState("");
+  const [customSlug, setCustomSlug] = useState("");
   const [category, setCategory] = useState("Elektronika va Maishiy Texnika");
+  const [botToken, setBotToken] = useState("");
+  const [botVerification, setBotVerification] = useState<{
+    checking: boolean;
+    verified: boolean;
+    error?: string;
+    bot_name?: string;
+    bot_username?: string;
+  }>({ checking: false, verified: false });
+
   const [telegramChannel, setTelegramChannel] = useState("");
   const [aiLanguage, setAiLanguage] = useState("uz");
   const [aiPersonality, setAiPersonality] = useState("Professional va do'stona sotuvchi assistent");
@@ -42,7 +56,40 @@ export function OnboardingModal({ isOpen, onClose, onComplete }: OnboardingModal
 
   if (!isOpen) return null;
 
-  const totalSteps = 8;
+  const totalSteps = 9;
+
+  const handleVerifyBotToken = async () => {
+    if (!botToken.trim()) return;
+    setBotVerification({ checking: true, verified: false });
+    try {
+      const res = await fetch("/api/proxy?path=/api/organizations/verify-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: botToken.trim() }),
+      });
+      const data = await res.json();
+      if (data.valid) {
+        setBotVerification({
+          checking: false,
+          verified: true,
+          bot_name: data.bot_name,
+          bot_username: data.bot_username,
+        });
+      } else {
+        setBotVerification({
+          checking: false,
+          verified: false,
+          error: data.error || "Noto'g'ri Telegram bot token kiritildi",
+        });
+      }
+    } catch (err: any) {
+      setBotVerification({
+        checking: false,
+        verified: false,
+        error: err.message || "Telegram API bilan bog'lanib bo'lmadi",
+      });
+    }
+  };
 
   const handleNext = async () => {
     if (step < totalSteps) {
@@ -50,19 +97,22 @@ export function OnboardingModal({ isOpen, onClose, onComplete }: OnboardingModal
       return;
     }
 
-    // Complete onboarding on step 8
+    // Complete onboarding on step 9
     setBusy(true);
     try {
-      const slug = businessName
+      const defaultSlug = businessName
         .toLowerCase()
         .replace(/[^a-z0-9]/g, "-")
         .replace(/-+/g, "-")
         .replace(/^-|-$/g, "");
+      const finalSlug = (customSlug || defaultSlug || `store-${Date.now()}`).toLowerCase().trim();
+
       await onComplete({
         name: businessName || "Yangi Biznes",
-        slug: slug || `biz-${Date.now()}`,
+        slug: finalSlug,
         category,
         plan_code: planCode,
+        telegram_bot_token: botToken.trim() || undefined,
         channel: telegramChannel,
         ai_language: aiLanguage,
         ai_personality: aiPersonality,
@@ -92,7 +142,7 @@ export function OnboardingModal({ isOpen, onClose, onComplete }: OnboardingModal
                 <IconSparkles size={20} className="text-primary" />
               </div>
               <div>
-                <h4 className="modal-title fw-bold mb-0 text-white">Yangi Biznesni Ulash (SaaS Onboarding)</h4>
+                <h4 className="modal-title fw-bold mb-0 text-white">Yangi Do'kon Ochish (SaaS Onboarding)</h4>
                 <span className="text-secondary small">
                   Bosqich {step} / {totalSteps} • 7 kunlik bepul sinov
                 </span>
@@ -111,27 +161,51 @@ export function OnboardingModal({ isOpen, onClose, onComplete }: OnboardingModal
 
           {/* Body with Steps */}
           <div className="modal-body p-4">
-            {/* Step 1: Business Name */}
+            {/* Step 1: Business Name & Slug */}
             {step === 1 && (
               <div className="space-y-3">
                 <div className="text-center py-2 mb-3">
-                  <h3 className="fw-bold text-white mb-1">1. Biznesingiz yoki Kompaniyangiz Nomi</h3>
+                  <h3 className="fw-bold text-white mb-1">1. Do'koningiz Nomi va URL Manzili</h3>
                   <p className="text-secondary small">
-                    Mijozlar va operatorlar tizimda ko'radigan brend yoki do'koningiz nomini kiriting.
+                    Mijozlar va tizim uchun do'koningiz brend nomini hamda do'kon manzilini (slug) belgilang.
                   </p>
                 </div>
                 <div className="mb-3">
-                  <label className="form-label required">Biznes Nomi</label>
+                  <label className="form-label required">Do'kon / Biznes Nomi</label>
                   <input
                     type="text"
                     className="form-control form-control-lg"
-                    placeholder="Masalan: Gadget Store, Elegant Fashion, Laptop World..."
+                    placeholder="Masalan: Kiber Magazin, Gadget Store, Laptop World..."
                     value={businessName}
-                    onChange={(e) => setBusinessName(e.target.value)}
+                    onChange={(e) => {
+                      setBusinessName(e.target.value);
+                      if (!customSlug) {
+                        setCustomSlug(
+                          e.target.value
+                            .toLowerCase()
+                            .replace(/[^a-z0-9]/g, "-")
+                            .replace(/-+/g, "-")
+                            .replace(/^-|-$/g, "")
+                        );
+                      }
+                    }}
                     autoFocus
                   />
+                </div>
+                <div className="mb-3">
+                  <label className="form-label">Do'kon URL Identifikatori (Slug)</label>
+                  <div className="input-group">
+                    <span className="input-group-text font-monospace text-secondary">/t/</span>
+                    <input
+                      type="text"
+                      className="form-control font-monospace"
+                      placeholder="kiber-magazin"
+                      value={customSlug}
+                      onChange={(e) => setCustomSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-_]/g, ""))}
+                    />
+                  </div>
                   <small className="form-hint">
-                    Keyinchalik istalgan vaqtda sozlamalardan o'zgartirishingiz mumkin.
+                    Ushbu havola orqali bevosita do'kon boshqaruviga kirasiz: <code>/t/{customSlug || "slug"}</code>
                   </small>
                 </div>
               </div>
@@ -143,7 +217,7 @@ export function OnboardingModal({ isOpen, onClose, onComplete }: OnboardingModal
                 <div className="text-center py-2 mb-3">
                   <h3 className="fw-bold text-white mb-1">2. Faoliyat Sohasi (Kategoriya)</h3>
                   <p className="text-secondary small">
-                    AI savdo assistentining lug'ati va muloqot terminologiyasini moslashtirish uchun sohali tanlang.
+                    AI savdo assistentining lug'ati va muloqot terminologiyasini moslashtirish uchun sohani tanlang.
                   </p>
                 </div>
                 <div className="row g-2">
@@ -178,11 +252,87 @@ export function OnboardingModal({ isOpen, onClose, onComplete }: OnboardingModal
               </div>
             )}
 
-            {/* Step 3: Telegram Business Connection */}
+            {/* Step 3: Telegram Bot Token (NEW!) */}
             {step === 3 && (
               <div className="space-y-3">
                 <div className="text-center py-2 mb-3">
-                  <h3 className="fw-bold text-white mb-1">3. Telegram Business Akkauntni Ulash</h3>
+                  <h3 className="fw-bold text-white mb-1">3. Telegram Bot Tokeni</h3>
+                  <p className="text-secondary small">
+                    Do'koningiz mijozlari bilan muloqot qiluvchi Telegram botingiz tokenini kiriting.
+                  </p>
+                </div>
+
+                <div className="mb-3">
+                  <label className="form-label">Telegram Bot Token (@BotFather bergan token)</label>
+                  <div className="input-group">
+                    <span className="input-group-text">
+                      <IconKey size={18} />
+                    </span>
+                    <input
+                      type="text"
+                      className="form-control font-monospace"
+                      placeholder="1234567890:ABCdefGHIjklMNOpqrSTUvwxYZ..."
+                      value={botToken}
+                      onChange={(e) => {
+                        setBotToken(e.target.value);
+                        setBotVerification({ checking: false, verified: false });
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-outline-primary d-flex align-items-center gap-1.5"
+                      onClick={handleVerifyBotToken}
+                      disabled={botVerification.checking || !botToken.trim()}
+                    >
+                      {botVerification.checking ? (
+                        <>
+                          <span className="spinner-border spinner-border-sm" />
+                          <span>Tekshirilmoqda...</span>
+                        </>
+                      ) : (
+                        <>
+                          <IconRefresh size={16} />
+                          <span>Tekshirish</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  <small className="form-hint">
+                    Token serverimizda <strong>Fernet AES-128</strong> bilan shifrlanadi va hech qachon ochiq ko'rsatilmaydi.
+                  </small>
+                </div>
+
+                {botVerification.verified && (
+                  <div className="alert alert-success d-flex align-items-center gap-2 mb-0 py-2.5">
+                    <IconCheck size={20} className="text-success flex-shrink-0" />
+                    <div>
+                      <strong className="d-block text-white">Bot muvaffaqiyatli tasdiqlandi!</strong>
+                      <span className="small text-secondary">
+                        Nomi: <strong>{botVerification.bot_name}</strong> • Username: <code>@{botVerification.bot_username}</code>
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {botVerification.error && (
+                  <div className="alert alert-danger d-flex align-items-center gap-2 mb-0 py-2.5">
+                    <IconAlertCircle size={20} className="text-danger flex-shrink-0" />
+                    <span className="small">{botVerification.error}</span>
+                  </div>
+                )}
+
+                <div className="p-3 rounded bg-dark border border-secondary border-opacity-20 mt-3 small text-secondary">
+                  💡 <strong>Bot tokeningiz yo'qmi?</strong> Telegram'da <code>@BotFather</code> ga <code>/newbot</code> deb yozing, nom tanlang va berilgan tokenni shu yerga nusxalang.
+                  Tokenni keyinchalik do'kon sozlamalaridan ham kiritish mumkin.
+                </div>
+              </div>
+            )}
+
+            {/* Step 4: Telegram Business Connection Instructions */}
+            {step === 4 && (
+              <div className="space-y-3">
+                <div className="text-center py-2 mb-3">
+                  <h3 className="fw-bold text-white mb-1">4. Telegram Business Ulanishi</h3>
                   <p className="text-secondary small">
                     Assistent mijozlaringiz bilan Telegram Business xabarlari orqali avtomatik muloqot qiladi.
                   </p>
@@ -190,25 +340,25 @@ export function OnboardingModal({ isOpen, onClose, onComplete }: OnboardingModal
                 <div className="p-3.5 rounded bg-dark border border-secondary border-opacity-20 space-y-2">
                   <div className="d-flex align-items-center gap-2 text-primary fw-bold">
                     <IconBrandTelegram size={20} />
-                    <span>Telegram Business Ulanish Qoidalari:</span>
+                    <span>Telegram Business Ulanish Bosqichlari:</span>
                   </div>
                   <ol className="text-secondary small ps-3 mb-0 space-y-1">
                     <li>Telegram ilovangizda <strong>Sozlamalar → Telegram Business → Chatbotlar</strong> bo'limiga kiring.</li>
-                    <li>Bizning savdo botimiz foydalanuvchi nomini kiriting.</li>
-                    <li><strong>"Xabarlarga javob berish (can_reply)"</strong> ruxsatini yoqing.</li>
+                    <li>Botingiz nomini (masalan: <code>@{botVerification.bot_username || "botingiz_nomi"}</code>) qidiring.</li>
+                    <li><strong>"Xabarlarga javob berish (can_reply)"</strong> ruxsatini yoqing va saqlang.</li>
                   </ol>
                 </div>
                 <p className="text-success small mb-0 mt-2">
-                  ✓ Ushbu ulanishni hozir yoki tizimga kirganingizdan so'ng ham faollashtirishingiz mumkin.
+                  ✓ Do'kon yaratilgach, Webhook avtomatik Telegram serverlariga ulanadi.
                 </p>
               </div>
             )}
 
-            {/* Step 4: Telegram Channel for Knowledge */}
-            {step === 4 && (
+            {/* Step 5: Telegram Channel for Knowledge */}
+            {step === 5 && (
               <div className="space-y-3">
                 <div className="text-center py-2 mb-3">
-                  <h3 className="fw-bold text-white mb-1">4. Mahsulotlar Kanali (Bilimlar Bazasi)</h3>
+                  <h3 className="fw-bold text-white mb-1">5. Mahsulotlar Kanali (Bilimlar Bazasi)</h3>
                   <p className="text-secondary small">
                     AI o'zbek tilidagi narxlar, fotosuratlar va tavsiflarni qaysi Telegram kanalidan o'rgansin?
                   </p>
@@ -232,11 +382,11 @@ export function OnboardingModal({ isOpen, onClose, onComplete }: OnboardingModal
               </div>
             )}
 
-            {/* Step 5: AI Language */}
-            {step === 5 && (
+            {/* Step 6: AI Language */}
+            {step === 6 && (
               <div className="space-y-3">
                 <div className="text-center py-2 mb-3">
-                  <h3 className="fw-bold text-white mb-1">5. AI Muloqot Tili</h3>
+                  <h3 className="fw-bold text-white mb-1">6. AI Muloqot Tili</h3>
                   <p className="text-secondary small">
                     Assistent asosan qaysi tilda mijozlar bilan muloqot qilsin?
                   </p>
@@ -271,11 +421,11 @@ export function OnboardingModal({ isOpen, onClose, onComplete }: OnboardingModal
               </div>
             )}
 
-            {/* Step 6: AI Personality & Tone */}
-            {step === 6 && (
+            {/* Step 7: AI Personality & Tone */}
+            {step === 7 && (
               <div className="space-y-3">
                 <div className="text-center py-2 mb-3">
-                  <h3 className="fw-bold text-white mb-1">6. AI Shaxsi va Muloqot Uslubi</h3>
+                  <h3 className="fw-bold text-white mb-1">7. AI Shaxsi va Muloqot Uslubi</h3>
                   <p className="text-secondary small">
                     Assistent qanday ohangda javob bersin?
                   </p>
@@ -308,11 +458,11 @@ export function OnboardingModal({ isOpen, onClose, onComplete }: OnboardingModal
               </div>
             )}
 
-            {/* Step 7: Select Initial Plan */}
-            {step === 7 && (
+            {/* Step 8: Select Initial Plan */}
+            {step === 8 && (
               <div className="space-y-3">
                 <div className="text-center py-2 mb-3">
-                  <h3 className="fw-bold text-white mb-1">7. Boshlang'ich Tarifni Tanlang</h3>
+                  <h3 className="fw-bold text-white mb-1">8. Boshlang'ich Tarifni Tanlang</h3>
                   <p className="text-secondary small">
                     Har bir yangi biznes uchun <strong>7 kunlik bepul sinov muddati</strong> taqdim etiladi!
                   </p>
@@ -348,25 +498,33 @@ export function OnboardingModal({ isOpen, onClose, onComplete }: OnboardingModal
               </div>
             )}
 
-            {/* Step 8: Confirmation & Launch Trial */}
-            {step === 8 && (
+            {/* Step 9: Confirmation & Launch Trial */}
+            {step === 9 && (
               <div className="text-center py-4 space-y-3">
                 <div className="p-3 bg-green-lt text-green rounded-circle d-inline-flex mb-2">
                   <IconCheck size={36} />
                 </div>
                 <h2 className="fw-bold text-white mb-1">Barchasi Tayyor!</h2>
                 <p className="text-secondary small max-w-md mx-auto mb-4">
-                  Sizning <strong>{businessName || "Yangi Biznes"}</strong> tashkilotingiz uchun 7 kunlik to'liq bepul sinov muddati faollashtirilmoqda. Hech qanday karta talab etilmaydi.
+                  Sizning <strong>{businessName || "Yangi Biznes"}</strong> do'koningiz uchun 7 kunlik to'liq bepul sinov muddati faollashtirilmoqda. Hech qanday karta talab etilmaydi.
                 </p>
 
                 <div className="p-3 bg-dark rounded-3 border border-secondary border-opacity-20 text-start max-w-sm mx-auto small space-y-1 mb-4">
                   <div className="d-flex justify-content-between">
-                    <span className="text-secondary">Biznes nomi:</span>
+                    <span className="text-secondary">Do'kon nomi:</span>
                     <strong className="text-white">{businessName || "Yangi Biznes"}</strong>
+                  </div>
+                  <div className="d-flex justify-content-between">
+                    <span className="text-secondary">Havola (Slug):</span>
+                    <strong className="text-primary font-monospace">/t/{customSlug || "biznes"}</strong>
                   </div>
                   <div className="d-flex justify-content-between">
                     <span className="text-secondary">Soha:</span>
                     <strong className="text-white">{category}</strong>
+                  </div>
+                  <div className="d-flex justify-content-between">
+                    <span className="text-secondary">Telegram Bot:</span>
+                    <strong className="text-white">{botVerification.bot_username ? `@${botVerification.bot_username}` : (botToken ? "Kiritilgan" : "Sozlanmagan")}</strong>
                   </div>
                   <div className="d-flex justify-content-between">
                     <span className="text-secondary">Tanlangan tarif:</span>
@@ -404,11 +562,11 @@ export function OnboardingModal({ isOpen, onClose, onComplete }: OnboardingModal
               disabled={busy || (step === 1 && !businessName.trim())}
             >
               {busy ? (
-                <span>Faollashtirilmoqda...</span>
+                <span>Do'kon ochilmoqda...</span>
               ) : step === totalSteps ? (
                 <>
                   <IconSparkles size={16} />
-                  <span>Sinovni Boshlash (Start Free Trial)</span>
+                  <span>Do'konni Ochish & Sinovni Boshlash</span>
                 </>
               ) : (
                 <>
@@ -423,4 +581,3 @@ export function OnboardingModal({ isOpen, onClose, onComplete }: OnboardingModal
     </div>
   );
 }
-

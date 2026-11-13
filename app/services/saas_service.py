@@ -1,11 +1,14 @@
 """SaaS Tenant, Plan, Subscription, and Organization Management Service."""
 
 from datetime import datetime, timedelta, timezone
+import secrets
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.logging import get_logger
 from app.core.permissions import ROLE_DEFAULTS
+from app.core.security import encrypt_secret
+from app.services.telegram import get_telegram_service
 from app.models import (
     Admin,
     AIModelConfiguration,
@@ -365,6 +368,11 @@ async def create_organization_with_trial(
     category: str = "Retail",
     plan_code: str = "start",
     trial_days: int = 7,
+    telegram_bot_token: str | None = None,
+    telegram_channel: str | None = None,
+    ai_language: str = "uz",
+    ai_personality: str | None = None,
+    custom_system_prompt: str | None = None,
 ) -> Organization:
     """Create a new organization for an onboarding user with 7-day free trial."""
     # Ensure slug uniqueness
@@ -377,12 +385,20 @@ async def create_organization_with_trial(
     if existing.scalar_one_or_none():
         clean_slug = f"{clean_slug}-{int(datetime.now().timestamp() % 10000)}"
 
+    webhook_secret = secrets.token_urlsafe(32)
+    encrypted_token = encrypt_secret(telegram_bot_token.strip()) if telegram_bot_token and telegram_bot_token.strip() else None
+
     org = Organization(
         name=name.strip(),
         slug=clean_slug,
         category=category,
         status="active",
         retention_days=90,
+        ai_language=ai_language,
+        ai_personality=ai_personality,
+        custom_system_prompt=custom_system_prompt,
+        telegram_bot_token=encrypted_token,
+        webhook_secret=webhook_secret,
     )
     db.add(org)
     await db.flush()
@@ -396,6 +412,24 @@ async def create_organization_with_trial(
         is_active=True,
     )
     db.add(member)
+
+    # If channel provided, register it under ConnectedChannel
+    if telegram_channel:
+        clean_chan = (
+            telegram_channel.strip()
+            .replace("https://t.me/", "")
+            .replace("http://t.me/", "")
+            .replace("t.me/", "")
+            .replace("@", "")
+            .strip("/")
+        )
+        if clean_chan:
+            chan_record = ConnectedChannel(
+                organization_id=org.id,
+                channel_username=clean_chan.lower(),
+                is_active=True,
+            )
+            db.add(chan_record)
 
     # Fetch selected plan (default START)
     res = await db.execute(select(Plan).where(Plan.code == plan_code))
@@ -421,6 +455,17 @@ async def create_organization_with_trial(
     db.add(subscription)
     await db.commit()
     await db.refresh(org)
+
+    # If telegram bot token is present and public webhook URL is configured, auto-register webhook
+    if telegram_bot_token and settings.public_webhook_url:
+        try:
+            tg_svc = get_telegram_service(telegram_bot_token.strip())
+            webhook_url = f"{settings.public_webhook_url.rstrip('/')}/telegram/webhook/{org.slug}"
+            await tg_svc.set_webhook(webhook_url, secret_token=webhook_secret)
+            logger.info("Yangi do'kon uchun webhook avtomatik ro'yxatdan o'tkazildi: org=%s, url=%s", org.slug, webhook_url)
+        except Exception as exc:
+            logger.warning("Telegram webhook avtomatik o'rnatishda xatolik yuz berdi: %s", exc)
+
     return org
 
 
@@ -475,6 +520,10 @@ async def get_organization_details(db: AsyncSession, organization_id: int) -> di
         "status": org.status,
         "ai_language": org.ai_language,
         "ai_personality": org.ai_personality,
+        "custom_system_prompt": org.custom_system_prompt,
+        "telegram_bot_token_set": bool(org.telegram_bot_token),
+        "webhook_secret_set": bool(org.webhook_secret),
+        "webhook_url": f"{settings.public_webhook_url.rstrip('/')}/telegram/webhook/{org.slug}" if settings.public_webhook_url else None,
         "retention_days": org.retention_days,
         "created_at": org.created_at.isoformat() if org.created_at else None,
         "subscription": {

@@ -38,6 +38,42 @@ class TelegramService:
             raise TelegramAPIError(err_desc)
         return result.get("result", {})
 
+    async def get_me(self) -> dict:
+        """Fetch bot identity details from Telegram API."""
+        return await self.call("getMe", {})
+
+    async def set_webhook(
+        self,
+        url: str,
+        secret_token: str | None = None,
+        drop_pending_updates: bool = False,
+    ) -> dict:
+        """Register Telegram webhook with secret token and specified allowed updates."""
+        payload: dict = {
+            "url": url,
+            "allowed_updates": [
+                "message",
+                "callback_query",
+                "business_connection",
+                "business_message",
+                "edited_business_message",
+                "channel_post",
+                "edited_channel_post",
+            ],
+            "drop_pending_updates": drop_pending_updates,
+        }
+        if secret_token:
+            payload["secret_token"] = secret_token
+        return await self.call("setWebhook", payload)
+
+    async def get_webhook_info(self) -> dict:
+        """Fetch current webhook status from Telegram API."""
+        return await self.call("getWebhookInfo", {})
+
+    async def delete_webhook(self, drop_pending_updates: bool = False) -> dict:
+        """Delete webhook registration from Telegram API."""
+        return await self.call("deleteWebhook", {"drop_pending_updates": drop_pending_updates})
+
     async def download_photo(self, file_id: str, destination: Path) -> Path:
         file_info = await self.call("getFile", {"file_id": file_id})
         file_path = file_info["file_path"]
