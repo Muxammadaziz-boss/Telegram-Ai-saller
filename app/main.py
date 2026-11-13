@@ -36,8 +36,7 @@ async def _subscription_maintenance_loop():
                     update(Subscription)
                     .where(
                         Subscription.status == "trialing",
-                        Subscription.trial_end_at.is_not(None),
-                        Subscription.trial_end_at < now,
+                        Subscription.current_period_end < now,
                     )
                     .values(status="trial_expired")
                 )
