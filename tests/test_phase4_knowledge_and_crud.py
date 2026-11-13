@@ -3,8 +3,6 @@ and Scoped Products/Orders/Customers CRUD with strict Tenant Isolation.
 """
 
 import os
-import random
-import uuid
 from datetime import datetime, timezone
 import pytest
 import httpx
@@ -52,18 +50,18 @@ def test_parse_product_from_text():
 
 @pytest.mark.anyio
 async def test_knowledge_posts_tenant_isolation():
-    rand_suffix = f"{os.getpid()}_{uuid.uuid4().hex[:6]}"
+    pid = os.getpid()
     async with core_db.SessionLocal() as session:
         # Org A
-        org_a = Organization(name="Shop Alpha", slug=f"shop-alpha-{rand_suffix}")
+        org_a = Organization(name="Shop Alpha", slug=f"shop-alpha-{pid}")
         session.add(org_a)
-        user_a = User(email=f"alpha_user_{rand_suffix}@ai-sales.uz", full_name="Alpha User", hashed_password=hash_password("Pass123!"))
+        user_a = User(email=f"alpha_user_{pid}@ai-sales.uz", full_name="Alpha User", hashed_password=hash_password("Pass123!"))
         session.add(user_a)
 
         # Org B
-        org_b = Organization(name="Shop Beta", slug=f"shop-beta-{rand_suffix}")
+        org_b = Organization(name="Shop Beta", slug=f"shop-beta-{pid}")
         session.add(org_b)
-        user_b = User(email=f"beta_user_{rand_suffix}@ai-sales.uz", full_name="Beta User", hashed_password=hash_password("Pass123!"))
+        user_b = User(email=f"beta_user_{pid}@ai-sales.uz", full_name="Beta User", hashed_password=hash_password("Pass123!"))
         session.add(user_b)
 
         await session.commit()
@@ -76,14 +74,11 @@ async def test_knowledge_posts_tenant_isolation():
         session.add(OrganizationMember(organization_id=org_a.id, user_id=user_a.id, role="owner"))
         session.add(OrganizationMember(organization_id=org_b.id, user_id=user_b.id, role="owner"))
 
-        msg_id_a = random.randint(100000, 900000)
-        msg_id_b = msg_id_a + 1
-
         # Posts for Org A
         post_a = ChannelPost(
             organization_id=org_a.id,
-            channel_username=f"alpha_chan_{rand_suffix}",
-            telegram_message_id=msg_id_a,
+            channel_username="alpha_chan",
+            telegram_message_id=101,
             text="Alpha Mahsulot 1: Parfyum Chanel 100ml. Narxi: $120",
         )
         session.add(post_a)
@@ -91,8 +86,8 @@ async def test_knowledge_posts_tenant_isolation():
         # Posts for Org B
         post_b = ChannelPost(
             organization_id=org_b.id,
-            channel_username=f"beta_chan_{rand_suffix}",
-            telegram_message_id=msg_id_b,
+            channel_username="beta_chan",
+            telegram_message_id=202,
             text="Beta Mahsulot 2: Sport krossovka Nike. Narxi: $85",
         )
         session.add(post_b)
@@ -108,8 +103,8 @@ async def test_knowledge_posts_tenant_isolation():
             assert res_a.status_code == 200
             posts = res_a.json()
             # Org A must see its post and MUST NOT see Org B's post
-            assert any(p["telegram_message_id"] == msg_id_a for p in posts)
-            assert not any(p["telegram_message_id"] == msg_id_b for p in posts)
+            assert any(p["telegram_message_id"] == 101 for p in posts)
+            assert not any(p["telegram_message_id"] == 202 for p in posts)
 
 
 # ===========================================================================
@@ -118,11 +113,11 @@ async def test_knowledge_posts_tenant_isolation():
 
 @pytest.mark.anyio
 async def test_extract_products_from_channel_posts_endpoint():
-    rand_suffix = f"{os.getpid()}_{uuid.uuid4().hex[:6]}"
+    pid = os.getpid()
     async with core_db.SessionLocal() as session:
-        org = Organization(name="Electronics Hub", slug=f"electro-hub-{rand_suffix}")
+        org = Organization(name="Electronics Hub", slug=f"electro-hub-{pid}")
         session.add(org)
-        user = User(email=f"electro_{rand_suffix}@ai-sales.uz", full_name="Electro Boss", hashed_password=hash_password("Pass123!"))
+        user = User(email=f"electro_{pid}@ai-sales.uz", full_name="Electro Boss", hashed_password=hash_password("Pass123!"))
         session.add(user)
         await session.commit()
         await session.refresh(org)
@@ -130,12 +125,11 @@ async def test_extract_products_from_channel_posts_endpoint():
 
         session.add(OrganizationMember(organization_id=org.id, user_id=user.id, role="owner"))
 
-        msg_id = random.randint(100000, 900000)
         # Insert channel post with clear product data
         post = ChannelPost(
             organization_id=org.id,
-            channel_username=f"electro_{rand_suffix}",
-            telegram_message_id=msg_id,
+            channel_username="electro_uz",
+            telegram_message_id=777,
             text=(
                 "Sony PlayStation 5 Slim 1TB\n"
                 "Protsessor: AMD Zen 2 / 16GB GDDR6 / 1TB SSD\n"
@@ -163,7 +157,7 @@ async def test_extract_products_from_channel_posts_endpoint():
 
         # Verify product exists in database for this organization
         prod_db = (await session.execute(
-            select(Product).where(Product.organization_id == org.id, Product.code == f"PRD-{msg_id}")
+            select(Product).where(Product.organization_id == org.id, Product.code == "PRD-777")
         )).scalar_one_or_none()
         assert prod_db is not None
         assert "$520" in prod_db.price
@@ -175,16 +169,16 @@ async def test_extract_products_from_channel_posts_endpoint():
 
 @pytest.mark.anyio
 async def test_products_crud_and_isolation():
-    rand_suffix = f"{os.getpid()}_{uuid.uuid4().hex[:6]}"
+    pid = os.getpid()
     async with core_db.SessionLocal() as session:
-        org_a = Organization(name="Auto Parts", slug=f"auto-parts-{rand_suffix}")
+        org_a = Organization(name="Auto Parts", slug=f"auto-parts-{pid}")
         session.add(org_a)
-        user_a = User(email=f"auto_{rand_suffix}@ai-sales.uz", full_name="Auto User", hashed_password=hash_password("Pass123!"))
+        user_a = User(email=f"auto_{pid}@ai-sales.uz", full_name="Auto User", hashed_password=hash_password("Pass123!"))
         session.add(user_a)
 
-        org_b = Organization(name="Cosmetics Store", slug=f"cosmetics-{rand_suffix}")
+        org_b = Organization(name="Cosmetics Store", slug=f"cosmetics-{pid}")
         session.add(org_b)
-        user_b = User(email=f"cosm_{rand_suffix}@ai-sales.uz", full_name="Cosm User", hashed_password=hash_password("Pass123!"))
+        user_b = User(email=f"cosm_{pid}@ai-sales.uz", full_name="Cosm User", hashed_password=hash_password("Pass123!"))
         session.add(user_b)
 
         await session.commit()
@@ -262,16 +256,16 @@ async def test_products_crud_and_isolation():
 
 @pytest.mark.anyio
 async def test_orders_crud_and_isolation():
-    rand_suffix = f"{os.getpid()}_{uuid.uuid4().hex[:6]}"
+    pid = os.getpid()
     async with core_db.SessionLocal() as session:
-        org_a = Organization(name="Boutique A", slug=f"boutique-a-{rand_suffix}")
+        org_a = Organization(name="Boutique A", slug=f"boutique-a-{pid}")
         session.add(org_a)
-        user_a = User(email=f"boutique_a_{rand_suffix}@ai-sales.uz", full_name="Boutique Owner", hashed_password=hash_password("Pass123!"))
+        user_a = User(email=f"boutique_a_{pid}@ai-sales.uz", full_name="Boutique Owner", hashed_password=hash_password("Pass123!"))
         session.add(user_a)
 
-        org_b = Organization(name="Boutique B", slug=f"boutique-b-{rand_suffix}")
+        org_b = Organization(name="Boutique B", slug=f"boutique-b-{pid}")
         session.add(org_b)
-        user_b = User(email=f"boutique_b_{rand_suffix}@ai-sales.uz", full_name="Boutique Rival", hashed_password=hash_password("Pass123!"))
+        user_b = User(email=f"boutique_b_{pid}@ai-sales.uz", full_name="Boutique Rival", hashed_password=hash_password("Pass123!"))
         session.add(user_b)
 
         await session.commit()
@@ -339,3 +333,4 @@ async def test_orders_crud_and_isolation():
                 headers=headers_a,
             )
             assert del_res.status_code == 200
+

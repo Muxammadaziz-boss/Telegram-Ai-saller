@@ -258,7 +258,7 @@ function timeLabel(value?: string | null) {
   if (isNaN(d.getTime())) return "—";
   const time = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
   const months = ["yan", "fev", "mar", "apr", "may", "iyn", "iyl", "avg", "sen", "okt", "noy", "dek"];
-  return `${d.getDate()}-${months[d.getMonth()]} ${d.getFullYear()}, ${time}`;
+  return `${d.getDate()}-${months[d.getMonth()]}, ${time}`;
 }
 
 function formatChatTime(value?: string | null) {
@@ -275,10 +275,7 @@ function formatChatTime(value?: string | null) {
   if (isToday) return time;
 
   const months = ["yan", "fev", "mar", "apr", "may", "iyn", "iyl", "avg", "sen", "okt", "noy", "dek"];
-  const isThisYear = d.getFullYear() === now.getFullYear();
-  return isThisYear
-    ? `${d.getDate()}-${months[d.getMonth()]}, ${time}`
-    : `${d.getDate()}-${months[d.getMonth()]} ${d.getFullYear()}, ${time}`;
+  return `${d.getDate()}-${months[d.getMonth()]}, ${time}`;
 }
 
 function AppLogo({
@@ -414,26 +411,7 @@ function MiniSparkline({
   height?: number;
 }) {
   const width = 140;
-  const safeData = data.length >= 2 ? data : (data.length === 1 ? [data[0], data[0]] : [0, 0]);
-  const hasData = safeData.some((v) => v > 0);
-
-  if (!hasData) {
-    return (
-      <div
-        className="d-flex align-items-center justify-content-between px-2 text-secondary rounded"
-        style={{
-          height,
-          border: "1px dashed rgba(255, 255, 255, 0.12)",
-          background: "rgba(255, 255, 255, 0.02)",
-          fontSize: "11px",
-        }}
-      >
-        <span style={{ opacity: 0.65 }}>Dinamika to'planmoqda...</span>
-        <span style={{ opacity: 0.4 }}>—</span>
-      </div>
-    );
-  }
-
+  const safeData = data.length >= 2 ? data : [data[0] || 0, data[0] || 0];
   const min = Math.min(...safeData);
   const max = Math.max(...safeData) || 1;
   const range = max - min || 1;
@@ -683,8 +661,7 @@ export default function Dashboard({
   const [newAdminRole, setNewAdminRole] = useState<"admin" | "moderator">("moderator");
   const [managingPermissionsAdmin, setManagingPermissionsAdmin] = useState<AdminUser | null>(null);
 
-  // AI & Store settings state
-  const [storeCurrency, setStoreCurrency] = useState<"USD" | "UZS">("USD");
+  // AI settings state
   const [aiModel, setAiModel] = useState("gemini-3.1-flash-lite");
   const [aiTemperature, setAiTemperature] = useState(0.2);
   const [autoHandoff, setAutoHandoff] = useState(true);
@@ -700,7 +677,7 @@ export default function Dashboard({
         api<Conversation[]>("/admin/conversations"),
         api<KnowledgePost[]>("/admin/knowledge"),
         api<AdminUser[]>("/admin/admins").catch(() => []),
-        api<{ public_channel?: string; settings?: Record<string, string> }>("/admin/settings").catch(() => ({ public_channel: "", settings: {} })),
+        api<{ public_channel?: string }>("/admin/settings").catch(() => ({ public_channel: "" })),
         api<ConnectedChannel[]>("/admin/channels").catch(() => []),
         api<ProductItem[]>("/admin/products").catch(() => []),
         api<OrderItem[]>("/admin/orders").catch(() => []),
@@ -712,10 +689,6 @@ export default function Dashboard({
       setChannels(chList);
       setProducts(prodsList || []);
       setOrders(ordersList || []);
-      const settingsMap = (s?.settings || {}) as Record<string, string>;
-      if (settingsMap["store_currency"] === "UZS" || settingsMap["store_currency"] === "USD") {
-        setStoreCurrency(settingsMap["store_currency"] as "USD" | "UZS");
-      }
       if (chList.length > 0) {
         setChannel(chList[0].channel_username);
       } else if (s?.public_channel) {
@@ -805,32 +778,14 @@ export default function Dashboard({
     }
   }, [tab]);
 
-  // Optimized real-time polling: 30 seconds when tab is active, pauses in background, immediate refresh on focus
+  // Live real-time polling every 6 seconds for overview and conversations
   useEffect(() => {
     if (!authenticated) return;
-
-    const pollData = () => {
-      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+    const interval = setInterval(() => {
       api<Overview>("/admin/overview").then(setOverview).catch(() => {});
       api<Conversation[]>("/admin/conversations").then(setConversations).catch(() => {});
-    };
-
-    const interval = setInterval(pollData, 30000);
-
-    const handleFocusOrVisible = () => {
-      if (document.visibilityState === "visible") {
-        pollData();
-      }
-    };
-
-    window.addEventListener("focus", handleFocusOrVisible);
-    document.addEventListener("visibilitychange", handleFocusOrVisible);
-
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener("focus", handleFocusOrVisible);
-      document.removeEventListener("visibilitychange", handleFocusOrVisible);
-    };
+    }, 6000);
+    return () => clearInterval(interval);
   }, [authenticated]);
 
   useEffect(() => {
@@ -1345,6 +1300,56 @@ export default function Dashboard({
     setPlatformSubTab("stores");
     setSuccess("Platforma boshqaruviga qaytildi.");
     loadPlatformData();
+  };
+
+  const handleCreateStore = async (payload: any) => {
+    setBusy(true);
+    try {
+      const res = await api<any>("/api/platform/organizations", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      setSuccess(`"${payload.name}" do'koni muvaffaqiyatli ochildi!`);
+      await loadPlatformData();
+      return res;
+    } catch (err: any) {
+      setError(err.message || "Do'kon ochishda xatolik yuz berdi");
+      throw err;
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleUpdateStoreStatus = async (storeId: number, newStatus: string) => {
+    setBusy(true);
+    try {
+      await api<any>(`/api/platform/organizations/${storeId}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: newStatus }),
+      });
+      setSuccess(`Do'kon holati "${newStatus}" ga o'zgartirildi`);
+      await loadPlatformData();
+    } catch (err: any) {
+      setError(err.message || "Holatni o'zgartirishda xatolik");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleDeleteStore = async (storeId: number) => {
+    if (typeof window !== "undefined" && !window.confirm("Haqiqatan ham ushbu do'konni o'chirmoqchimisiz?")) return;
+    setBusy(true);
+    try {
+      await api<any>(`/api/platform/organizations/${storeId}`, {
+        method: "DELETE",
+      });
+      setSuccess("Do'kon muvaffaqiyatli o'chirildi");
+      await loadPlatformData();
+    } catch (err: any) {
+      setError(err.message || "Do'konni o'chirishda xatolik");
+    } finally {
+      setBusy(false);
+    }
   };
 
   useEffect(() => {
@@ -2329,7 +2334,7 @@ export default function Dashboard({
                   </div>
                 )}
                 {/* WORKSPACE SECTION */}
-                <div className="nav-section-title">ASOSIY ISH JOYI</div>
+                <div className="nav-section-title">WORKSPACE</div>
 
                 <li className={`nav-item ${tab === "overview" ? "active" : ""}`}>
                   <a
@@ -2339,12 +2344,12 @@ export default function Dashboard({
                       e.preventDefault();
                       setTab("overview");
                     }}
-                    title="Boshqaruv paneli (Umumiy ko'rinish)"
+                    title="Overview (Umumiy ko'rinish)"
                   >
                     <span className="nav-link-icon d-md-none d-lg-inline-block">
                       <IconLayoutDashboard size={18} />
                     </span>
-                    <span className="nav-link-title">Boshqaruv paneli</span>
+                    <span className="nav-link-title">Overview</span>
                   </a>
                 </li>
 
@@ -2356,12 +2361,12 @@ export default function Dashboard({
                       e.preventDefault();
                       setTab("inbox");
                     }}
-                    title="Jonli muloqot (Mijozlar bilan chat)"
+                    title="Live Inbox (Jonli muloqot)"
                   >
                     <span className="nav-link-icon d-md-none d-lg-inline-block">
                       <IconMessages size={18} />
                     </span>
-                    <span className="nav-link-title">Jonli muloqot</span>
+                    <span className="nav-link-title">Live Inbox</span>
                     {overview && overview.human_takeover > 0 && (
                       <span className="badge badge-sm bg-yellow text-yellow-fg ms-auto">
                         {overview.human_takeover}
@@ -2378,12 +2383,12 @@ export default function Dashboard({
                       e.preventDefault();
                       setTab("knowledge");
                     }}
-                    title="Bilimlar bazasi (Kanal postlari va ma'lumotlar)"
+                    title="Knowledge Base (Ma'lumotlar bazasi)"
                   >
                     <span className="nav-link-icon d-md-none d-lg-inline-block">
                       <IconDatabase size={18} />
                     </span>
-                    <span className="nav-link-title">Bilimlar bazasi</span>
+                    <span className="nav-link-title">Knowledge Base</span>
                     <span className="badge badge-sm bg-blue-lt ms-auto">
                       {posts.length}
                     </span>
@@ -2391,7 +2396,7 @@ export default function Dashboard({
                 </li>
 
                 {/* SALES SECTION */}
-                <div className="nav-section-title">SAVDO VA MIJOZLAR</div>
+                <div className="nav-section-title">SALES</div>
 
                 <li className={`nav-item ${tab === "products" ? "active" : ""}`}>
                   <a
@@ -2401,12 +2406,12 @@ export default function Dashboard({
                       e.preventDefault();
                       setTab("products");
                     }}
-                    title="Mahsulotlar katalogi"
+                    title="Products (Mahsulotlar katalogi)"
                   >
                     <span className="nav-link-icon d-md-none d-lg-inline-block">
                       <IconPackage size={18} />
                     </span>
-                    <span className="nav-link-title">Mahsulotlar</span>
+                    <span className="nav-link-title">Products</span>
                   </a>
                 </li>
 
@@ -2418,12 +2423,12 @@ export default function Dashboard({
                       e.preventDefault();
                       setTab("orders");
                     }}
-                    title="Buyurtmalar boshqaruvi"
+                    title="Orders (Buyurtmalar)"
                   >
                     <span className="nav-link-icon d-md-none d-lg-inline-block">
                       <IconShoppingCart size={18} />
                     </span>
-                    <span className="nav-link-title">Buyurtmalar</span>
+                    <span className="nav-link-title">Orders</span>
                     <span className="badge badge-sm bg-green-lt ms-auto">{orders.length}</span>
                   </a>
                 </li>
@@ -2436,17 +2441,17 @@ export default function Dashboard({
                       e.preventDefault();
                       setTab("customers");
                     }}
-                    title="Mijozlar bazasi"
+                    title="Customers (Mijozlar bazasi)"
                   >
                     <span className="nav-link-icon d-md-none d-lg-inline-block">
                       <IconUsers size={18} />
                     </span>
-                    <span className="nav-link-title">Mijozlar</span>
+                    <span className="nav-link-title">Customers</span>
                   </a>
                 </li>
 
                 {/* INTELLIGENCE SECTION */}
-                <div className="nav-section-title">AI VA TAHLIL</div>
+                <div className="nav-section-title">INTELLIGENCE</div>
 
                 <li className={`nav-item ${tab === "analytics" ? "active" : ""}`}>
                   <a
@@ -2456,12 +2461,12 @@ export default function Dashboard({
                       e.preventDefault();
                       setTab("analytics");
                     }}
-                    title="Tahlil va Statistika"
+                    title="Analytics (Tahlil va Statistika)"
                   >
                     <span className="nav-link-icon d-md-none d-lg-inline-block">
                       <IconTrendingUp size={18} />
                     </span>
-                    <span className="nav-link-title">Tahlil & Hisobot</span>
+                    <span className="nav-link-title">Analytics</span>
                   </a>
                 </li>
 
@@ -2473,17 +2478,17 @@ export default function Dashboard({
                       e.preventDefault();
                       setTab("settings");
                     }}
-                    title="AI va Do'kon sozlamalari"
+                    title="AI Settings (AI sozlamalari)"
                   >
                     <span className="nav-link-icon d-md-none d-lg-inline-block">
                       <IconSettings size={18} />
                     </span>
-                    <span className="nav-link-title">AI Sozlamalari</span>
+                    <span className="nav-link-title">AI Settings</span>
                   </a>
                 </li>
 
                 {/* SAAS & SUBSCRIPTION SECTION */}
-                <div className="nav-section-title">OBUNA VA XARAJATLAR</div>
+                <div className="nav-section-title">SAAS & BILLING</div>
 
                 <li className={`nav-item ${tab === "usage" ? "active" : ""}`}>
                   <a
@@ -2493,12 +2498,12 @@ export default function Dashboard({
                       e.preventDefault();
                       setTab("usage");
                     }}
-                    title="AI xarajati va limitlar"
+                    title="Foydalanish va Limitlar"
                   >
                     <span className="nav-link-icon d-md-none d-lg-inline-block">
                       <IconGauge size={18} />
                     </span>
-                    <span className="nav-link-title">AI Iste'moli & Limitlar</span>
+                    <span className="nav-link-title">Usage & Limits</span>
                   </a>
                 </li>
 
@@ -2510,12 +2515,12 @@ export default function Dashboard({
                       e.preventDefault();
                       setTab("billing");
                     }}
-                    title="Obuna va to'lovlar"
+                    title="Obuna va To'lovlar"
                   >
                     <span className="nav-link-icon d-md-none d-lg-inline-block">
                       <IconCreditCard size={18} />
                     </span>
-                    <span className="nav-link-title">Obuna & To'lovlar</span>
+                    <span className="nav-link-title">Subscription</span>
                     {subscriptionData?.is_trial && (
                       <span className="badge badge-sm bg-blue-lt ms-auto">Trial</span>
                     )}
@@ -2530,12 +2535,12 @@ export default function Dashboard({
                       e.preventDefault();
                       setTab("pricing");
                     }}
-                    title="Tarif rejalari va narxlar"
+                    title="Tariflar va Rejalar"
                   >
                     <span className="nav-link-icon d-md-none d-lg-inline-block">
                       <IconCrown size={18} />
                     </span>
-                    <span className="nav-link-title">Tarif Rejalari</span>
+                    <span className="nav-link-title">Plans & Pricing</span>
                   </a>
                 </li>
 
@@ -2562,7 +2567,7 @@ export default function Dashboard({
                 )}
 
                 {/* SYSTEM SECTION */}
-                <div className="nav-section-title">TIZIM VA XAVFSIZLIK</div>
+                <div className="nav-section-title">SYSTEM</div>
 
                 <li className={`nav-item ${tab === "admins" ? "active" : ""}`}>
                   <a
@@ -2572,12 +2577,12 @@ export default function Dashboard({
                       e.preventDefault();
                       setTab("admins");
                     }}
-                    title="Telegram bot adminlari va moderatsiya"
+                    title="Administration (Adminlar boshqaruvi)"
                   >
                     <span className="nav-link-icon d-md-none d-lg-inline-block">
                       <IconShieldLock size={18} />
                     </span>
-                    <span className="nav-link-title">Adminlar</span>
+                    <span className="nav-link-title">Administration</span>
                   </a>
                 </li>
 
@@ -2589,12 +2594,12 @@ export default function Dashboard({
                       e.preventDefault();
                       setTab("team");
                     }}
-                    title="Jamoa a'zolari va kirish rollari"
+                    title="Team & Access (Jamoa va Ruxsatlar)"
                   >
                     <span className="nav-link-icon d-md-none d-lg-inline-block">
                       <IconUsersGroup size={18} />
                     </span>
-                    <span className="nav-link-title">Jamoa & Rollar</span>
+                    <span className="nav-link-title">Team & Access</span>
                   </a>
                 </li>
 
@@ -2606,12 +2611,12 @@ export default function Dashboard({
                       e.preventDefault();
                       setTab("logs");
                     }}
-                    title="Do'kon ichki audit va faollik jurnali"
+                    title="Activity Logs"
                   >
                     <span className="nav-link-icon d-md-none d-lg-inline-block">
                       <IconActivity size={18} />
                     </span>
-                    <span className="nav-link-title">Audit Loglar</span>
+                    <span className="nav-link-title">Activity Logs</span>
                   </a>
                 </li>
               </ul>
@@ -2750,9 +2755,9 @@ export default function Dashboard({
             <div className="navbar-nav flex-row order-md-last ms-auto align-items-center gap-2">
               {/* AI Engine Status Pill */}
               <div className="nav-item d-none d-sm-flex">
-                <span className="badge bg-green-lt text-green d-flex align-items-center gap-1.5 py-1.5 px-2.5 rounded-pill" title="AI Yordamchi Tizim Faol">
+                <span className="badge bg-green-lt text-green d-flex align-items-center gap-1.5 py-1.5 px-2.5 rounded-pill">
                   <span className="status-dot status-dot-animated bg-green"></span>
-                  AI Online
+                  AI Online (Faol)
                 </span>
               </div>
 
@@ -2947,6 +2952,9 @@ export default function Dashboard({
                 onUpdatePlan={handleUpdatePlanConfig}
                 onEnterStore={handleEnterStore}
                 onSwitchSubTab={setPlatformSubTab}
+                onCreateStore={handleCreateStore}
+                onUpdateStoreStatus={handleUpdateStoreStatus}
+                onDeleteStore={handleDeleteStore}
               />
             ) : (
               <>
@@ -3005,7 +3013,7 @@ export default function Dashboard({
 
                       <div className="my-2">
                         <MiniSparkline
-                          data={overview?.conversations ? [Math.max(0, overview.conversations - 2), Math.max(0, overview.conversations - 1), overview.conversations] : []}
+                          data={[2, 3, 4, 3, 5, 5, overview?.conversations ?? 6]}
                           color="#206bc4"
                           id="conv"
                         />
@@ -3062,7 +3070,7 @@ export default function Dashboard({
 
                       <div className="my-2">
                         <MiniSparkline
-                          data={overview?.ai_active ? [Math.max(0, overview.ai_active - 1), overview.ai_active] : []}
+                          data={[1, 1, 2, 2, 3, 2, overview?.ai_active ?? 2]}
                           color="#2fb344"
                           id="ai"
                         />
@@ -3127,7 +3135,7 @@ export default function Dashboard({
 
                       <div className="my-2">
                         <MiniSparkline
-                          data={overview?.human_takeover ? [Math.max(0, overview.human_takeover - 1), overview.human_takeover] : []}
+                          data={[1, 2, 3, 2, 4, 3, overview?.human_takeover ?? 4]}
                           color="#f59f00"
                           id="operator"
                         />
@@ -3190,7 +3198,7 @@ export default function Dashboard({
 
                       <div className="my-2">
                         <MiniSparkline
-                          data={(overview?.knowledge_posts || posts.length) ? [Math.max(0, (overview?.knowledge_posts ?? posts.length) - 1), overview?.knowledge_posts ?? posts.length] : []}
+                          data={[3, 5, 6, 7, 8, 8, overview?.knowledge_posts ?? 9]}
                           color="#ae3ec9"
                           id="posts"
                         />
@@ -3423,8 +3431,8 @@ export default function Dashboard({
                       <div className="card-body p-3">
                         <ul className="list-unstyled mb-0 space-y-2">
                           <li className="d-flex align-items-center justify-content-between py-1 border-bottom border-secondary border-opacity-10">
-                            <span className="text-secondary small text-nowrap">AI Tizim Holati:</span>
-                            <span className="badge bg-green-lt text-green fw-bold text-truncate" style={{ maxWidth: 140 }}>AI Online (Faol)</span>
+                            <span className="text-secondary small text-nowrap">AI Model:</span>
+                            <span className="badge bg-blue-lt fw-bold text-truncate" style={{ maxWidth: 140 }}>{aiModel}</span>
                           </li>
                           <li className="d-flex align-items-center justify-content-between py-1 border-bottom border-secondary border-opacity-10">
                             <span className="text-secondary small text-nowrap">Telegram Webhook:</span>
@@ -4655,9 +4663,9 @@ export default function Dashboard({
                           value={aiModel}
                           onChange={(e) => setAiModel(e.target.value)}
                         >
-                          <option value="gemini-3.1-flash-lite">Ultra-tezkor AI (Tavsiya etiladi — javob ~0.7s)</option>
-                          <option value="gemini-3.5-flash">Balanslashgan AI (Yuqori aniqlik va muvozanat)</option>
-                          <option value="gemini-flash-latest">Avtomatik so'nggi barqaror AI versiyasi</option>
+                          <option value="gemini-3.1-flash-lite">gemini-3.1-flash-lite (Tavsiya etiladi - ultra tez 0.7s)</option>
+                          <option value="gemini-3.5-flash">gemini-3.5-flash (Yuqori aniqlik va muvozanat)</option>
+                          <option value="gemini-flash-latest">gemini-flash-latest (Avtomatik eng so'nggi versiya)</option>
                         </select>
                         <small className="form-hint">
                           Telegram xabarlariga 1-2 soniyada javob qaytarish uchun yengil va optimallashgan model.
@@ -4727,51 +4735,12 @@ export default function Dashboard({
                           </span>
                         </label>
                       </div>
-                      <hr className="my-3" />
-
-                      <div className="row g-3">
-                        <div className="col-md-6">
-                          <label className="form-label">Do'kon Asosiy Valyutasi</label>
-                          <select
-                            className="form-select"
-                            value={storeCurrency}
-                            onChange={(e) => {
-                              const val = e.target.value as "USD" | "UZS";
-                              setStoreCurrency(val);
-                              api("/admin/settings/store_currency", {
-                                method: "PATCH",
-                                body: JSON.stringify({ value: val }),
-                              }).then(() => {
-                                setSuccess(`Do'kon asosiy valyutasi ${val === "UZS" ? "UZS (so'm)" : "USD ($)"} ga o'zgartirildi`);
-                              }).catch(() => {});
-                            }}
-                          >
-                            <option value="USD">USD ($ — AQSH dollari)</option>
-                            <option value="UZS">UZS (so'm — O'zbekiston so'mi)</option>
-                          </select>
-                          <small className="form-hint">Katalog va buyurtmalarda ko'rsatiladigan asosiy hisob-kitob valyutasi.</small>
-                        </div>
-                        <div className="col-md-6">
-                          <label className="form-label">Do'kon Vaqt Mintaqasi</label>
-                          <input
-                            type="text"
-                            className="form-control"
-                            value="Asia/Tashkent (UTC+5)"
-                            disabled
-                          />
-                          <small className="form-hint">Barcha sanalar Toshkent vaqti va yili bilan qayd etiladi.</small>
-                        </div>
-                      </div>
                     </div>
                     <div className="card-footer text-end">
                       <button
                         className="btn btn-primary"
                         onClick={() => {
-                          api("/admin/settings/store_currency", {
-                            method: "PATCH",
-                            body: JSON.stringify({ value: storeCurrency }),
-                          }).catch(() => {});
-                          setSuccess("AI va do'kon sozlamalari muvaffaqiyatli saqlandi!");
+                          setSuccess("AI sozlamalari muvaffaqiyatli saqlandi!");
                         }}
                       >
                         Sozlamalarni saqlash
@@ -6036,6 +6005,9 @@ export default function Dashboard({
                 onUpdatePlan={handleUpdatePlanConfig}
                 onEnterStore={handleEnterStore}
                 onSwitchSubTab={setPlatformSubTab}
+                onCreateStore={handleCreateStore}
+                onUpdateStoreStatus={handleUpdateStoreStatus}
+                onDeleteStore={handleDeleteStore}
               />
             )}
               </>

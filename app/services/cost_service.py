@@ -51,12 +51,20 @@ async def get_platform_financial_metrics(db: AsyncSession) -> dict:
     plan_distribution = {"start": 0, "pro": 0, "ultra": 0}
 
     for sub, plan in res.all():
-        plan_code = plan.code.lower()
-        plan_distribution[plan_code] = plan_distribution.get(plan_code, 0) + 1
         if sub.billing_cycle == "yearly":
             mrr_usd += plan.price_yearly / 12.0
         else:
             mrr_usd += float(plan.price_monthly)
+
+    # Populate comprehensive plan distribution across all existing subscriptions
+    dist_res = await db.execute(
+        select(Plan.code, func.count(Subscription.id))
+        .join(Plan, Subscription.plan_id == Plan.id)
+        .group_by(Plan.code)
+    )
+    for p_code, p_cnt in dist_res.all():
+        if p_code:
+            plan_distribution[p_code.lower()] = p_cnt or 0
 
     arr_usd = mrr_usd * 12.0
     arpu_usd = (mrr_usd / active_subs_count) if active_subs_count > 0 else 0.0
@@ -99,17 +107,41 @@ async def get_platform_financial_metrics(db: AsyncSession) -> dict:
     }
 
 
-async def get_organization_profitability_list(db: AsyncSession) -> list[dict]:
-    """Return organizations with individual revenue, estimated AI cost, and margin."""
+async def get_organization_profitability_list(db: AsyncSession, limit: int = 100) -> list[dict]:
+    """Return organizations with individual revenue, estimated AI cost, and margin.
+
+    Optimized: aggregates costs and conversations in 2 bulk queries to eliminate N+1 latency.
+    """
     now = datetime.now(timezone.utc)
     current_period = now.strftime("%Y-%m")
 
+    # 1. Bulk aggregate AI cost cents per organization for current month
+    cost_res = await db.execute(
+        select(UsageRecord.organization_id, func.sum(UsageRecord.used))
+        .where(
+            UsageRecord.metric == "estimated_ai_cost_cents",
+            UsageRecord.period == current_period,
+        )
+        .group_by(UsageRecord.organization_id)
+    )
+    cost_by_org = {row[0]: (row[1] or 0) for row in cost_res.all() if row[0] is not None}
+
+    # 2. Bulk aggregate conversation counts per organization
+    conv_res = await db.execute(
+        select(Conversation.organization_id, func.count(Conversation.id))
+        .group_by(Conversation.organization_id)
+    )
+    conv_by_org = {row[0]: (row[1] or 0) for row in conv_res.all() if row[0] is not None}
+
+    # 3. Fetch organizations with subscription and plan in a single joined query
     res = await db.execute(
         select(Organization, Subscription, Plan)
         .outerjoin(Subscription, Organization.id == Subscription.organization_id)
         .outerjoin(Plan, Subscription.plan_id == Plan.id)
         .order_by(Organization.created_at.desc())
+        .limit(limit)
     )
+
     items = []
     for org, sub, plan in res.all():
         monthly_rev = 0.0
@@ -123,21 +155,12 @@ async def get_organization_profitability_list(db: AsyncSession) -> list[dict]:
             plan_code = plan.code.upper() if plan else "START"
             sub_status = sub.status
 
-        # Org AI cost this month
-        cost_cents = await db.scalar(
-            select(UsageRecord.used).where(
-                UsageRecord.organization_id == org.id,
-                UsageRecord.metric == "estimated_ai_cost_cents",
-                UsageRecord.period == current_period,
-            )
-        ) or 0
+        # Org AI cost from pre-aggregated dictionary
+        cost_cents = cost_by_org.get(org.id, 0)
         ai_cost = round(cost_cents / 100.0, 3)
 
         margin = round(((monthly_rev - ai_cost) / monthly_rev) * 100.0, 1) if monthly_rev > 0 else 0.0
-
-        conv_count = await db.scalar(
-            select(func.count(Conversation.id)).where(Conversation.organization_id == org.id)
-        ) or 0
+        conv_count = conv_by_org.get(org.id, 0)
 
         items.append({
             "id": org.id,
@@ -167,8 +190,8 @@ class CostService:
         return await get_platform_financial_metrics(db)
 
     @staticmethod
-    async def get_organization_profitability_list(db: AsyncSession) -> list[dict]:
-        return await get_organization_profitability_list(db)
+    async def get_organization_profitability_list(db: AsyncSession, limit: int = 100) -> list[dict]:
+        return await get_organization_profitability_list(db, limit=limit)
 
     @staticmethod
     async def track_ai_call_cost(db: AsyncSession, organization_id: int, model: str, input_tokens: int, output_tokens: int):

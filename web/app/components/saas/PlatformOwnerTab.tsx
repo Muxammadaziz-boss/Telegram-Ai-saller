@@ -17,13 +17,20 @@ import {
   IconFileText,
   IconGauge,
   IconPencil,
+  IconPlus,
   IconRefresh,
   IconSearch,
   IconServer,
   IconShieldCheck,
+  IconTrash,
   IconTrendingUp,
   IconUserCheck,
   IconUsers,
+  IconX,
+  IconPlayerPause,
+  IconPlayerPlay,
+  IconExternalLink,
+  IconKey,
 } from "@tabler/icons-react";
 
 export interface PlatformFinancialMetrics {
@@ -98,6 +105,9 @@ interface PlatformOwnerTabProps {
   onUpdatePlan: (planCode: string, payload: any) => Promise<void>;
   onEnterStore?: (store: OrganizationProfitability) => void;
   onSwitchSubTab?: (subTab: "overview" | "stores" | "users" | "plans" | "usage" | "system" | "audit") => void;
+  onCreateStore?: (payload: any) => Promise<any>;
+  onUpdateStoreStatus?: (storeId: number, status: string) => Promise<void>;
+  onDeleteStore?: (storeId: number) => Promise<void>;
 }
 
 export function PlatformOwnerTab({
@@ -112,6 +122,9 @@ export function PlatformOwnerTab({
   onUpdatePlan,
   onEnterStore,
   onSwitchSubTab,
+  onCreateStore,
+  onUpdateStoreStatus,
+  onDeleteStore,
 }: PlatformOwnerTabProps) {
   const [editingPlanCode, setEditingPlanCode] = useState<string | null>(null);
   const [newMonthlyPrice, setNewMonthlyPrice] = useState<number>(59);
@@ -119,6 +132,69 @@ export function PlatformOwnerTab({
   const [saveBusy, setSaveBusy] = useState(false);
   const [storeSearch, setStoreSearch] = useState("");
   const [userSearch, setUserSearch] = useState("");
+
+  // Create store modal state
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createStoreName, setCreateStoreName] = useState("");
+  const [createStoreSlug, setCreateStoreSlug] = useState("");
+  const [createStoreCategory, setCreateStoreCategory] = useState("Elektronika va Texnika");
+  const [createStoreEmail, setCreateStoreEmail] = useState("");
+  const [createStorePassword, setCreateStorePassword] = useState("");
+  const [createStoreBotToken, setCreateStoreBotToken] = useState("");
+  const [createStoreCurrency, setCreateStoreCurrency] = useState<"UZS" | "USD">("UZS");
+  const [createStorePlan, setCreateStorePlan] = useState("pro");
+  const [createStoreBusy, setCreateStoreBusy] = useState(false);
+  const [createStoreError, setCreateStoreError] = useState("");
+  const [createStoreSuccess, setCreateStoreSuccess] = useState<any>(null);
+
+  const resetCreateForm = () => {
+    setCreateStoreName("");
+    setCreateStoreSlug("");
+    setCreateStoreEmail("");
+    setCreateStorePassword("");
+    setCreateStoreBotToken("");
+    setCreateStoreCurrency("UZS");
+    setCreateStorePlan("pro");
+    setCreateStoreError("");
+    setCreateStoreSuccess(null);
+  };
+
+  const handleCreateSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!createStoreName.trim()) {
+      setCreateStoreError("Do'kon nomi kiritilishi shart");
+      return;
+    }
+    if (!createStoreSlug.trim()) {
+      setCreateStoreError("Do'kon qisqa nomi (slug) kiritilishi shart");
+      return;
+    }
+    if (!createStoreEmail.trim()) {
+      setCreateStoreError("Do'kon egasi pochtasi kiritilishi shart");
+      return;
+    }
+    setCreateStoreBusy(true);
+    setCreateStoreError("");
+    try {
+      if (onCreateStore) {
+        const res = await onCreateStore({
+          name: createStoreName.trim(),
+          slug: createStoreSlug.trim().toLowerCase(),
+          category: createStoreCategory,
+          owner_email: createStoreEmail.trim().toLowerCase(),
+          owner_password: createStorePassword || undefined,
+          telegram_bot_token: createStoreBotToken.trim() || undefined,
+          currency: createStoreCurrency,
+          plan_code: createStorePlan,
+        });
+        setCreateStoreSuccess(res);
+      }
+    } catch (err: any) {
+      setCreateStoreError(err.message || "Do'kon ochishda xatolik yuz berdi");
+    } finally {
+      setCreateStoreBusy(false);
+    }
+  };
 
   const handleSavePlan = async () => {
     if (!editingPlanCode) return;
@@ -220,6 +296,18 @@ export function PlatformOwnerTab({
               </button>
             </div>
           )}
+
+          <button
+            type="button"
+            className="btn btn-primary btn-sm d-flex align-items-center gap-1.5 shadow-sm fw-semibold"
+            onClick={() => {
+              resetCreateForm();
+              setShowCreateModal(true);
+            }}
+          >
+            <IconPlus size={16} />
+            <span>+ Yangi Do'kon Ochish</span>
+          </button>
 
           <button
             type="button"
@@ -425,7 +513,18 @@ export function PlatformOwnerTab({
               </span>
             </div>
             <div className="d-flex align-items-center gap-2">
-              <div className="input-icon" style={{ minWidth: 240 }}>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm d-flex align-items-center gap-1.5 shadow-sm fw-semibold"
+                onClick={() => {
+                  resetCreateForm();
+                  setShowCreateModal(true);
+                }}
+              >
+                <IconPlus size={16} />
+                <span>+ Yangi Do'kon Ochish</span>
+              </button>
+              <div className="input-icon" style={{ minWidth: 200 }}>
                 <span className="input-icon-addon">
                   <IconSearch size={16} />
                 </span>
@@ -506,17 +605,56 @@ export function PlatformOwnerTab({
                       </div>
                     </td>
                     <td className="text-end">
-                      {onEnterStore && (
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-primary d-inline-flex align-items-center gap-1.5"
-                          onClick={() => onEnterStore(org)}
-                          title="Ushbu do'kon ichiga kirish (Owner ko'rinishi)"
-                        >
-                          <span>Ichiga kirish</span>
-                          <IconArrowRight size={14} />
-                        </button>
-                      )}
+                      <div className="d-flex align-items-center justify-content-end gap-1.5">
+                        {onEnterStore && (
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-primary d-inline-flex align-items-center gap-1.5 shadow-sm"
+                            onClick={() => onEnterStore(org)}
+                            title="Ushbu do'kon ichiga kirish (Owner ko'rinishi)"
+                          >
+                            <span>Ichiga kirish</span>
+                            <IconArrowRight size={14} />
+                          </button>
+                        )}
+                        {onUpdateStoreStatus && (
+                          <button
+                            type="button"
+                            className={`btn btn-sm btn-icon ${
+                              org.subscription_status === "active"
+                                ? "btn-outline-warning"
+                                : "btn-outline-success"
+                            }`}
+                            onClick={() =>
+                              onUpdateStoreStatus(
+                                org.id,
+                                org.subscription_status === "active" ? "suspended" : "active"
+                              )
+                            }
+                            title={
+                              org.subscription_status === "active"
+                                ? "Do'konni vaqtincha to'xtatish"
+                                : "Do'konni faollashtirish"
+                            }
+                          >
+                            {org.subscription_status === "active" ? (
+                              <IconPlayerPause size={14} />
+                            ) : (
+                              <IconPlayerPlay size={14} />
+                            )}
+                          </button>
+                        )}
+                        {onDeleteStore && org.id !== 1 && (
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-icon btn-outline-danger"
+                            onClick={() => onDeleteStore(org.id)}
+                            title="Do'konni butunlay o'chirish"
+                          >
+                            <IconTrash size={14} />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -858,6 +996,263 @@ export function PlatformOwnerTab({
                   {saveBusy ? "Saqlanmoqda..." : "Saqlash"}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: CREATE NEW STORE (TENANT ONBOARDING) */}
+      {showCreateModal && (
+        <div
+          className="modal modal-blur show d-block"
+          tabIndex={-1}
+          style={{ backgroundColor: "rgba(0,0,0,0.75)", zIndex: 1055 }}
+        >
+          <div className="modal-dialog modal-lg modal-dialog-centered">
+            <div className="modal-content shadow-lg border border-secondary border-opacity-25">
+              <div className="modal-header">
+                <div className="d-flex align-items-center gap-2">
+                  <div className="p-2 bg-primary-lt rounded-2">
+                    <IconBuildingSkyscraper size={20} className="text-primary" />
+                  </div>
+                  <div>
+                    <h5 className="modal-title fw-bold mb-0">Yangi Do'kon Ochish</h5>
+                    <p className="text-secondary small mb-0">
+                      Platforma doirasida yangi mustaqil savdo do'koni va botini ishga tushirish
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => setShowCreateModal(false)}
+                />
+              </div>
+
+              {createStoreSuccess ? (
+                <div className="modal-body p-4 text-center">
+                  <div className="mb-3">
+                    <span className="avatar avatar-xl bg-success-lt text-success rounded-circle">
+                      <IconCheck size={36} />
+                    </span>
+                  </div>
+                  <h3 className="text-white fw-bold mb-2">Do'kon Muvaffaqiyatli Ochildi!</h3>
+                  <p className="text-secondary mb-4">
+                    <strong>{createStoreSuccess.organization?.name}</strong> do'koni tizimda yaratildi va barcha sozlamalar ulandi.
+                  </p>
+
+                  <div className="card bg-dark border-secondary border-opacity-25 text-start p-3 mb-4">
+                    <div className="row g-2 small">
+                      <div className="col-sm-4 text-secondary">Do'kon ID & Slug:</div>
+                      <div className="col-sm-8 text-white font-monospace">
+                        #{createStoreSuccess.organization?.id} • {createStoreSuccess.organization?.slug}
+                      </div>
+                      <div className="col-sm-4 text-secondary">Egasi Pochtasi:</div>
+                      <div className="col-sm-8 text-white font-monospace">
+                        {createStoreSuccess.organization?.owner_email}
+                      </div>
+                      {createStoreSuccess.organization?.temporary_password && (
+                        <>
+                          <div className="col-sm-4 text-secondary">Vaqtincha Parol:</div>
+                          <div className="col-sm-8 text-warning font-monospace fw-bold">
+                            {createStoreSuccess.organization?.temporary_password}
+                          </div>
+                        </>
+                      )}
+                      <div className="col-sm-4 text-secondary">Tarif & Valyuta:</div>
+                      <div className="col-sm-8 text-info font-monospace">
+                        {createStoreSuccess.organization?.plan} ({createStoreSuccess.organization?.currency})
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="d-flex align-items-center justify-content-center gap-2">
+                    <button
+                      type="button"
+                      className="btn btn-outline-secondary"
+                      onClick={() => setShowCreateModal(false)}
+                    >
+                      Yopish
+                    </button>
+                    {onEnterStore && createStoreSuccess.organization && (
+                      <button
+                        type="button"
+                        className="btn btn-primary d-flex align-items-center gap-1.5"
+                        onClick={() => {
+                          setShowCreateModal(false);
+                          onEnterStore(createStoreSuccess.organization);
+                        }}
+                      >
+                        <span>Do'kon ichiga kirish</span>
+                        <IconArrowRight size={16} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <form onSubmit={handleCreateSubmit}>
+                  <div className="modal-body p-4 space-y-3">
+                    {createStoreError && (
+                      <div className="alert alert-danger d-flex align-items-center gap-2 py-2">
+                        <IconAlertCircle size={18} />
+                        <span>{createStoreError}</span>
+                      </div>
+                    )}
+
+                    <div className="row g-3">
+                      <div className="col-md-6">
+                        <label className="form-label required">Do'kon Nomi</label>
+                        <input
+                          type="text"
+                          className="form-control"
+                          placeholder="Masalan: Artel Elektronika"
+                          value={createStoreName}
+                          onChange={(e) => {
+                            setCreateStoreName(e.target.value);
+                            if (!createStoreSlug) {
+                              setCreateStoreSlug(
+                                e.target.value
+                                  .toLowerCase()
+                                  .replace(/[^a-z0-9]+/g, "-")
+                                  .replace(/^-|-$/g, "")
+                              );
+                            }
+                          }}
+                          required
+                        />
+                      </div>
+                      <div className="col-md-6">
+                        <label className="form-label required">Qisqa Identifikator (Slug)</label>
+                        <div className="input-group">
+                          <span className="input-group-text text-secondary small">/t/</span>
+                          <input
+                            type="text"
+                            className="form-control font-monospace"
+                            placeholder="artel"
+                            value={createStoreSlug}
+                            onChange={(e) => setCreateStoreSlug(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ""))}
+                            required
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="row g-3">
+                      <div className="col-md-6">
+                        <label className="form-label">Soha / Kategoriya</label>
+                        <select
+                          className="form-select"
+                          value={createStoreCategory}
+                          onChange={(e) => setCreateStoreCategory(e.target.value)}
+                        >
+                          <option value="Elektronika va Texnika">Elektronika va Texnika</option>
+                          <option value="Kiyim-kechak va Moda">Kiyim-kechak va Moda</option>
+                          <option value="Go'zallik va Parfyumeriya">Go'zallik va Parfyumeriya</option>
+                          <option value="Avto ehtiyot qismlar">Avto ehtiyot qismlar</option>
+                          <option value="Uy-ro'zg'or mollari">Uy-ro'zg'or mollari</option>
+                          <option value="Restoran va Kafelar">Restoran va Kafelar</option>
+                          <option value="Xizmat ko'rsatish">Xizmat ko'rsatish</option>
+                          <option value="Boshqa">Boshqa</option>
+                        </select>
+                      </div>
+                      <div className="col-md-3">
+                        <label className="form-label required">Tarif Rejasi</label>
+                        <select
+                          className="form-select"
+                          value={createStorePlan}
+                          onChange={(e) => setCreateStorePlan(e.target.value)}
+                        >
+                          <option value="start">START</option>
+                          <option value="pro">PRO (Tavsiya)</option>
+                          <option value="ultra">ULTRA</option>
+                        </select>
+                      </div>
+                      <div className="col-md-3">
+                        <label className="form-label required">Asosiy Valyuta</label>
+                        <select
+                          className="form-select"
+                          value={createStoreCurrency}
+                          onChange={(e) => setCreateStoreCurrency(e.target.value as "UZS" | "USD")}
+                        >
+                          <option value="UZS">UZS (so'm)</option>
+                          <option value="USD">USD ($)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <hr className="my-3 border-secondary border-opacity-15" />
+
+                    <div className="row g-3">
+                      <div className="col-md-6">
+                        <label className="form-label required">Do'kon Egasi Pochtasi (Email)</label>
+                        <input
+                          type="email"
+                          className="form-control"
+                          placeholder="owner@artel.uz"
+                          value={createStoreEmail}
+                          onChange={(e) => setCreateStoreEmail(e.target.value)}
+                          required
+                        />
+                      </div>
+                      <div className="col-md-6">
+                        <label className="form-label">Egasi Paroli (ixtiyoriy)</label>
+                        <input
+                          type="password"
+                          className="form-control"
+                          placeholder="Bo'sh qolsa avtomatik generatsiya qilinadi"
+                          value={createStorePassword}
+                          onChange={(e) => setCreateStorePassword(e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="mb-3">
+                      <label className="form-label d-flex align-items-center justify-content-between">
+                        <span>Telegram Bot Token (ixtiyoriy, keyin ham ulash mumkin)</span>
+                        <span className="badge bg-secondary-lt text-secondary">BotFather</span>
+                      </label>
+                      <input
+                        type="text"
+                        className="form-control font-monospace"
+                        placeholder="123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ..."
+                        value={createStoreBotToken}
+                        onChange={(e) => setCreateStoreBotToken(e.target.value)}
+                      />
+                      <small className="form-hint">
+                        Telegram'da @BotFather orqali olingan token. Kiritilsa, webhook avtomatik ulanadi.
+                      </small>
+                    </div>
+                  </div>
+
+                  <div className="modal-footer">
+                    <button
+                      type="button"
+                      className="btn btn-outline-secondary"
+                      onClick={() => setShowCreateModal(false)}
+                      disabled={createStoreBusy}
+                    >
+                      Bekor qilish
+                    </button>
+                    <button
+                      type="submit"
+                      className="btn btn-primary d-flex align-items-center gap-1.5"
+                      disabled={createStoreBusy}
+                    >
+                      {createStoreBusy ? (
+                        <>
+                          <IconRefresh size={16} className="spin" />
+                          <span>Do'kon ochilmoqda...</span>
+                        </>
+                      ) : (
+                        <>
+                          <IconPlus size={16} />
+                          <span>Do'konni Ochish</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              )}
             </div>
           </div>
         </div>
