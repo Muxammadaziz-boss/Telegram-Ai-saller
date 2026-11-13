@@ -5,10 +5,11 @@
    ========================================================================== */
 
 :root {
-  --tblr-font-sans-serif: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --tblr-font-sans-serif: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
 }
 
 body {
+  font-family: var(--tblr-font-sans-serif);
   font-feature-settings: "cv03", "cv04", "cv11";
 }
 
@@ -20,6 +21,16 @@ body {
   border-radius: var(--tblr-border-radius);
   z-index: 100;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+}
+
+.navbar-floating .dropdown-menu {
+  margin-top: 8px !important;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45) !important;
+}
+
+.page-header {
+  margin-top: 1.25rem;
+  margin-bottom: 1.5rem;
 }
 
 /* Smooth counter-clockwise spinning for refresh indicators (soat miliga qarama-qarshi) */
@@ -659,7 +670,7 @@ body {
     radial-gradient(circle at 50% 0%, rgba(0, 122, 255, 0.16) 0%, transparent 55%),
     radial-gradient(circle at 85% 25%, rgba(175, 82, 222, 0.1) 0%, transparent 45%),
     radial-gradient(circle at 15% 75%, rgba(48, 209, 88, 0.07) 0%, transparent 45%) !important;
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", sans-serif !important;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji" !important;
   letter-spacing: -0.01em;
 }
 
