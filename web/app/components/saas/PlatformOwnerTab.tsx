@@ -5,33 +5,27 @@ import {
   IconActivity,
   IconAlertCircle,
   IconArrowRight,
-  IconArrowUpRight,
   IconBuildingSkyscraper,
-  IconChartBar,
   IconCheck,
-  IconCoin,
   IconCpu,
   IconCreditCard,
   IconCrown,
-  IconDatabase,
-  IconFileText,
-  IconGauge,
+  IconHistory,
   IconPencil,
   IconPlus,
   IconRefresh,
   IconSearch,
-  IconServer,
-  IconShieldCheck,
+  IconShieldLock,
   IconTrash,
-  IconTrendingUp,
-  IconUserCheck,
   IconUsers,
-  IconX,
   IconPlayerPause,
   IconPlayerPlay,
-  IconExternalLink,
-  IconKey,
+  IconLayersLinked,
+  IconLayoutDashboard,
 } from "@tabler/icons-react";
+import { Card, CardHeader, CardTitle, CardContent } from "../ui/Card";
+import { Badge } from "../ui/Badge";
+import { Button } from "../ui/Button";
 
 export interface PlatformFinancialMetrics {
   mrr_usd: number;
@@ -201,8 +195,8 @@ export function PlatformOwnerTab({
     setSaveBusy(true);
     try {
       await onUpdatePlan(editingPlanCode, {
-        price_monthly: newMonthlyPrice,
-        price_yearly: newYearlyPrice,
+        monthly_price_usd: newMonthlyPrice,
+        yearly_price_usd: newYearlyPrice,
       });
       setEditingPlanCode(null);
     } finally {
@@ -213,8 +207,7 @@ export function PlatformOwnerTab({
   const filteredOrgs = organizations.filter(
     (o) =>
       o.name.toLowerCase().includes(storeSearch.toLowerCase()) ||
-      o.slug.toLowerCase().includes(storeSearch.toLowerCase()) ||
-      (o.category && o.category.toLowerCase().includes(storeSearch.toLowerCase()))
+      o.slug.toLowerCase().includes(storeSearch.toLowerCase())
   );
 
   const filteredUsers = usersList.filter(
@@ -223,157 +216,197 @@ export function PlatformOwnerTab({
       (u.full_name && u.full_name.toLowerCase().includes(userSearch.toLowerCase()))
   );
 
+  const subTabButtons: { id: typeof subTab; label: string; icon: any; count?: number }[] = [
+    { id: "overview", label: "Overview", icon: IconLayoutDashboard },
+    { id: "stores", label: "Do'konlar", icon: IconBuildingSkyscraper, count: organizations.length },
+    { id: "users", label: "Foydalanuvchilar", icon: IconUsers, count: usersList.length },
+    { id: "plans", label: "Tariflar & Narxlar", icon: IconLayersLinked },
+    { id: "usage", label: "AI Xarajati", icon: IconCpu },
+    { id: "system", label: "Tizim Holati", icon: IconShieldLock },
+    { id: "audit", label: "Audit Tarixi", icon: IconHistory },
+  ];
+
   return (
-    <div className="space-y-4">
-      {/* Platform Owner Header */}
-      <div className="card shadow-sm border border-secondary border-opacity-15 mb-3">
-        <div className="card-body p-3.5 d-flex flex-wrap align-items-center justify-content-between gap-3">
+    <div className="d-flex flex-column gap-4">
+      {/* Platform Owner Header & Navigation Banner */}
+      <div className="linear-card p-3.5 d-flex flex-column gap-3">
+        <div className="d-flex flex-wrap align-items-center justify-content-between gap-3">
           <div className="d-flex align-items-center gap-3">
             <div
-              className="d-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
+              className="d-flex align-items-center justify-content-center rounded-2 flex-shrink-0"
               style={{
-                width: 48,
-                height: 48,
-                background: "linear-gradient(135deg, rgba(234, 179, 8, 0.2) 0%, rgba(202, 138, 4, 0.1) 100%)",
-                border: "1px solid rgba(234, 179, 8, 0.35)",
+                width: "44px",
+                height: "44px",
+                background: "rgba(245, 158, 11, 0.12)",
+                border: "1px solid var(--warning-border)",
               }}
             >
-              <IconCrown size={26} className="text-warning" />
+              <IconCrown size={22} style={{ color: "var(--warning)" }} />
             </div>
             <div>
               <div className="d-flex align-items-center gap-2 flex-wrap">
-                <h3 className="card-title fw-bold mb-0 text-white" style={{ fontSize: "1.15rem" }}>
+                <h2 className="fw-bold mb-0 text-primary" style={{ fontSize: "1.15rem", letterSpacing: "-0.01em" }}>
                   Platforma Egasi Boshqaruv Markazi
-                </h3>
-                <span className="badge bg-yellow text-dark fw-bold" style={{ fontSize: "11px" }}>
-                  Platform Owner
-                </span>
-                <span className="badge bg-primary-lt text-primary fw-medium font-monospace" style={{ fontSize: "11px" }}>
-                  {subTab === "overview" && "Umumiy Ko'rinish"}
-                  {subTab === "stores" && "Do'konlar Ro'yxati"}
-                  {subTab === "users" && "Foydalanuvchilar"}
-                  {subTab === "plans" && "Tariflar & Narxlar"}
-                  {subTab === "usage" && "AI Xarajati & Usage"}
-                  {subTab === "system" && "Tizim Holati"}
-                  {subTab === "audit" && "Audit Tarixi"}
-                </span>
+                </h2>
+                <Badge variant="warning">Platform Owner</Badge>
+                <Badge variant="accent">
+                  {(metrics?.total_organizations ?? organizations.length) || 0} ta do'kon
+                </Badge>
               </div>
               <p className="text-secondary small mb-0 mt-0.5">
-                Barcha do'konlar portfeli, MRR daromad, AI resurslari va har bir do'kon ichiga to'liq kirish (impersonation).
+                Barcha mustaqil do'konlar portfeli, umumiy MRR, AI sarflari va har bir tashkilot ichiga kirish (impersonation).
               </p>
             </div>
           </div>
 
           <div className="d-flex align-items-center gap-2 flex-shrink-0">
-            <span className="badge bg-body-secondary text-secondary font-monospace d-none d-sm-inline-flex align-items-center gap-1 py-1.5 px-2.5">
-              <IconBuildingSkyscraper size={14} className="text-warning" />
-              <span>{(metrics?.total_organizations ?? organizations.length) || 0} ta do'kon faol</span>
-            </span>
-
-            <button
-              type="button"
-              className="btn btn-primary d-flex align-items-center gap-1.5 shadow-sm fw-semibold"
+            <Button
+              variant="primary"
+              size="sm"
+              icon={<IconPlus size={15} />}
               onClick={() => {
                 resetCreateForm();
                 setShowCreateModal(true);
               }}
-              style={{
-                background: "linear-gradient(135deg, #007aff 0%, #0056b3 100%)",
-                border: "none",
-              }}
             >
-              <IconPlus size={16} />
-              <span>+ Yangi Do'kon Ochish</span>
-            </button>
+              + Yangi Do'kon Ochish
+            </Button>
 
-            <button
-              type="button"
-              className="btn btn-outline-secondary d-flex align-items-center gap-1.5"
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<IconRefresh size={14} className={loading ? "spin" : ""} />}
               onClick={onRefresh}
               disabled={loading}
               title="Ma'lumotlarni yangilash"
             >
-              <IconRefresh size={15} className={loading ? "spin" : ""} />
-              <span className="d-none d-md-inline">Yangilash</span>
-            </button>
+              Yangilash
+            </Button>
           </div>
+        </div>
+
+        {/* Sub-tab Pill Navigation */}
+        <div
+          className="d-flex align-items-center gap-1 overflow-x-auto pt-2 border-top custom-scrollbar"
+          style={{ borderColor: "var(--border-subtle)" }}
+        >
+          {subTabButtons.map((tab) => {
+            const Icon = tab.icon;
+            const active = subTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => onSwitchSubTab && onSwitchSubTab(tab.id)}
+                className={`d-flex align-items-center gap-1.5 px-3 py-1.5 rounded-1 border-0 small fw-medium transition-fast text-nowrap ${
+                  active ? "text-white" : "text-secondary"
+                }`}
+                style={{
+                  fontSize: "0.8rem",
+                  cursor: "pointer",
+                  backgroundColor: active ? "var(--accent)" : "transparent",
+                  color: active ? "#ffffff" : "var(--text-secondary)",
+                }}
+              >
+                <Icon size={15} style={{ color: active ? "#ffffff" : "inherit" }} />
+                <span>{tab.label}</span>
+                {tab.count !== undefined && (
+                  <span
+                    className="badge rounded-pill"
+                    style={{
+                      fontSize: "0.65rem",
+                      padding: "1px 6px",
+                      backgroundColor: active ? "rgba(255,255,255,0.25)" : "var(--bg-surface-hover)",
+                      color: active ? "#ffffff" : "var(--text-secondary)",
+                    }}
+                  >
+                    {tab.count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
       </div>
 
       {/* SUBTAB: OVERVIEW */}
       {subTab === "overview" && (
-        <>
-          {/* Top Financial KPI Row (MRR, ARR, Margin, AI Cost) */}
+        <div className="d-flex flex-column gap-4">
+          {/* Top 4 Financial KPI Cards */}
           <div className="row g-3">
-            {/* MRR Card */}
-            <div className="col-sm-6 col-lg-3">
-              <div className="card shadow-sm border border-secondary border-opacity-15 h-100">
-                <div className="card-body p-3.5">
+            <div className="col-12 col-sm-6 col-lg-3">
+              <div className="linear-card p-3.5 h-100 d-flex flex-column justify-content-between">
+                <div>
                   <div className="d-flex align-items-center justify-content-between mb-2">
-                    <span className="text-secondary small fw-bold text-uppercase">Oylik Takroriy Daromad (MRR)</span>
-                    <span className="badge bg-green-lt text-green">Real-time</span>
+                    <span className="text-secondary small fw-bold text-uppercase" style={{ fontSize: "0.72rem", letterSpacing: "0.04em" }}>
+                      Oylik Takroriy Daromad (MRR)
+                    </span>
+                    <Badge variant="success">Real-time</Badge>
                   </div>
-                  <div className="fs-1 fw-bold text-success font-monospace mb-1">
+                  <div className="fs-2 fw-bold font-monospace mb-1" style={{ color: "var(--success)" }}>
                     ${metrics?.mrr_usd?.toFixed(2) || "0.00"}
                   </div>
-                  <div className="text-secondary small">
-                    Yillik prognoz (ARR): <strong className="text-white font-monospace">${metrics?.arr_usd?.toFixed(2) || "0.00"}</strong>
-                  </div>
+                </div>
+                <div className="text-secondary small mt-2 pt-2 border-top" style={{ borderColor: "var(--border-subtle)", fontSize: "0.78rem" }}>
+                  Yillik prognoz (ARR): <strong className="text-primary font-monospace">${metrics?.arr_usd?.toFixed(2) || "0.00"}</strong>
                 </div>
               </div>
             </div>
 
-            {/* Gross Margin % */}
-            <div className="col-sm-6 col-lg-3">
-              <div className="card shadow-sm border border-secondary border-opacity-15 h-100">
-                <div className="card-body p-3.5">
+            <div className="col-12 col-sm-6 col-lg-3">
+              <div className="linear-card p-3.5 h-100 d-flex flex-column justify-content-between">
+                <div>
                   <div className="d-flex align-items-center justify-content-between mb-2">
-                    <span className="text-secondary small fw-bold text-uppercase">Yalpi Foyda Marjasi</span>
-                    <span className="badge bg-primary-lt text-primary">Margin</span>
+                    <span className="text-secondary small fw-bold text-uppercase" style={{ fontSize: "0.72rem", letterSpacing: "0.04em" }}>
+                      Yalpi Foyda Marjasi
+                    </span>
+                    <Badge variant="accent">Margin</Badge>
                   </div>
-                  <div className="fs-1 fw-bold text-white font-monospace mb-1">
+                  <div className="fs-2 fw-bold font-monospace mb-1 text-primary">
                     {metrics?.gross_margin_percent?.toFixed(1) || "100"}%
                   </div>
-                  <div className="text-secondary small">
-                    ARPU: <strong className="text-info font-monospace">${metrics?.arpu_usd?.toFixed(2) || "0.00"}</strong> / mijoz
-                  </div>
+                </div>
+                <div className="text-secondary small mt-2 pt-2 border-top" style={{ borderColor: "var(--border-subtle)", fontSize: "0.78rem" }}>
+                  ARPU: <strong className="font-monospace" style={{ color: "var(--info)" }}>${metrics?.arpu_usd?.toFixed(2) || "0.00"}</strong> / mijoz
                 </div>
               </div>
             </div>
 
-            {/* Total AI Compute Cost */}
-            <div className="col-sm-6 col-lg-3">
-              <div className="card shadow-sm border border-secondary border-opacity-15 h-100">
-                <div className="card-body p-3.5">
+            <div className="col-12 col-sm-6 col-lg-3">
+              <div className="linear-card p-3.5 h-100 d-flex flex-column justify-content-between">
+                <div>
                   <div className="d-flex align-items-center justify-content-between mb-2">
-                    <span className="text-secondary small fw-bold text-uppercase">Jami AI Xarajati</span>
-                    <span className="badge bg-orange-lt text-orange">Compute Cost</span>
+                    <span className="text-secondary small fw-bold text-uppercase" style={{ fontSize: "0.72rem", letterSpacing: "0.04em" }}>
+                      Jami AI Xarajati
+                    </span>
+                    <Badge variant="warning">Compute Cost</Badge>
                   </div>
-                  <div className="fs-1 fw-bold text-warning font-monospace mb-1">
+                  <div className="fs-2 fw-bold font-monospace mb-1" style={{ color: "var(--warning)" }}>
                     ${metrics?.total_ai_cost_usd?.toFixed(2) || "0.00"}
                   </div>
-                  <div className="text-secondary small">
-                    Bu oy: <strong className="text-white font-monospace">{metrics?.total_ai_messages_this_month?.toLocaleString() || "0"}</strong> ta AI xabari
-                  </div>
+                </div>
+                <div className="text-secondary small mt-2 pt-2 border-top" style={{ borderColor: "var(--border-subtle)", fontSize: "0.78rem" }}>
+                  Bu oy: <strong className="text-primary font-monospace">{metrics?.total_ai_messages_this_month?.toLocaleString() || "0"}</strong> ta xabar
                 </div>
               </div>
             </div>
 
-            {/* Tenants Portfolio Count */}
-            <div className="col-sm-6 col-lg-3">
-              <div className="card shadow-sm border border-secondary border-opacity-15 h-100">
-                <div className="card-body p-3.5">
+            <div className="col-12 col-sm-6 col-lg-3">
+              <div className="linear-card p-3.5 h-100 d-flex flex-column justify-content-between">
+                <div>
                   <div className="d-flex align-items-center justify-content-between mb-2">
-                    <span className="text-secondary small fw-bold text-uppercase">Do'konlar Soni</span>
-                    <span className="badge bg-blue-lt text-blue">Tenants</span>
+                    <span className="text-secondary small fw-bold text-uppercase" style={{ fontSize: "0.72rem", letterSpacing: "0.04em" }}>
+                      Do'konlar Soni
+                    </span>
+                    <Badge variant="info">Tenants</Badge>
                   </div>
-                  <div className="fs-1 fw-bold text-white font-monospace mb-1">
+                  <div className="fs-2 fw-bold font-monospace mb-1 text-primary">
                     {(metrics?.total_organizations ?? organizations.length) || 0}{" "}
-                    <span className="text-secondary small fs-4 fw-normal">ta</span>
+                    <span className="text-secondary small fs-5 fw-normal">ta</span>
                   </div>
-                  <div className="text-secondary small">
-                    Faol: <strong className="text-success">{(metrics?.active_subscriptions ?? organizations.filter(o => o.subscription_status === "active").length) || 0} ta</strong> • Sinov: {metrics?.trial_organizations || 0} ta
-                  </div>
+                </div>
+                <div className="text-secondary small mt-2 pt-2 border-top" style={{ borderColor: "var(--border-subtle)", fontSize: "0.78rem" }}>
+                  Faol: <strong style={{ color: "var(--success)" }}>{(metrics?.active_subscriptions ?? organizations.filter(o => o.subscription_status === "active").length) || 0} ta</strong> • Sinov: {metrics?.trial_organizations || 0} ta
                 </div>
               </div>
             </div>
@@ -381,25 +414,25 @@ export function PlatformOwnerTab({
 
           {/* Quick Stores Overview & Plan Distribution */}
           <div className="row g-3">
-            <div className="col-lg-8">
-              <div className="card shadow-sm border border-secondary border-opacity-15 h-100">
-                <div className="card-header py-3 px-4 d-flex align-items-center justify-content-between">
-                  <div>
-                    <h4 className="card-title fw-bold mb-0">Eng Faol Do'konlar</h4>
-                    <span className="text-secondary small">So'nggi faollik va AI resurs sarfi</span>
-                  </div>
-                  {onSwitchSubTab && (
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-ghost-primary"
-                      onClick={() => onSwitchSubTab("stores")}
-                    >
-                      Barcha do'konlar ➜
-                    </button>
-                  )}
-                </div>
+            <div className="col-12 col-lg-8">
+              <Card>
+                <CardHeader
+                  actions={
+                    onSwitchSubTab && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onSwitchSubTab("stores")}
+                      >
+                        Barcha do'konlar ➜
+                      </Button>
+                    )
+                  }
+                >
+                  <CardTitle>Eng Faol Do'konlar</CardTitle>
+                </CardHeader>
                 <div className="table-responsive">
-                  <table className="table table-vcenter card-table table-hover">
+                  <table className="linear-table">
                     <thead>
                       <tr>
                         <th>Do'kon</th>
@@ -411,55 +444,45 @@ export function PlatformOwnerTab({
                       </tr>
                     </thead>
                     <tbody>
-                      {loading && organizations.length === 0 ? (
+                      {organizations.length === 0 ? (
                         <tr>
                           <td colSpan={6} className="text-center py-4 text-secondary">
-                            <IconRefresh size={18} className="spin me-2" />
-                            Ma'lumotlar yuklanmoqda...
-                          </td>
-                        </tr>
-                      ) : organizations.length === 0 ? (
-                        <tr>
-                          <td colSpan={6} className="text-center py-4 text-secondary">
-                            <IconBuildingSkyscraper size={28} className="opacity-40 mb-2 d-block mx-auto text-warning" />
                             Hozircha faol do'konlar mavjud emas.
-                            <div className="mt-2">
-                              <button
-                                type="button"
-                                className="btn btn-sm btn-primary"
-                                onClick={() => {
-                                  resetCreateForm();
-                                  setShowCreateModal(true);
-                                }}
-                              >
-                                + Yangi Do'kon Ochish
-                              </button>
-                            </div>
                           </td>
                         </tr>
                       ) : (
                         organizations.slice(0, 5).map((org) => (
                           <tr key={org.id}>
                             <td>
-                              <div className="fw-bold text-white">{org.name}</div>
-                              <div className="text-secondary small font-monospace">{org.slug}</div>
+                              <div className="fw-semibold text-primary">{org.name}</div>
+                              <div className="text-secondary small font-monospace" style={{ fontSize: "0.75rem" }}>
+                                {org.slug}
+                              </div>
                             </td>
                             <td>
-                              <span className="badge bg-azure-lt font-monospace">{org.plan}</span>
+                              <Badge variant="accent">{org.plan.toUpperCase()}</Badge>
                             </td>
-                            <td className="font-monospace text-success fw-bold">${org.monthly_revenue_usd}</td>
-                            <td className="font-monospace text-warning">${org.monthly_ai_cost_usd}</td>
-                            <td className="font-monospace text-white">{org.gross_margin_percent}%</td>
+                            <td className="font-monospace fw-bold" style={{ color: "var(--success)" }}>
+                              ${org.monthly_revenue_usd}
+                            </td>
+                            <td className="font-monospace" style={{ color: "var(--warning)" }}>
+                              ${org.monthly_ai_cost_usd}
+                            </td>
+                            <td>
+                              <span className="font-monospace fw-semibold text-primary">
+                                {org.gross_margin_percent}%
+                              </span>
+                            </td>
                             <td className="text-end">
                               {onEnterStore && (
-                                <button
-                                  type="button"
-                                  className="btn btn-sm btn-primary d-inline-flex align-items-center gap-1 shadow-sm"
+                                <Button
+                                  variant="primary"
+                                  size="sm"
+                                  icon={<IconArrowRight size={14} />}
                                   onClick={() => onEnterStore(org)}
                                 >
-                                  <span>Kirish</span>
-                                  <IconArrowRight size={14} />
-                                </button>
+                                  Kirish
+                                </Button>
                               )}
                             </td>
                           </tr>
@@ -468,111 +491,88 @@ export function PlatformOwnerTab({
                     </tbody>
                   </table>
                 </div>
-              </div>
+              </Card>
             </div>
 
-            <div className="col-lg-4">
-              <div className="card shadow-sm border border-secondary border-opacity-15 h-100">
-                <div className="card-header py-3 px-4">
-                  <h4 className="card-title fw-bold mb-0">Tariflar Taqsimoti</h4>
-                </div>
-                <div className="card-body p-4">
-                  <div className="space-y-3">
+            <div className="col-12 col-lg-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Tariflar Taqsimoti</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="d-flex flex-column gap-3">
                     {(() => {
-                      const distribution =
-                        metrics?.plan_distribution ||
-                        organizations.reduce(
-                          (acc: Record<string, number>, o) => {
-                            const p = (o.plan || "start").toLowerCase();
-                            acc[p] = (acc[p] || 0) + 1;
-                            return acc;
-                          },
-                          { start: 0, pro: 0, ultra: 0 }
-                        );
-                      const total = Math.max(1, metrics?.total_organizations || organizations.length || 1);
-                      return Object.entries(distribution).map(([plan, count]) => (
-                        <div key={plan}>
-                          <div className="d-flex align-items-center justify-content-between mb-1">
-                            <span className="fw-semibold text-uppercase font-monospace">{plan}</span>
-                            <span className="badge bg-secondary-lt font-monospace">{count} ta</span>
-                          </div>
-                          <div className="progress progress-sm">
+                      const dist = metrics?.plan_distribution || {};
+                      const plans = ["start", "pro", "ultra"];
+                      const total = Object.values(dist).reduce((a, b) => a + (b as number), 0) || 1;
+                      return plans.map((plan) => {
+                        const count = dist[plan] || (organizations.filter(o => o.plan.toLowerCase() === plan).length) || 0;
+                        const pct = Math.round(((count as number) / total) * 100);
+                        return (
+                          <div key={plan}>
+                            <div className="d-flex align-items-center justify-content-between small mb-1">
+                              <span className="fw-semibold text-uppercase font-monospace text-primary">{plan}</span>
+                              <span className="text-secondary font-monospace">{count} ta ({pct}%)</span>
+                            </div>
                             <div
-                              className={`progress-bar ${
-                                plan === "ultra" ? "bg-purple" : plan === "pro" ? "bg-primary" : "bg-info"
-                              }`}
-                              style={{
-                                width: `${Math.max(
-                                  count > 0 ? 15 : 0,
-                                  ((count as number) / total) * 100
-                                )}%`,
-                              }}
-                            />
+                              className="rounded-full overflow-hidden"
+                              style={{ height: "6px", backgroundColor: "var(--border-subtle)" }}
+                            >
+                              <div
+                                style={{
+                                  width: `${Math.max(count > 0 ? 8 : 0, pct)}%`,
+                                  height: "100%",
+                                  backgroundColor: plan === "ultra" ? "#a855f7" : plan === "pro" ? "var(--accent)" : "var(--info)",
+                                  borderRadius: "9999px",
+                                }}
+                              />
+                            </div>
                           </div>
-                        </div>
-                      ));
+                        );
+                      });
                     })()}
                   </div>
-                </div>
-              </div>
+                </CardContent>
+              </Card>
             </div>
           </div>
-        </>
+        </div>
       )}
 
       {/* SUBTAB: STORES */}
       {subTab === "stores" && (
-        <div className="card shadow-sm border border-secondary border-opacity-15">
-          <div className="card-header py-3 px-4 d-flex flex-wrap align-items-center justify-content-between gap-3">
-            <div>
-              <h3 className="card-title fw-bold mb-0">Barcha Do'konlar (Tenants)</h3>
-              <span className="text-secondary small">
-                Har bir do'konga kirish (impersonate) va uning real ma'lumotlarini kuzatish
-              </span>
-            </div>
-            <div className="d-flex align-items-center gap-2">
-              <button
-                type="button"
-                className="btn btn-primary btn-sm d-flex align-items-center gap-1.5 shadow-sm fw-semibold"
-                onClick={() => {
-                  resetCreateForm();
-                  setShowCreateModal(true);
-                }}
-              >
-                <IconPlus size={16} />
-                <span>+ Yangi Do'kon Ochish</span>
-              </button>
-              <div className="input-icon" style={{ minWidth: 200 }}>
-                <span className="input-icon-addon">
-                  <IconSearch size={16} />
-                </span>
-                <input
-                  type="text"
-                  className="form-control form-control-sm"
-                  placeholder="Do'kon nomi yoki slug..."
-                  value={storeSearch}
-                  onChange={(e) => setStoreSearch(e.target.value)}
-                />
+        <Card>
+          <CardHeader
+            actions={
+              <div className="d-flex align-items-center gap-2">
+                <div style={{ minWidth: "220px" }}>
+                  <input
+                    type="text"
+                    className="linear-input"
+                    placeholder="Do'kon nomi yoki slug..."
+                    value={storeSearch}
+                    onChange={(e) => setStoreSearch(e.target.value)}
+                  />
+                </div>
+                <Badge variant="accent">{filteredOrgs.length} ta do'kon</Badge>
               </div>
-              <span className="badge bg-primary-lt font-monospace">
-                {filteredOrgs.length} ta do'kon
-              </span>
-            </div>
-          </div>
-
+            }
+          >
+            <CardTitle>Barcha Do'konlar (Tenants Portfolio)</CardTitle>
+          </CardHeader>
           <div className="table-responsive">
-            <table className="table table-vcenter card-table table-hover">
+            <table className="linear-table">
               <thead>
                 <tr>
-                  <th style={{ width: "24%" }}>Do'kon Nomi</th>
+                  <th>Do'kon Nomi</th>
                   <th>Sohasi</th>
                   <th>Tarif</th>
-                  <th>Obuna Holati</th>
+                  <th>Obuna</th>
                   <th>Suhbatlar</th>
                   <th>Oylik Daromad</th>
                   <th>AI Xarajati</th>
-                  <th>Marja (%)</th>
-                  <th className="text-end">Harakat</th>
+                  <th>Marja</th>
+                  <th className="text-end">Harakatlar</th>
                 </tr>
               </thead>
               <tbody>
@@ -580,69 +580,71 @@ export function PlatformOwnerTab({
                   <tr key={org.id}>
                     <td>
                       <div className="d-flex align-items-center gap-2">
-                        <div className="p-1.5 bg-primary-lt rounded text-primary">
+                        <div
+                          className="d-flex align-items-center justify-content-center rounded-2 flex-shrink-0"
+                          style={{
+                            width: "28px",
+                            height: "28px",
+                            backgroundColor: "var(--accent-subtle)",
+                            color: "var(--accent-text)",
+                          }}
+                        >
                           <IconBuildingSkyscraper size={16} />
                         </div>
                         <div>
-                          <div className="fw-bold text-white">{org.name}</div>
-                          <div className="text-secondary small font-monospace">id: #{org.id} • {org.slug}</div>
+                          <div className="fw-semibold text-primary">{org.name}</div>
+                          <div className="text-secondary small font-monospace" style={{ fontSize: "0.72rem" }}>
+                            #{org.id} • {org.slug}
+                          </div>
                         </div>
                       </div>
                     </td>
                     <td className="text-secondary small">{org.category || "Retail"}</td>
                     <td>
-                      <span className="badge bg-azure-lt font-monospace fw-bold">{org.plan}</span>
+                      <Badge variant="accent">{org.plan.toUpperCase()}</Badge>
                     </td>
                     <td>
-                      <span
-                        className={`badge small ${
+                      <Badge
+                        variant={
                           org.subscription_status === "active"
-                            ? "bg-green-lt text-green"
+                            ? "success"
                             : org.subscription_status === "trialing"
-                            ? "bg-blue-lt text-blue"
-                            : "bg-danger-lt text-danger"
-                        }`}
+                            ? "info"
+                            : "danger"
+                        }
                       >
                         {org.subscription_status}
-                      </span>
+                      </Badge>
                     </td>
                     <td className="font-monospace text-secondary small">
                       {org.conversations_count ?? "—"} ta
                     </td>
-                    <td className="font-monospace fw-bold text-success">${org.monthly_revenue_usd}</td>
-                    <td className="font-monospace text-warning">${org.monthly_ai_cost_usd}</td>
-                    <td>
-                      <div className="d-flex align-items-center gap-2">
-                        <span className="font-monospace fw-bold text-white small">{org.gross_margin_percent}%</span>
-                        <div className="progress progress-xs w-100" style={{ maxWidth: 50 }}>
-                          <div
-                            className={`progress-bar ${org.gross_margin_percent >= 50 ? "bg-success" : "bg-warning"}`}
-                            style={{ width: `${Math.max(10, Math.min(100, org.gross_margin_percent))}%` }}
-                          />
-                        </div>
-                      </div>
+                    <td className="font-monospace fw-bold" style={{ color: "var(--success)" }}>
+                      ${org.monthly_revenue_usd}
+                    </td>
+                    <td className="font-monospace" style={{ color: "var(--warning)" }}>
+                      ${org.monthly_ai_cost_usd}
+                    </td>
+                    <td className="font-monospace fw-semibold text-primary small">
+                      {org.gross_margin_percent}%
                     </td>
                     <td className="text-end">
                       <div className="d-flex align-items-center justify-content-end gap-1.5">
                         {onEnterStore && (
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-primary d-inline-flex align-items-center gap-1.5 shadow-sm"
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            icon={<IconArrowRight size={14} />}
                             onClick={() => onEnterStore(org)}
-                            title="Ushbu do'kon ichiga kirish (Owner ko'rinishi)"
+                            title="Do'kon ichiga kirish"
                           >
-                            <span>Ichiga kirish</span>
-                            <IconArrowRight size={14} />
-                          </button>
+                            Kirish
+                          </Button>
                         )}
                         {onUpdateStoreStatus && (
                           <button
                             type="button"
-                            className={`btn btn-sm btn-icon ${
-                              org.subscription_status === "active"
-                                ? "btn-outline-warning"
-                                : "btn-outline-success"
-                            }`}
+                            className="linear-btn linear-btn-secondary py-1 px-2"
                             onClick={() =>
                               onUpdateStoreStatus(
                                 org.id,
@@ -656,18 +658,18 @@ export function PlatformOwnerTab({
                             }
                           >
                             {org.subscription_status === "active" ? (
-                              <IconPlayerPause size={14} />
+                              <IconPlayerPause size={14} style={{ color: "var(--warning)" }} />
                             ) : (
-                              <IconPlayerPlay size={14} />
+                              <IconPlayerPlay size={14} style={{ color: "var(--success)" }} />
                             )}
                           </button>
                         )}
                         {onDeleteStore && org.id !== 1 && (
                           <button
                             type="button"
-                            className="btn btn-sm btn-icon btn-outline-danger"
+                            className="linear-btn linear-btn-danger py-1 px-2"
                             onClick={() => onDeleteStore(org.id)}
-                            title="Do'konni butunlay o'chirish"
+                            title="Do'konni o'chirish"
                           >
                             <IconTrash size={14} />
                           </button>
@@ -686,33 +688,29 @@ export function PlatformOwnerTab({
               </tbody>
             </table>
           </div>
-        </div>
+        </Card>
       )}
 
       {/* SUBTAB: USERS */}
       {subTab === "users" && (
-        <div className="card shadow-sm border border-secondary border-opacity-15">
-          <div className="card-header py-3 px-4 d-flex align-items-center justify-content-between">
-            <div>
-              <h3 className="card-title fw-bold mb-0">Platforma Foydalanuvchilari</h3>
-              <span className="text-secondary small">Tizimda ro'yxatdan o'tgan barcha akkauntlar</span>
-            </div>
-            <div className="input-icon" style={{ minWidth: 240 }}>
-              <span className="input-icon-addon">
-                <IconSearch size={16} />
-              </span>
-              <input
-                type="text"
-                className="form-control form-control-sm"
-                placeholder="Email yoki ism..."
-                value={userSearch}
-                onChange={(e) => setUserSearch(e.target.value)}
-              />
-            </div>
-          </div>
-
+        <Card>
+          <CardHeader
+            actions={
+              <div style={{ minWidth: "220px" }}>
+                <input
+                  type="text"
+                  className="linear-input"
+                  placeholder="Email yoki ism bo'yicha qidirish..."
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                />
+              </div>
+            }
+          >
+            <CardTitle>Platforma Foydalanuvchilari</CardTitle>
+          </CardHeader>
           <div className="table-responsive">
-            <table className="table table-vcenter card-table table-hover">
+            <table className="linear-table">
               <thead>
                 <tr>
                   <th>Foydalanuvchi</th>
@@ -726,14 +724,9 @@ export function PlatformOwnerTab({
                 {filteredUsers.map((u) => (
                   <tr key={u.id}>
                     <td>
-                      <div className="d-flex align-items-center gap-2">
-                        <div className="p-1.5 bg-blue-lt rounded">
-                          <IconUsers size={16} />
-                        </div>
-                        <div>
-                          <div className="fw-bold text-white">{u.full_name || u.email}</div>
-                          <div className="text-secondary small font-monospace">{u.email}</div>
-                        </div>
+                      <div className="fw-semibold text-primary">{u.full_name || u.email}</div>
+                      <div className="text-secondary small font-monospace" style={{ fontSize: "0.75rem" }}>
+                        {u.email}
                       </div>
                     </td>
                     <td className="font-monospace text-secondary small">
@@ -741,17 +734,15 @@ export function PlatformOwnerTab({
                     </td>
                     <td>
                       {u.is_platform_owner ? (
-                        <span className="badge bg-yellow text-dark fw-bold">Platform Owner</span>
+                        <Badge variant="warning">Platform Owner</Badge>
                       ) : (
-                        <span className="badge bg-secondary-lt">User</span>
+                        <Badge variant="default">User</Badge>
                       )}
                     </td>
                     <td>
-                      {u.is_active ? (
-                        <span className="badge bg-green-lt text-green">Faol</span>
-                      ) : (
-                        <span className="badge bg-danger-lt text-danger">Nofaol</span>
-                      )}
+                      <Badge variant={u.is_active ? "success" : "danger"}>
+                        {u.is_active ? "Faol" : "Nofaol"}
+                      </Badge>
                     </td>
                     <td className="text-secondary small font-monospace">
                       {u.created_at ? new Date(u.created_at).toLocaleDateString() : "—"}
@@ -768,162 +759,151 @@ export function PlatformOwnerTab({
               </tbody>
             </table>
           </div>
-        </div>
+        </Card>
       )}
 
       {/* SUBTAB: PLANS */}
       {subTab === "plans" && (
-        <div className="card shadow-sm border border-secondary border-opacity-15">
-          <div className="card-header py-3 px-4 d-flex align-items-center justify-content-between">
-            <div>
-              <h3 className="card-title fw-bold mb-0">Tariflar Narxi va Limitlarini Sozlash</h3>
-              <span className="text-secondary small">Platforma egasi barcha tariflarni shu yerdan boshqara oladi</span>
-            </div>
-            <span className="badge bg-yellow-lt text-warning">Dynamic Config</span>
-          </div>
-          <div className="card-body p-4">
+        <Card>
+          <CardHeader actions={<Badge variant="warning">Dynamic Config</Badge>}>
+            <CardTitle>Tariflar Narxi va Limitlarini Sozlash</CardTitle>
+          </CardHeader>
+          <CardContent>
             <div className="row g-3">
               {[
                 { code: "start", name: "START", defaultM: 19, defaultY: 190, desc: "Kichik biznes uchun boshlang'ich tarif" },
                 { code: "pro", name: "PRO", defaultM: 59, defaultY: 590, desc: "Eng ommabop tarif — jamoa va to'liq AI funksiyalari" },
                 { code: "ultra", name: "ULTRA", defaultM: 149, defaultY: 1490, desc: "Katta korxonalar uchun cheksiz imkoniyatlar" },
               ].map((p) => (
-                <div key={p.code} className="col-md-4">
-                  <div className="p-3.5 rounded bg-body-tertiary border border-secondary border-opacity-15 h-100 d-flex flex-column justify-content-between">
+                <div key={p.code} className="col-12 col-md-4">
+                  <div className="linear-card p-3.5 h-100 d-flex flex-column justify-content-between">
                     <div>
                       <div className="d-flex align-items-center justify-content-between mb-2">
-                        <span className="fs-3 fw-bold text-white font-monospace">{p.name}</span>
-                        <span className="badge bg-secondary-lt font-monospace text-uppercase">{p.code}</span>
+                        <span className="fs-4 fw-bold font-monospace text-primary">{p.name}</span>
+                        <Badge variant="accent">{p.code.toUpperCase()}</Badge>
                       </div>
                       <p className="text-secondary small mb-3">{p.desc}</p>
-                      <div className="small text-secondary mb-1">
-                        Oylik: <strong className="text-white">${p.defaultM}/oy</strong> • Yillik: <strong className="text-white">${p.defaultY}/yil</strong>
+                      <div className="small text-secondary mb-3">
+                        Oylik: <strong className="text-primary">${p.defaultM}/oy</strong> • Yillik: <strong className="text-primary">${p.defaultY}/yil</strong>
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      className="btn btn-outline-primary btn-sm w-100 d-flex align-items-center justify-content-center gap-1.5 mt-3"
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      icon={<IconPencil size={14} />}
                       onClick={() => {
                         setEditingPlanCode(p.code);
                         setNewMonthlyPrice(p.defaultM);
                         setNewYearlyPrice(p.defaultY);
                       }}
                     >
-                      <IconPencil size={14} />
-                      <span>Narxni Tahrirlash</span>
-                    </button>
+                      Narxni Tahrirlash
+                    </Button>
                   </div>
                 </div>
               ))}
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       )}
 
-      {/* SUBTAB: USAGE (AI Xarajatlari) */}
+      {/* SUBTAB: USAGE */}
       {subTab === "usage" && (
-        <div className="card shadow-sm border border-secondary border-opacity-15">
-          <div className="card-header py-3 px-4">
-            <h3 className="card-title fw-bold mb-0">Platforma AI LLM Xarajatlari va Tokenlar</h3>
-            <span className="text-secondary small">Joriy oyda barcha do'konlar bo'yicha ishlatilgan hisoblash resurslari</span>
-          </div>
-          <div className="card-body p-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Platforma AI LLM Xarajatlari va Tokenlar</CardTitle>
+          </CardHeader>
+          <CardContent>
             <div className="row g-3">
-              <div className="col-md-6">
-                <div className="p-3.5 rounded bg-body-tertiary border border-secondary border-opacity-15">
-                  <div className="text-secondary small fw-bold text-uppercase mb-2">Jami Hisoblangan Xarajat</div>
-                  <div className="fs-1 fw-bold text-warning font-monospace mb-1">
+              <div className="col-12 col-md-6">
+                <div className="linear-card p-3.5">
+                  <div className="text-secondary small fw-bold text-uppercase mb-2" style={{ fontSize: "0.72rem" }}>
+                    Jami Hisoblangan Xarajat
+                  </div>
+                  <div className="fs-1 fw-bold font-monospace mb-1" style={{ color: "var(--warning)" }}>
                     ${metrics?.total_ai_cost_usd?.toFixed(3) || "0.000"}
                   </div>
                   <p className="text-secondary small mb-0">
-                    Oylik marja: <strong className="text-success">{metrics?.gross_margin_percent?.toFixed(1) || "100"}%</strong>
+                    Oylik marja: <strong style={{ color: "var(--success)" }}>{metrics?.gross_margin_percent?.toFixed(1) || "100"}%</strong>
                   </p>
                 </div>
               </div>
-              <div className="col-md-6">
-                <div className="p-3.5 rounded bg-body-tertiary border border-secondary border-opacity-15">
-                  <div className="text-secondary small fw-bold text-uppercase mb-2">Jami AI Xabarlari</div>
-                  <div className="fs-1 fw-bold text-white font-monospace mb-1">
+              <div className="col-12 col-md-6">
+                <div className="linear-card p-3.5">
+                  <div className="text-secondary small fw-bold text-uppercase mb-2" style={{ fontSize: "0.72rem" }}>
+                    Jami AI Xabarlari
+                  </div>
+                  <div className="fs-1 fw-bold font-monospace mb-1 text-primary">
                     {metrics?.total_ai_messages_this_month?.toLocaleString() || "0"} ta
                   </div>
                   <p className="text-secondary small mb-0">
-                    O'rtacha bitta xabar narxi: <strong className="text-info font-monospace">~$0.0003</strong>
+                    O'rtacha bitta xabar narxi: <strong className="font-monospace" style={{ color: "var(--info)" }}>~$0.0003</strong>
                   </p>
                 </div>
               </div>
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       )}
 
-      {/* SUBTAB: SYSTEM (Tizim Holati) */}
+      {/* SUBTAB: SYSTEM */}
       {subTab === "system" && (
-        <div className="card shadow-sm border border-secondary border-opacity-15">
-          <div className="card-header py-3 px-4">
-            <h3 className="card-title fw-bold mb-0">Tizim va Xizmatlar Holati</h3>
-            <span className="text-secondary small">Infratuzilma va ulanishlar monitoringi</span>
-          </div>
-          <div className="card-body p-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Tizim va Xizmatlar Holati</CardTitle>
+          </CardHeader>
+          <CardContent>
             <div className="row g-3">
-              <div className="col-md-4">
-                <div className="p-3 rounded bg-body-tertiary border border-secondary border-opacity-15">
+              <div className="col-12 col-md-4">
+                <div className="linear-card p-3">
                   <div className="d-flex align-items-center justify-content-between mb-2">
-                    <span className="fw-semibold">PostgreSQL & pgvector</span>
-                    <span className="badge bg-green-lt text-green">Connected</span>
+                    <span className="fw-semibold text-primary">PostgreSQL & pgvector</span>
+                    <Badge variant="success">Connected</Badge>
                   </div>
-                  <div className="small text-secondary font-monospace">
+                  <div className="small text-secondary font-monospace" style={{ fontSize: "0.75rem" }}>
                     Holat: {systemHealth?.database || "healthy"}
                   </div>
                 </div>
               </div>
-              <div className="col-md-4">
-                <div className="p-3 rounded bg-body-tertiary border border-secondary border-opacity-15">
+              <div className="col-12 col-md-4">
+                <div className="linear-card p-3">
                   <div className="d-flex align-items-center justify-content-between mb-2">
-                    <span className="fw-semibold">Google Gemini API</span>
-                    {systemHealth?.gemini_configured ? (
-                      <span className="badge bg-green-lt text-green">Sozlangan</span>
-                    ) : (
-                      <span className="badge bg-danger-lt text-danger">Sozlanmagan</span>
-                    )}
+                    <span className="fw-semibold text-primary">Google Gemini API</span>
+                    <Badge variant={systemHealth?.gemini_configured ? "success" : "danger"}>
+                      {systemHealth?.gemini_configured ? "Sozlangan" : "Sozlanmagan"}
+                    </Badge>
                   </div>
-                  <div className="small text-secondary">
-                    Asosiy AI provayder
+                  <div className="small text-secondary" style={{ fontSize: "0.75rem" }}>
+                    Asosiy AI provayder (2.5 & 3.1)
                   </div>
                 </div>
               </div>
-              <div className="col-md-4">
-                <div className="p-3 rounded bg-body-tertiary border border-secondary border-opacity-15">
+              <div className="col-12 col-md-4">
+                <div className="linear-card p-3">
                   <div className="d-flex align-items-center justify-content-between mb-2">
-                    <span className="fw-semibold">Telegram Bot Service</span>
-                    {systemHealth?.telegram_configured ? (
-                      <span className="badge bg-green-lt text-green">Faol</span>
-                    ) : (
-                      <span className="badge bg-yellow-lt text-warning">Kutilmoqda</span>
-                    )}
+                    <span className="fw-semibold text-primary">Telegram Bot Service</span>
+                    <Badge variant={systemHealth?.telegram_configured ? "success" : "warning"}>
+                      {systemHealth?.telegram_configured ? "Faol" : "Kutilmoqda"}
+                    </Badge>
                   </div>
-                  <div className="small text-secondary">
+                  <div className="small text-secondary" style={{ fontSize: "0.75rem" }}>
                     Muhit: {systemHealth?.app_env || "development"}
                   </div>
                 </div>
               </div>
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       )}
 
-      {/* SUBTAB: AUDIT LOGS */}
+      {/* SUBTAB: AUDIT */}
       {subTab === "audit" && (
-        <div className="card shadow-sm border border-secondary border-opacity-15">
-          <div className="card-header py-3 px-4 d-flex align-items-center justify-content-between">
-            <div>
-              <h3 className="card-title fw-bold mb-0">Xavfsizlik va Ma'muriy Audit Loglari</h3>
-              <span className="text-secondary small">Do'konlarga kirishlar, tarif o'zgarishlari va muhim harakatlar jurnali</span>
-            </div>
-            <span className="badge bg-secondary-lt font-monospace">{auditLogs.length} ta yozuv</span>
-          </div>
-
+        <Card>
+          <CardHeader actions={<Badge variant="default">{auditLogs.length} ta yozuv</Badge>}>
+            <CardTitle>Xavfsizlik va Ma'muriy Audit Loglari</CardTitle>
+          </CardHeader>
           <div className="table-responsive">
-            <table className="table table-vcenter card-table table-hover">
+            <table className="linear-table">
               <thead>
                 <tr>
                   <th>Vaqt</th>
@@ -939,9 +919,9 @@ export function PlatformOwnerTab({
                       {log.created_at ? new Date(log.created_at).toLocaleString() : "—"}
                     </td>
                     <td>
-                      <span className="badge bg-blue-lt font-monospace fw-bold">{log.action}</span>
+                      <Badge variant="accent">{log.action}</Badge>
                     </td>
-                    <td className="text-white small">
+                    <td className="text-primary small">
                       {log.resource} {log.resource_id ? `#${log.resource_id}` : ""}
                     </td>
                     <td className="font-monospace small text-secondary">
@@ -959,319 +939,286 @@ export function PlatformOwnerTab({
               </tbody>
             </table>
           </div>
-        </div>
+        </Card>
       )}
 
-      {/* Edit Plan Modal */}
+      {/* MODAL: EDIT PLAN */}
       {editingPlanCode && (
-        <div className="modal modal-blur fade show d-block" tabIndex={-1} style={{ backgroundColor: "rgba(0,0,0,0.65)" }}>
-          <div className="modal-dialog modal-dialog-centered">
-            <div className="modal-content shadow-lg border border-secondary border-opacity-25">
-              <div className="modal-header">
-                <h5 className="modal-title fw-bold">
-                  {editingPlanCode.toUpperCase()} Tarifi Narxlarini O'zgartirish
-                </h5>
-                <button
-                  type="button"
-                  className="btn-close"
-                  onClick={() => setEditingPlanCode(null)}
+        <div
+          className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center"
+          style={{ backgroundColor: "rgba(0,0,0,0.65)", zIndex: 1055 }}
+        >
+          <div className="linear-card p-4" style={{ width: "420px", maxWidth: "90vw" }}>
+            <h5 className="fw-bold mb-3 text-primary">
+              {editingPlanCode.toUpperCase()} Tarifi Narxlarini O'zgartirish
+            </h5>
+            <div className="d-flex flex-column gap-3 mb-4">
+              <div>
+                <label className="text-secondary small fw-medium mb-1 d-block">Oylik Narx ($USD)</label>
+                <input
+                  type="number"
+                  className="linear-input"
+                  value={newMonthlyPrice}
+                  onChange={(e) => setNewMonthlyPrice(Number(e.target.value))}
                 />
               </div>
-              <div className="modal-body space-y-3">
-                <div className="mb-3">
-                  <label className="form-label required">Oylik Narx ($USD)</label>
-                  <input
-                    type="number"
-                    className="form-control"
-                    value={newMonthlyPrice}
-                    onChange={(e) => setNewMonthlyPrice(Number(e.target.value))}
-                  />
-                </div>
-                <div className="mb-3">
-                  <label className="form-label required">Yillik Narx ($USD)</label>
-                  <input
-                    type="number"
-                    className="form-control"
-                    value={newYearlyPrice}
-                    onChange={(e) => setNewYearlyPrice(Number(e.target.value))}
-                  />
-                </div>
+              <div>
+                <label className="text-secondary small fw-medium mb-1 d-block">Yillik Narx ($USD)</label>
+                <input
+                  type="number"
+                  className="linear-input"
+                  value={newYearlyPrice}
+                  onChange={(e) => setNewYearlyPrice(Number(e.target.value))}
+                />
               </div>
-              <div className="modal-footer">
-                <button
-                  type="button"
-                  className="btn btn-outline-secondary"
-                  onClick={() => setEditingPlanCode(null)}
-                >
-                  Bekor qilish
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={handleSavePlan}
-                  disabled={saveBusy}
-                >
-                  {saveBusy ? "Saqlanmoqda..." : "Saqlash"}
-                </button>
-              </div>
+            </div>
+            <div className="d-flex align-items-center justify-content-end gap-2">
+              <Button variant="secondary" onClick={() => setEditingPlanCode(null)}>
+                Bekor qilish
+              </Button>
+              <Button variant="primary" onClick={handleSavePlan} disabled={saveBusy}>
+                {saveBusy ? "Saqlanmoqda..." : "Saqlash"}
+              </Button>
             </div>
           </div>
         </div>
       )}
 
-      {/* MODAL: CREATE NEW STORE (TENANT ONBOARDING) */}
+      {/* MODAL: CREATE NEW STORE */}
       {showCreateModal && (
         <div
-          className="modal modal-blur show d-block"
-          tabIndex={-1}
+          className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center"
           style={{ backgroundColor: "rgba(0,0,0,0.75)", zIndex: 1055 }}
         >
-          <div className="modal-dialog modal-lg modal-dialog-centered">
-            <div className="modal-content shadow-lg border border-secondary border-opacity-25">
-              <div className="modal-header">
-                <div className="d-flex align-items-center gap-2">
-                  <div className="p-2 bg-primary-lt rounded-2">
-                    <IconBuildingSkyscraper size={20} className="text-primary" />
-                  </div>
-                  <div>
-                    <h5 className="modal-title fw-bold mb-0">Yangi Do'kon Ochish</h5>
-                    <p className="text-secondary small mb-0">
-                      Platforma doirasida yangi mustaqil savdo do'koni va botini ishga tushirish
-                    </p>
-                  </div>
+          <div className="linear-card p-4" style={{ width: "640px", maxWidth: "92vw", maxHeight: "90vh", overflowY: "auto" }}>
+            <div className="d-flex align-items-center justify-content-between mb-3 pb-2 border-bottom" style={{ borderColor: "var(--border-subtle)" }}>
+              <div className="d-flex align-items-center gap-2">
+                <div
+                  className="d-flex align-items-center justify-content-center rounded-2"
+                  style={{ width: "32px", height: "32px", backgroundColor: "var(--accent-subtle)", color: "var(--accent-text)" }}
+                >
+                  <IconBuildingSkyscraper size={18} />
                 </div>
-                <button
-                  type="button"
-                  className="btn-close"
-                  onClick={() => setShowCreateModal(false)}
-                />
+                <div>
+                  <h5 className="fw-bold mb-0 text-primary">Yangi Do'kon Ochish</h5>
+                  <span className="text-secondary small">Platforma doirasida yangi mustaqil savdo do'koni ochish</span>
+                </div>
               </div>
+              <button
+                type="button"
+                className="btn-close"
+                onClick={() => setShowCreateModal(false)}
+              />
+            </div>
 
-              {createStoreSuccess ? (
-                <div className="modal-body p-4 text-center">
-                  <div className="mb-3">
-                    <span className="avatar avatar-xl bg-success-lt text-success rounded-circle">
-                      <IconCheck size={36} />
+            {createStoreSuccess ? (
+              <div className="text-center py-3">
+                <div
+                  className="d-inline-flex align-items-center justify-content-center rounded-circle mb-3"
+                  style={{ width: "56px", height: "56px", backgroundColor: "var(--success-subtle)", color: "var(--success-text)" }}
+                >
+                  <IconCheck size={32} />
+                </div>
+                <h4 className="fw-bold mb-2 text-primary">Do'kon Muvaffaqiyatli Ochildi!</h4>
+                <p className="text-secondary small mb-4">
+                  <strong>{createStoreSuccess.organization?.name}</strong> do'koni tizimda yaratildi.
+                </p>
+
+                <div className="linear-card p-3 mb-4 text-start small">
+                  <div className="d-flex justify-content-between py-1 border-bottom" style={{ borderColor: "var(--border-subtle)" }}>
+                    <span className="text-secondary">Do'kon ID & Slug:</span>
+                    <span className="font-monospace text-primary fw-semibold">
+                      #{createStoreSuccess.organization?.id} • {createStoreSuccess.organization?.slug}
                     </span>
                   </div>
-                  <h3 className="text-white fw-bold mb-2">Do'kon Muvaffaqiyatli Ochildi!</h3>
-                  <p className="text-secondary mb-4">
-                    <strong>{createStoreSuccess.organization?.name}</strong> do'koni tizimda yaratildi va barcha sozlamalar ulandi.
-                  </p>
-
-                  <div className="card bg-dark border-secondary border-opacity-25 text-start p-3 mb-4">
-                    <div className="row g-2 small">
-                      <div className="col-sm-4 text-secondary">Do'kon ID & Slug:</div>
-                      <div className="col-sm-8 text-white font-monospace">
-                        #{createStoreSuccess.organization?.id} • {createStoreSuccess.organization?.slug}
-                      </div>
-                      <div className="col-sm-4 text-secondary">Egasi Pochtasi:</div>
-                      <div className="col-sm-8 text-white font-monospace">
-                        {createStoreSuccess.organization?.owner_email}
-                      </div>
-                      {createStoreSuccess.organization?.temporary_password && (
-                        <>
-                          <div className="col-sm-4 text-secondary">Vaqtincha Parol:</div>
-                          <div className="col-sm-8 text-warning font-monospace fw-bold">
-                            {createStoreSuccess.organization?.temporary_password}
-                          </div>
-                        </>
-                      )}
-                      <div className="col-sm-4 text-secondary">Tarif & Valyuta:</div>
-                      <div className="col-sm-8 text-info font-monospace">
-                        {createStoreSuccess.organization?.plan} ({createStoreSuccess.organization?.currency})
-                      </div>
-                    </div>
+                  <div className="d-flex justify-content-between py-1 border-bottom" style={{ borderColor: "var(--border-subtle)" }}>
+                    <span className="text-secondary">Egasi Pochtasi:</span>
+                    <span className="font-monospace text-primary">
+                      {createStoreSuccess.organization?.owner_email}
+                    </span>
                   </div>
-
-                  <div className="d-flex align-items-center justify-content-center gap-2">
-                    <button
-                      type="button"
-                      className="btn btn-outline-secondary"
-                      onClick={() => setShowCreateModal(false)}
-                    >
-                      Yopish
-                    </button>
-                    {onEnterStore && createStoreSuccess.organization && (
-                      <button
-                        type="button"
-                        className="btn btn-primary d-flex align-items-center gap-1.5"
-                        onClick={() => {
-                          setShowCreateModal(false);
-                          onEnterStore(createStoreSuccess.organization);
-                        }}
-                      >
-                        <span>Do'kon ichiga kirish</span>
-                        <IconArrowRight size={16} />
-                      </button>
-                    )}
+                  {createStoreSuccess.organization?.temporary_password && (
+                    <div className="d-flex justify-content-between py-1 border-bottom" style={{ borderColor: "var(--border-subtle)" }}>
+                      <span className="text-secondary">Vaqtincha Parol:</span>
+                      <span className="font-monospace fw-bold" style={{ color: "var(--warning)" }}>
+                        {createStoreSuccess.organization?.temporary_password}
+                      </span>
+                    </div>
+                  )}
+                  <div className="d-flex justify-content-between py-1">
+                    <span className="text-secondary">Tarif & Valyuta:</span>
+                    <span className="font-monospace" style={{ color: "var(--info)" }}>
+                      {createStoreSuccess.organization?.plan} ({createStoreSuccess.organization?.currency})
+                    </span>
                   </div>
                 </div>
-              ) : (
-                <form onSubmit={handleCreateSubmit}>
-                  <div className="modal-body p-4 space-y-3">
-                    {createStoreError && (
-                      <div className="alert alert-danger d-flex align-items-center gap-2 py-2">
-                        <IconAlertCircle size={18} />
-                        <span>{createStoreError}</span>
-                      </div>
-                    )}
 
-                    <div className="row g-3">
-                      <div className="col-md-6">
-                        <label className="form-label required">Do'kon Nomi</label>
-                        <input
-                          type="text"
-                          className="form-control"
-                          placeholder="Masalan: Artel Elektronika"
-                          value={createStoreName}
-                          onChange={(e) => {
-                            setCreateStoreName(e.target.value);
-                            if (!createStoreSlug) {
-                              setCreateStoreSlug(
-                                e.target.value
-                                  .toLowerCase()
-                                  .replace(/[^a-z0-9]+/g, "-")
-                                  .replace(/^-|-$/g, "")
-                              );
-                            }
-                          }}
-                          required
-                        />
-                      </div>
-                      <div className="col-md-6">
-                        <label className="form-label required">Qisqa Identifikator (Slug)</label>
-                        <div className="input-group">
-                          <span className="input-group-text text-secondary small">/t/</span>
-                          <input
-                            type="text"
-                            className="form-control font-monospace"
-                            placeholder="artel"
-                            value={createStoreSlug}
-                            onChange={(e) => setCreateStoreSlug(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ""))}
-                            required
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="row g-3">
-                      <div className="col-md-6">
-                        <label className="form-label">Soha / Kategoriya</label>
-                        <select
-                          className="form-select"
-                          value={createStoreCategory}
-                          onChange={(e) => setCreateStoreCategory(e.target.value)}
-                        >
-                          <option value="Elektronika va Texnika">Elektronika va Texnika</option>
-                          <option value="Kiyim-kechak va Moda">Kiyim-kechak va Moda</option>
-                          <option value="Go'zallik va Parfyumeriya">Go'zallik va Parfyumeriya</option>
-                          <option value="Avto ehtiyot qismlar">Avto ehtiyot qismlar</option>
-                          <option value="Uy-ro'zg'or mollari">Uy-ro'zg'or mollari</option>
-                          <option value="Restoran va Kafelar">Restoran va Kafelar</option>
-                          <option value="Xizmat ko'rsatish">Xizmat ko'rsatish</option>
-                          <option value="Boshqa">Boshqa</option>
-                        </select>
-                      </div>
-                      <div className="col-md-3">
-                        <label className="form-label required">Tarif Rejasi</label>
-                        <select
-                          className="form-select"
-                          value={createStorePlan}
-                          onChange={(e) => setCreateStorePlan(e.target.value)}
-                        >
-                          <option value="start">START</option>
-                          <option value="pro">PRO (Tavsiya)</option>
-                          <option value="ultra">ULTRA</option>
-                        </select>
-                      </div>
-                      <div className="col-md-3">
-                        <label className="form-label required">Asosiy Valyuta</label>
-                        <select
-                          className="form-select"
-                          value={createStoreCurrency}
-                          onChange={(e) => setCreateStoreCurrency(e.target.value as "UZS" | "USD")}
-                        >
-                          <option value="UZS">UZS (so'm)</option>
-                          <option value="USD">USD ($)</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <hr className="my-3 border-secondary border-opacity-15" />
-
-                    <div className="row g-3">
-                      <div className="col-md-6">
-                        <label className="form-label required">Do'kon Egasi Pochtasi (Email)</label>
-                        <input
-                          type="email"
-                          className="form-control"
-                          placeholder="owner@artel.uz"
-                          value={createStoreEmail}
-                          onChange={(e) => setCreateStoreEmail(e.target.value)}
-                          required
-                        />
-                      </div>
-                      <div className="col-md-6">
-                        <label className="form-label">Egasi Paroli (ixtiyoriy)</label>
-                        <input
-                          type="password"
-                          className="form-control"
-                          placeholder="Bo'sh qolsa avtomatik generatsiya qilinadi"
-                          value={createStorePassword}
-                          onChange={(e) => setCreateStorePassword(e.target.value)}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="mb-3">
-                      <label className="form-label d-flex align-items-center justify-content-between">
-                        <span>Telegram Bot Token (ixtiyoriy, keyin ham ulash mumkin)</span>
-                        <span className="badge bg-secondary-lt text-secondary">BotFather</span>
-                      </label>
-                      <input
-                        type="text"
-                        className="form-control font-monospace"
-                        placeholder="123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ..."
-                        value={createStoreBotToken}
-                        onChange={(e) => setCreateStoreBotToken(e.target.value)}
-                      />
-                      <small className="form-hint">
-                        Telegram'da @BotFather orqali olingan token. Kiritilsa, webhook avtomatik ulanadi.
-                      </small>
-                    </div>
-                  </div>
-
-                  <div className="modal-footer">
-                    <button
-                      type="button"
-                      className="btn btn-outline-secondary"
-                      onClick={() => setShowCreateModal(false)}
-                      disabled={createStoreBusy}
+                <div className="d-flex align-items-center justify-content-center gap-2">
+                  <Button variant="secondary" onClick={() => setShowCreateModal(false)}>
+                    Yopish
+                  </Button>
+                  {onEnterStore && createStoreSuccess.organization && (
+                    <Button
+                      variant="primary"
+                      icon={<IconArrowRight size={14} />}
+                      onClick={() => {
+                        setShowCreateModal(false);
+                        onEnterStore(createStoreSuccess.organization);
+                      }}
                     >
-                      Bekor qilish
-                    </button>
-                    <button
-                      type="submit"
-                      className="btn btn-primary d-flex align-items-center gap-1.5"
-                      disabled={createStoreBusy}
-                    >
-                      {createStoreBusy ? (
-                        <>
-                          <IconRefresh size={16} className="spin" />
-                          <span>Do'kon ochilmoqda...</span>
-                        </>
-                      ) : (
-                        <>
-                          <IconPlus size={16} />
-                          <span>Do'konni Ochish</span>
-                        </>
-                      )}
-                    </button>
+                      Do'kon ichiga kirish
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handleCreateSubmit} className="d-flex flex-column gap-3">
+                {createStoreError && (
+                  <div
+                    className="p-2.5 rounded-2 d-flex align-items-center gap-2 small"
+                    style={{ backgroundColor: "var(--danger-subtle)", color: "var(--danger-text)", border: "1px solid var(--danger-border)" }}
+                  >
+                    <IconAlertCircle size={16} />
+                    <span>{createStoreError}</span>
                   </div>
-                </form>
-              )}
-            </div>
+                )}
+
+                <div className="row g-3">
+                  <div className="col-12 col-md-6">
+                    <label className="text-secondary small fw-medium mb-1 d-block">Do'kon Nomi *</label>
+                    <input
+                      type="text"
+                      className="linear-input"
+                      placeholder="Masalan: Artel Elektronika"
+                      value={createStoreName}
+                      onChange={(e) => {
+                        setCreateStoreName(e.target.value);
+                        if (!createStoreSlug) {
+                          setCreateStoreSlug(
+                            e.target.value
+                              .toLowerCase()
+                              .replace(/[^a-z0-9]+/g, "-")
+                              .replace(/^-|-$/g, "")
+                          );
+                        }
+                      }}
+                      required
+                    />
+                  </div>
+                  <div className="col-12 col-md-6">
+                    <label className="text-secondary small fw-medium mb-1 d-block">Identifikator (Slug) *</label>
+                    <input
+                      type="text"
+                      className="linear-input font-monospace"
+                      placeholder="artel-store"
+                      value={createStoreSlug}
+                      onChange={(e) => setCreateStoreSlug(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ""))}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="row g-3">
+                  <div className="col-12 col-md-6">
+                    <label className="text-secondary small fw-medium mb-1 d-block">Soha / Kategoriya</label>
+                    <select
+                      className="linear-input"
+                      value={createStoreCategory}
+                      onChange={(e) => setCreateStoreCategory(e.target.value)}
+                    >
+                      <option value="Elektronika va Texnika">Elektronika va Texnika</option>
+                      <option value="Kiyim-kechak va Moda">Kiyim-kechak va Moda</option>
+                      <option value="Go'zallik va Parfyumeriya">Go'zallik va Parfyumeriya</option>
+                      <option value="Avto ehtiyot qismlar">Avto ehtiyot qismlar</option>
+                      <option value="Uy-ro'zg'or mollari">Uy-ro'zg'or mollari</option>
+                      <option value="Restoran va Kafelar">Restoran va Kafelar</option>
+                      <option value="Xizmat ko'rsatish">Xizmat ko'rsatish</option>
+                      <option value="Boshqa">Boshqa</option>
+                    </select>
+                  </div>
+                  <div className="col-6 col-md-3">
+                    <label className="text-secondary small fw-medium mb-1 d-block">Tarif</label>
+                    <select
+                      className="linear-input"
+                      value={createStorePlan}
+                      onChange={(e) => setCreateStorePlan(e.target.value)}
+                    >
+                      <option value="start">START</option>
+                      <option value="pro">PRO (Tavsiya)</option>
+                      <option value="ultra">ULTRA</option>
+                    </select>
+                  </div>
+                  <div className="col-6 col-md-3">
+                    <label className="text-secondary small fw-medium mb-1 d-block">Valyuta</label>
+                    <select
+                      className="linear-input"
+                      value={createStoreCurrency}
+                      onChange={(e) => setCreateStoreCurrency(e.target.value as "UZS" | "USD")}
+                    >
+                      <option value="UZS">UZS (so'm)</option>
+                      <option value="USD">USD ($)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="row g-3">
+                  <div className="col-12 col-md-6">
+                    <label className="text-secondary small fw-medium mb-1 d-block">Egasi Pochtasi (Email) *</label>
+                    <input
+                      type="email"
+                      className="linear-input"
+                      placeholder="owner@store.uz"
+                      value={createStoreEmail}
+                      onChange={(e) => setCreateStoreEmail(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="col-12 col-md-6">
+                    <label className="text-secondary small fw-medium mb-1 d-block">Parol (ixtiyoriy)</label>
+                    <input
+                      type="password"
+                      className="linear-input"
+                      placeholder="Bo'sh qolsa avtomatik yaratiladi"
+                      value={createStorePassword}
+                      onChange={(e) => setCreateStorePassword(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-secondary small fw-medium mb-1 d-block">Telegram Bot Token (ixtiyoriy)</label>
+                  <input
+                    type="text"
+                    className="linear-input font-monospace"
+                    placeholder="123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ..."
+                    value={createStoreBotToken}
+                    onChange={(e) => setCreateStoreBotToken(e.target.value)}
+                  />
+                  <span className="text-tertiary small mt-1 d-block" style={{ fontSize: "0.72rem" }}>
+                    @BotFather orqali olingan token. Keyinroq ham sozlamalardan ulash mumkin.
+                  </span>
+                </div>
+
+                <div className="d-flex align-items-center justify-content-end gap-2 pt-3 border-top" style={{ borderColor: "var(--border-subtle)" }}>
+                  <Button
+                    variant="secondary"
+                    type="button"
+                    onClick={() => setShowCreateModal(false)}
+                    disabled={createStoreBusy}
+                  >
+                    Bekor qilish
+                  </Button>
+                  <Button
+                    variant="primary"
+                    type="submit"
+                    disabled={createStoreBusy}
+                    icon={<IconPlus size={15} />}
+                  >
+                    {createStoreBusy ? "Do'kon ochilmoqda..." : "Do'konni Ochish"}
+                  </Button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}

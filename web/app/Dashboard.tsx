@@ -252,6 +252,24 @@ async function api<T>(path: string, options?: RequestInit): Promise<T> {
     data = {};
   }
   if (!response.ok) {
+    if (response.status === 404 && (data.detail === "Tashkilot topilmadi" || String(data.detail || "").toLowerCase().includes("organization"))) {
+      if (typeof window !== "undefined" && localStorage.getItem("active_org_id") !== "1") {
+        console.warn("[api] Organization ID invalid or deleted. Resetting to 1 and retrying...");
+        localStorage.setItem("active_org_id", "1");
+        localStorage.removeItem("owner_impersonating_store");
+        headers["X-Organization-Id"] = "1";
+        const retryRes = await fetch(`/api/proxy?path=${encodeURIComponent(path)}`, {
+          ...options,
+          headers,
+          cache: "no-store",
+        });
+        if (retryRes.ok) {
+          try {
+            return await retryRes.json() as T;
+          } catch {}
+        }
+      }
+    }
     if (data.error === "FEATURE_NOT_AVAILABLE" || data.error === "LIMIT_EXCEEDED" || response.status === 402) {
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("saas-upgrade-needed", { detail: data }));
@@ -2240,13 +2258,16 @@ export default function Dashboard({
           setTab(newTab);
           if (newTab === "platform") {
             setZone("platform");
-          } else if (zone === "platform") {
+          } else if (newTab !== "profile" && zone === "platform") {
             setZone("tenant");
           }
           if (typeof window !== "undefined") {
             window.location.hash = newTab;
           }
         }}
+        platformSubTab={platformSubTab}
+        onSelectPlatformSubTab={setPlatformSubTab}
+        storesCount={platformOrgs.length}
         organizations={userOrganizations}
         activeOrgId={activeOrgId}
         onSelectOrg={switchOrganization}

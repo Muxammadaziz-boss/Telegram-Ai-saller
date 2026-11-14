@@ -1,6 +1,23 @@
 @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700;12..96,800&family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Syne:wght@600;700;800&display=swap');
 @import "./styles/theme.css";
 
+/* Local & Custom Display Fonts: Olline and Pogonia */
+@font-face {
+  font-family: 'Olline';
+  src: local('Olline'), local('Olline-Bold'), local('Olline Bold'), url('/fonts/Olline.woff2') format('woff2'), url('/fonts/Olline.ttf') format('truetype');
+  font-weight: 700 800 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Pogonia';
+  src: local('Pogonia'), local('Pogonia-Bold'), local('Pogonia Bold'), url('/fonts/Pogonia.woff2') format('woff2'), url('/fonts/Pogonia.ttf') format('truetype');
+  font-weight: 700 800;
+  font-style: normal;
+  font-display: swap;
+}
+
 /* ==========================================================================
    TABLER NATIVE DASHBOARD STYLES & FLOATING NAVBAR
    ========================================================================== */

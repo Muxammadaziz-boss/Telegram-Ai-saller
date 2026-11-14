@@ -75,10 +75,14 @@ async def test_knowledge_posts_tenant_isolation():
         session.add(OrganizationMember(organization_id=org_b.id, user_id=user_b.id, role="owner"))
 
         # Posts for Org A
+        chan_a = f"alpha_chan_{pid}"
+        chan_b = f"beta_chan_{pid}"
+        msg_a = 100000 + pid
+        msg_b = 200000 + pid
         post_a = ChannelPost(
             organization_id=org_a.id,
-            channel_username="alpha_chan",
-            telegram_message_id=101,
+            channel_username=chan_a,
+            telegram_message_id=msg_a,
             text="Alpha Mahsulot 1: Parfyum Chanel 100ml. Narxi: $120",
         )
         session.add(post_a)
@@ -86,8 +90,8 @@ async def test_knowledge_posts_tenant_isolation():
         # Posts for Org B
         post_b = ChannelPost(
             organization_id=org_b.id,
-            channel_username="beta_chan",
-            telegram_message_id=202,
+            channel_username=chan_b,
+            telegram_message_id=msg_b,
             text="Beta Mahsulot 2: Sport krossovka Nike. Narxi: $85",
         )
         session.add(post_b)
@@ -103,8 +107,8 @@ async def test_knowledge_posts_tenant_isolation():
             assert res_a.status_code == 200
             posts = res_a.json()
             # Org A must see its post and MUST NOT see Org B's post
-            assert any(p["telegram_message_id"] == 101 for p in posts)
-            assert not any(p["telegram_message_id"] == 202 for p in posts)
+            assert any(p["telegram_message_id"] == msg_a for p in posts)
+            assert not any(p["telegram_message_id"] == msg_b for p in posts)
 
 
 # ===========================================================================
@@ -126,10 +130,11 @@ async def test_extract_products_from_channel_posts_endpoint():
         session.add(OrganizationMember(organization_id=org.id, user_id=user.id, role="owner"))
 
         # Insert channel post with clear product data
+        msg_id = 700000 + pid
         post = ChannelPost(
             organization_id=org.id,
-            channel_username="electro_uz",
-            telegram_message_id=777,
+            channel_username=f"electro_uz_{pid}",
+            telegram_message_id=msg_id,
             text=(
                 "Sony PlayStation 5 Slim 1TB\n"
                 "Protsessor: AMD Zen 2 / 16GB GDDR6 / 1TB SSD\n"
@@ -157,7 +162,7 @@ async def test_extract_products_from_channel_posts_endpoint():
 
         # Verify product exists in database for this organization
         prod_db = (await session.execute(
-            select(Product).where(Product.organization_id == org.id, Product.code == "PRD-777")
+            select(Product).where(Product.organization_id == org.id, Product.code == f"PRD-{msg_id}")
         )).scalar_one_or_none()
         assert prod_db is not None
         assert "$520" in prod_db.price

@@ -41,12 +41,15 @@ export type NavTabId =
   | "pricing"
   | "platform";
 
+export type PlatformSubTabId = "overview" | "stores" | "users" | "plans" | "usage" | "system" | "audit";
+
 export interface NavItem {
   id: NavTabId;
   label: string;
   icon: React.ComponentType<{ size?: number; style?: React.CSSProperties }>;
   badge?: string | number;
   count?: number;
+  subTab?: PlatformSubTabId;
 }
 
 export interface NavGroup {
@@ -62,6 +65,9 @@ export interface SidebarProps {
   isPlatformOwner?: boolean;
   zone: "store" | "platform";
   onSwitchZone: (zone: "store" | "platform") => void;
+  platformSubTab?: PlatformSubTabId;
+  onSelectPlatformSubTab?: (subTab: PlatformSubTabId) => void;
+  storesCount?: number;
   storeName?: string;
   unreadCount?: number;
   productsCount?: number;
@@ -78,6 +84,9 @@ export function Sidebar({
   isPlatformOwner = false,
   zone,
   onSwitchZone,
+  platformSubTab = "overview",
+  onSelectPlatformSubTab,
+  storesCount = 0,
   storeName = "AI Sales Control",
   unreadCount = 0,
   productsCount = 0,
@@ -85,7 +94,7 @@ export function Sidebar({
   logoUrl = "/logo.svg",
   onOpenLogoModal,
 }: SidebarProps) {
-  const navGroups: NavGroup[] = [
+  const storeNavGroups: NavGroup[] = [
     {
       title: "WORKSPACE",
       items: [
@@ -128,7 +137,7 @@ export function Sidebar({
   ];
 
   if (isPlatformOwner) {
-    navGroups.push({
+    storeNavGroups.push({
       title: "PLATFORM OWNER",
       items: [
         { id: "platform", label: "Platform Owner", icon: IconBuildingStore, badge: "Master" },
@@ -136,12 +145,40 @@ export function Sidebar({
     });
   }
 
-  navGroups.push({
+  storeNavGroups.push({
     title: "ACCOUNT",
     items: [
       { id: "profile", label: "Profile & Design", icon: IconUser },
     ],
   });
+
+  const platformNavGroups: NavGroup[] = [
+    {
+      title: "PLATFORM CONTROL",
+      items: [
+        { id: "platform", label: "Overview", icon: IconLayoutDashboard, subTab: "overview" },
+        { id: "platform", label: "Do'konlar", icon: IconBuildingStore, count: storesCount > 0 ? storesCount : undefined, subTab: "stores" },
+        { id: "platform", label: "Foydalanuvchilar", icon: IconUsers, subTab: "users" },
+        { id: "platform", label: "Tariflar & Narxlar", icon: IconLayersLinked, subTab: "plans" },
+        { id: "platform", label: "AI Xarajati & Usage", icon: IconCpu, subTab: "usage" },
+      ],
+    },
+    {
+      title: "SECURITY & SYSTEM",
+      items: [
+        { id: "platform", label: "Tizim Holati", icon: IconShieldLock, badge: "OK", subTab: "system" },
+        { id: "platform", label: "Audit Loglar", icon: IconHistory, subTab: "audit" },
+      ],
+    },
+    {
+      title: "ACCOUNT",
+      items: [
+        { id: "profile", label: "Profile & Design", icon: IconUser },
+      ],
+    },
+  ];
+
+  const navGroups = zone === "platform" ? platformNavGroups : storeNavGroups;
 
   return (
     <aside
@@ -223,6 +260,46 @@ export function Sidebar({
         </button>
       </div>
 
+      {/* Platform Owner Mode Switcher */}
+      {isPlatformOwner && !collapsed && (
+        <div className="px-2.5 pt-2 pb-1 border-bottom" style={{ borderColor: "var(--border-subtle)" }}>
+          <div
+            className="p-1 rounded-2 d-flex gap-1"
+            style={{
+              backgroundColor: "var(--bg-canvas)",
+              border: "1px solid var(--border-subtle)",
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => onSwitchZone("platform")}
+              className="flex-grow-1 py-1 px-2 rounded-1 border-0 small fw-medium transition-fast text-center"
+              style={{
+                fontSize: "0.72rem",
+                cursor: "pointer",
+                backgroundColor: zone === "platform" ? "var(--accent)" : "transparent",
+                color: zone === "platform" ? "#ffffff" : "var(--text-secondary)",
+              }}
+            >
+              Platform Owner
+            </button>
+            <button
+              type="button"
+              onClick={() => onSwitchZone("store")}
+              className="flex-grow-1 py-1 px-2 rounded-1 border-0 small fw-medium transition-fast text-center"
+              style={{
+                fontSize: "0.72rem",
+                cursor: "pointer",
+                backgroundColor: zone === "store" ? "var(--accent)" : "transparent",
+                color: zone === "store" ? "#ffffff" : "var(--text-secondary)",
+              }}
+            >
+              Do'kon
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Navigation Group Items */}
       <div className="flex-grow-1 overflow-y-auto px-2 py-3 custom-scrollbar">
         {navGroups.map((group, groupIdx) => (
@@ -248,18 +325,32 @@ export function Sidebar({
             <div className="d-flex flex-column gap-0.5">
               {group.items.map((item) => {
                 const IconComponent = item.icon;
-                const isActive = activeTab === item.id;
+                const isActive =
+                  zone === "platform"
+                    ? item.id === "profile"
+                      ? activeTab === "profile"
+                      : activeTab === "platform" && item.subTab === platformSubTab
+                    : activeTab === item.id;
                 return (
                   <button
-                    key={item.id}
+                    key={`${item.id}-${item.subTab || item.label}`}
                     type="button"
                     onClick={() => {
-                      if (item.id === "platform" && zone !== "platform") {
-                        onSwitchZone("platform");
-                      } else if (item.id !== "platform" && zone === "platform") {
-                        onSwitchZone("store");
+                      if (zone === "platform") {
+                        if (item.id === "profile") {
+                          onSelectTab("profile");
+                        } else if (item.subTab && onSelectPlatformSubTab) {
+                          onSelectPlatformSubTab(item.subTab);
+                          onSelectTab("platform");
+                        } else {
+                          onSelectTab(item.id);
+                        }
+                      } else {
+                        if (item.id === "platform") {
+                          onSwitchZone("platform");
+                        }
+                        onSelectTab(item.id);
                       }
-                      onSelectTab(item.id);
                     }}
                     className={`d-flex align-items-center gap-2.5 px-2.5 py-1.5 rounded text-start w-100 border-0 transition-all ${
                       isActive ? "fw-medium" : "text-secondary"

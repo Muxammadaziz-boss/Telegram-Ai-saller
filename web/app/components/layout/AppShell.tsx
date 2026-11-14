@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Sidebar, NavTabId } from "./Sidebar";
+import { Sidebar, NavTabId, PlatformSubTabId } from "./Sidebar";
 import { Topbar, OrganizationItem } from "./Topbar";
 
 export interface AppShellProps {
@@ -19,6 +19,9 @@ export interface AppShellProps {
   isPlatformOwner?: boolean;
   zone: "store" | "platform";
   onSwitchZone: (zone: "store" | "platform") => void;
+  platformSubTab?: PlatformSubTabId;
+  onSelectPlatformSubTab?: (subTab: PlatformSubTabId) => void;
+  storesCount?: number;
   storeName?: string;
   adminName?: string;
   adminRole?: string;
@@ -49,6 +52,9 @@ export function AppShell({
   isPlatformOwner = false,
   zone,
   onSwitchZone,
+  platformSubTab,
+  onSelectPlatformSubTab,
+  storesCount,
   storeName = "AI Sales Control",
   adminName = "Admin",
   adminRole = "admin",
@@ -76,6 +82,9 @@ export function AppShell({
         isPlatformOwner={isPlatformOwner}
         zone={zone}
         onSwitchZone={onSwitchZone}
+        platformSubTab={platformSubTab}
+        onSelectPlatformSubTab={onSelectPlatformSubTab}
+        storesCount={storesCount}
         storeName={storeName}
         unreadCount={unreadCount}
         productsCount={productsCount}
