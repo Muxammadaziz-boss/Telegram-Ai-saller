@@ -51,6 +51,7 @@ import {
   IconSun,
   IconTrash,
   IconTrendingUp,
+  IconTypography,
   IconUpload,
   IconUser,
   IconUserCheck,
@@ -339,6 +340,49 @@ function AppLogo({
 
 const DEFAULT_TG_AVATAR = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='44' height='44' viewBox='0 0 44 44'><rect width='44' height='44' rx='22' fill='%236366f1'/><text x='50%' y='54%' font-size='14' font-weight='bold' fill='white' text-anchor='middle' dominant-baseline='middle'>TG</text></svg>";
 
+const FONT_OPTIONS = [
+  {
+    id: "olline",
+    name: "Olline",
+    styleTag: "Geometric Bold",
+    isNew: true,
+    fontFamily: "'Olline', 'Outfit', 'Syne', sans-serif",
+    description: "Zamonaviy geometrik qalin va kuchli vizual dizayn shrifti",
+  },
+  {
+    id: "pogonia",
+    name: "Pogonia",
+    styleTag: "Aesthetic Rounded",
+    isNew: true,
+    fontFamily: "'Pogonia', 'Bricolage Grotesque', 'Plus Jakarta Sans', sans-serif",
+    description: "Estetik yumaloq neo-grotesk va zamonaviy iliq shrift",
+  },
+  {
+    id: "inter",
+    name: "Inter",
+    styleTag: "Standard Default",
+    isNew: false,
+    fontFamily: "'Inter', sans-serif",
+    description: "Standart neytral va professional tizimli interfeys shrifti",
+  },
+  {
+    id: "sf-pro",
+    name: "SF Pro",
+    styleTag: "Apple iOS",
+    isNew: false,
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif",
+    description: "Apple iOS ekotizimining toza va silliq tizim shrifti",
+  },
+  {
+    id: "jakarta",
+    name: "Plus Jakarta",
+    styleTag: "SaaS Modern",
+    isNew: false,
+    fontFamily: "'Plus Jakarta Sans', sans-serif",
+    description: "Zamonaviy texnologik startaplar va panellar shrifti",
+  },
+];
+
 function TelegramUserAvatar({
   userId,
   name,
@@ -592,6 +636,7 @@ export default function Dashboard({
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("dark");
   const [uiStyle, setUiStyle] = useState<"tabler" | "ios">("tabler");
+  const [appFont, setAppFont] = useState<string>("olline");
   const [logoUrl, setLogoUrl] = useState<string>("/logo.svg");
   const [adminAvatarUrl, setAdminAvatarUrl] = useState<string>("");
   const [activeAdminTelegramId, setActiveAdminTelegramId] = useState<number>(0);
@@ -813,8 +858,19 @@ export default function Dashboard({
       } else {
         document.documentElement.setAttribute("data-ui-style", "tabler");
       }
+      const savedFont = localStorage.getItem("ai_sales_app_font") || "olline";
+      setAppFont(savedFont);
+      document.documentElement.setAttribute("data-font", savedFont);
     } catch {}
   }, []);
+
+  const handleSelectFont = (fontId: string) => {
+    setAppFont(fontId);
+    document.documentElement.setAttribute("data-font", fontId);
+    try {
+      localStorage.setItem("ai_sales_app_font", fontId);
+    } catch {}
+  };
 
   const toggleUiStyle = () => {
     const next = uiStyle === "tabler" ? "ios" : "tabler";
@@ -5896,7 +5952,112 @@ export default function Dashboard({
 
                       <hr className="my-4 border-secondary-subtle" />
 
-                      {/* 3. Company Brand Logo Customization */}
+                      {/* 3. Typography & Font Family Selector (Olline, Pogonia, Inter, SF Pro, Jakarta) */}
+                      <div className="mb-4">
+                        <div className="d-flex align-items-center justify-content-between mb-2">
+                          <label className="form-label fw-bold d-flex align-items-center gap-1.5 mb-0">
+                            <IconTypography size={18} className="text-primary" />
+                            <span>Interfeys Shrifti (Typography):</span>
+                          </label>
+                          <span className="badge bg-purple-lt text-purple small fw-semibold font-monospace px-2.5 py-1">
+                            {FONT_OPTIONS.find((f) => f.id === appFont)?.name || "Olline"} faol
+                          </span>
+                        </div>
+                        <p className="text-secondary small mb-3">
+                          Sarlavhalar, dashboard panellari va matnlar uchun yangi <strong>Olline</strong> va <strong>Pogonia</strong> yoki boshqa zamonaviy shriftlarni tanlang:
+                        </p>
+
+                        <div className="row g-3">
+                          {FONT_OPTIONS.map((font) => (
+                            <div key={font.id} className="col-sm-6 col-md-4">
+                              <div
+                                className={`p-3 rounded-3 border transition-all h-100 position-relative d-flex flex-column justify-content-between ${
+                                  appFont === font.id
+                                    ? "border-primary bg-primary-lt shadow-sm"
+                                    : "border-secondary-subtle"
+                                }`}
+                                style={{
+                                  cursor: "pointer",
+                                  background: appFont === font.id ? "rgba(0, 122, 255, 0.12)" : "rgba(255, 255, 255, 0.03)",
+                                }}
+                                onClick={() => handleSelectFont(font.id)}
+                              >
+                                {font.isNew && (
+                                  <span
+                                    className="position-absolute badge rounded-pill fw-bold"
+                                    style={{
+                                      top: 8,
+                                      right: 8,
+                                      background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
+                                      color: "#fff",
+                                      fontSize: "9px",
+                                      padding: "2px 6px",
+                                      boxShadow: "0 2px 6px rgba(245, 158, 11, 0.35)",
+                                    }}
+                                  >
+                                    ✨ YANGI FONT
+                                  </span>
+                                )}
+
+                                {/* Visual Typography Preview Box matching user's images */}
+                                <div
+                                  className="text-center py-2.5 px-2 rounded-2 mb-2"
+                                  style={{
+                                    background: "rgba(0, 0, 0, 0.35)",
+                                    border: "1px solid rgba(255, 255, 255, 0.08)",
+                                  }}
+                                >
+                                  <div
+                                    className="text-white text-truncate"
+                                    style={{
+                                      fontFamily: font.fontFamily,
+                                      fontSize: font.id === "olline" || font.id === "pogonia" ? "1.75rem" : "1.45rem",
+                                      fontWeight: font.id === "olline" ? 900 : font.id === "pogonia" ? 800 : 700,
+                                      lineHeight: 1.15,
+                                      letterSpacing: font.id === "olline" ? "-0.03em" : font.id === "pogonia" ? "-0.02em" : "-0.01em",
+                                    }}
+                                  >
+                                    {font.name}
+                                  </div>
+                                  <div
+                                    className="text-secondary small mt-1"
+                                    style={{
+                                      fontFamily: font.fontFamily,
+                                      fontSize: "0.75rem",
+                                      letterSpacing: "0.02em",
+                                    }}
+                                  >
+                                    {font.name}
+                                  </div>
+                                </div>
+
+                                <div className="d-flex align-items-center justify-content-between mt-auto pt-1">
+                                  <div>
+                                    <div className="fw-bold text-white small d-flex align-items-center gap-1">
+                                      <span>{font.name}</span>
+                                      <span className="badge bg-secondary-lt text-secondary font-monospace" style={{ fontSize: "9px" }}>
+                                        {font.styleTag}
+                                      </span>
+                                    </div>
+                                    <div className="text-secondary small" style={{ fontSize: "0.7rem", lineHeight: 1.3 }}>
+                                      {font.description}
+                                    </div>
+                                  </div>
+                                  {appFont === font.id && (
+                                    <span className="avatar avatar-xs bg-primary text-white rounded-circle flex-shrink-0 ms-1">
+                                      <IconCheck size={13} />
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <hr className="my-4 border-secondary-subtle" />
+
+                      {/* 4. Company Brand Logo Customization */}
                       <div>
                         <label className="form-label fw-bold d-flex align-items-center gap-1.5 mb-2">
                           <IconPhoto size={18} className="text-primary" />
