@@ -252,24 +252,6 @@ async function api<T>(path: string, options?: RequestInit): Promise<T> {
     data = {};
   }
   if (!response.ok) {
-    if (response.status === 404 && (data.detail === "Tashkilot topilmadi" || String(data.detail || "").toLowerCase().includes("organization"))) {
-      if (typeof window !== "undefined" && localStorage.getItem("active_org_id") !== "1") {
-        console.warn("[api] Organization ID invalid or deleted. Resetting to 1 and retrying...");
-        localStorage.setItem("active_org_id", "1");
-        localStorage.removeItem("owner_impersonating_store");
-        headers["X-Organization-Id"] = "1";
-        const retryRes = await fetch(`/api/proxy?path=${encodeURIComponent(path)}`, {
-          ...options,
-          headers,
-          cache: "no-store",
-        });
-        if (retryRes.ok) {
-          try {
-            return await retryRes.json() as T;
-          } catch {}
-        }
-      }
-    }
     if (data.error === "FEATURE_NOT_AVAILABLE" || data.error === "LIMIT_EXCEEDED" || response.status === 402) {
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("saas-upgrade-needed", { detail: data }));
@@ -2204,50 +2186,54 @@ export default function Dashboard({
     );
   }
 
-  const breadcrumb = zone === "platform" ? "SAAS / PLATFORM OWNER CONTROL" : (
-    tab === "overview" ? "WORKSPACE / OVERVIEW" :
-    tab === "inbox" ? "WORKSPACE / LIVE INBOX" :
-    tab === "knowledge" ? "WORKSPACE / KNOWLEDGE BASE" :
-    tab === "products" ? "SALES / PRODUCTS CATALOG" :
-    tab === "orders" ? "SALES / ORDERS MANAGEMENT" :
-    tab === "customers" ? "SALES / CUSTOMERS DIRECTORY" :
-    tab === "usage" ? "SAAS / USAGE & LIMITS METERING" :
-    tab === "billing" ? "SAAS / SUBSCRIPTION & INVOICES" :
-    tab === "pricing" ? "SAAS / COMMERCIAL PLANS MATRIX" :
-    tab === "platform" ? "SAAS / PLATFORM OWNER CONTROL" :
-    tab === "analytics" ? "INTELLIGENCE / ANALYTICS" :
-    tab === "settings" ? "INTELLIGENCE / AI CONFIGURATION" :
-    tab === "admins" ? "SYSTEM / ADMINISTRATION" :
-    tab === "team" ? "SYSTEM / TEAM & ACCESS ROLES" :
-    tab === "logs" ? "SYSTEM / AUDIT & ACTIVITY LOGS" :
-    "SYSTEM / ADMIN PROFILE & APPEARANCE"
+  const breadcrumb = tab === "profile" ? "SYSTEM / ADMIN PROFILE & APPEARANCE" : (
+    zone === "platform" ? "SAAS / PLATFORM OWNER CONTROL" : (
+      tab === "overview" ? "WORKSPACE / OVERVIEW" :
+      tab === "inbox" ? "WORKSPACE / LIVE INBOX" :
+      tab === "knowledge" ? "WORKSPACE / KNOWLEDGE BASE" :
+      tab === "products" ? "SALES / PRODUCTS CATALOG" :
+      tab === "orders" ? "SALES / ORDERS MANAGEMENT" :
+      tab === "customers" ? "SALES / CUSTOMERS DIRECTORY" :
+      tab === "usage" ? "SAAS / USAGE & LIMITS METERING" :
+      tab === "billing" ? "SAAS / SUBSCRIPTION & INVOICES" :
+      tab === "pricing" ? "SAAS / COMMERCIAL PLANS MATRIX" :
+      tab === "platform" ? "SAAS / PLATFORM OWNER CONTROL" :
+      tab === "analytics" ? "INTELLIGENCE / ANALYTICS" :
+      tab === "settings" ? "INTELLIGENCE / AI CONFIGURATION" :
+      tab === "admins" ? "SYSTEM / ADMINISTRATION" :
+      tab === "team" ? "SYSTEM / TEAM & ACCESS ROLES" :
+      tab === "logs" ? "SYSTEM / AUDIT & ACTIVITY LOGS" :
+      "SYSTEM / ADMIN PROFILE & APPEARANCE"
+    )
   );
 
-  const tabTitle = zone === "platform" ? (
-    platformSubTab === "overview" ? "Platforma Umumiy Ko'rinishi (MRR & AI Xarajatlari)" :
-    platformSubTab === "stores" ? "Do'konlar Portfeli (Tenants)" :
-    platformSubTab === "users" ? "Platforma Foydalanuvchilari" :
-    platformSubTab === "plans" ? "Tarif Rejalari va Narxlar" :
-    platformSubTab === "usage" ? "AI Xarajatlari va Resurslar Sarfi" :
-    platformSubTab === "system" ? "Tizim va Integratsiyalar Holati" :
-    "Audit va Xavfsizlik Tarixi"
-  ) : (
-    tab === "overview" ? "Boshqaruv Paneli" :
-    tab === "inbox" ? "Jonli Suhbatlar (Live Inbox)" :
-    tab === "knowledge" ? "Telegram Mahsulotlar Bazasi" :
-    tab === "products" ? "Mahsulotlar Katalogi" :
-    tab === "orders" ? "Buyurtmalar Jurnali" :
-    tab === "customers" ? "Mijozlar Ro'yxati" :
-    tab === "usage" ? "Foydalanish va Resurs Limitlari" :
-    tab === "billing" ? "Obuna va Hisob-Kitoblar" :
-    tab === "pricing" ? "Tariflar va Imkoniyatlar" :
-    tab === "platform" ? "Platforma Egasi Boshqaruv Markazi" :
-    tab === "analytics" ? "Savdo va AI Statistikasi" :
-    tab === "settings" ? "AI va Tizim Sozlamalari" :
-    tab === "admins" ? "Administratorlar Boshqaruvi" :
-    tab === "team" ? "Jamoa va Ruxsatlar Tizimi" :
-    tab === "logs" ? "Tizim Amallari Tarixi" :
-    "Admin Profili va Dizayn Sozlamalari"
+  const tabTitle = tab === "profile" ? "Admin Profili va Dizayn Sozlamalari" : (
+    zone === "platform" ? (
+      platformSubTab === "overview" ? "Platforma Umumiy Ko'rinishi (MRR & AI Xarajatlari)" :
+      platformSubTab === "stores" ? "Do'konlar Portfeli (Tenants)" :
+      platformSubTab === "users" ? "Platforma Foydalanuvchilari" :
+      platformSubTab === "plans" ? "Tarif Rejalari va Narxlar" :
+      platformSubTab === "usage" ? "AI Xarajatlari va Resurslar Sarfi" :
+      platformSubTab === "system" ? "Tizim va Integratsiyalar Holati" :
+      "Audit va Xavfsizlik Tarixi"
+    ) : (
+      tab === "overview" ? "Boshqaruv Paneli" :
+      tab === "inbox" ? "Jonli Suhbatlar (Live Inbox)" :
+      tab === "knowledge" ? "Telegram Mahsulotlar Bazasi" :
+      tab === "products" ? "Mahsulotlar Katalogi" :
+      tab === "orders" ? "Buyurtmalar Jurnali" :
+      tab === "customers" ? "Mijozlar Ro'yxati" :
+      tab === "usage" ? "Foydalanish va Resurs Limitlari" :
+      tab === "billing" ? "Obuna va Hisob-Kitoblar" :
+      tab === "pricing" ? "Tariflar va Imkoniyatlar" :
+      tab === "platform" ? "Platforma Egasi Boshqaruv Markazi" :
+      tab === "analytics" ? "Savdo va AI Statistikasi" :
+      tab === "settings" ? "AI va Tizim Sozlamalari" :
+      tab === "admins" ? "Administratorlar Boshqaruvi" :
+      tab === "team" ? "Jamoa va Ruxsatlar Tizimi" :
+      tab === "logs" ? "Tizim Amallari Tarixi" :
+      "Admin Profili va Dizayn Sozlamalari"
+    )
   );
 
   return (
@@ -2371,7 +2357,7 @@ export default function Dashboard({
         )}
 
         {/* Tab Modules */}
-        {zone === "platform" || tab === "platform" ? (
+        {(zone === "platform" || tab === "platform") && tab !== "profile" ? (
           <PlatformOwnerTab
             subTab={platformSubTab}
             metrics={platformMetrics}
