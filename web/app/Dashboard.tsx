@@ -815,17 +815,26 @@ export default function Dashboard({
       "platform",
     ];
 
-    const syncFromHash = () => {
+    const syncFromUrl = () => {
       if (typeof window === "undefined") return;
+      if (window.location.pathname.startsWith("/platform")) {
+        setZone("platform");
+      } else if (window.location.pathname.startsWith("/t/")) {
+        setZone("tenant");
+      }
       const h = window.location.hash.replace("#", "") as (typeof validTabs)[number];
       if (h && validTabs.includes(h)) {
         setTab(h);
       }
     };
 
-    syncFromHash();
-    window.addEventListener("hashchange", syncFromHash);
-    return () => window.removeEventListener("hashchange", syncFromHash);
+    syncFromUrl();
+    window.addEventListener("hashchange", syncFromUrl);
+    window.addEventListener("popstate", syncFromUrl);
+    return () => {
+      window.removeEventListener("hashchange", syncFromUrl);
+      window.removeEventListener("popstate", syncFromUrl);
+    };
   }, []);
 
   // Sync window URL hash when tab changes
@@ -833,7 +842,7 @@ export default function Dashboard({
     if (typeof window !== "undefined") {
       const targetHash = `#${tab}`;
       if (window.location.hash !== targetHash) {
-        window.history.replaceState(null, "", targetHash);
+        window.history.pushState(null, "", targetHash);
       }
     }
   }, [tab]);
@@ -2248,7 +2257,10 @@ export default function Dashboard({
             setZone("tenant");
           }
           if (typeof window !== "undefined") {
-            window.location.hash = newTab;
+            const targetHash = `#${newTab}`;
+            if (window.location.hash !== targetHash) {
+              window.history.pushState(null, "", targetHash);
+            }
           }
         }}
         platformSubTab={platformSubTab}

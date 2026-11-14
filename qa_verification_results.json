@@ -1,0 +1,139 @@
+{
+  "routing": {
+    "base_url_status_200": {
+      "status": "PASSED",
+      "details": "HTTP 200"
+    },
+    "html_contains_app_shell": {
+      "status": "PASSED",
+      "details": "HTML contains linear theme root"
+    },
+    "tab_overview_reachable": {
+      "status": "PASSED",
+      "details": "HTTP 200 for #overview"
+    },
+    "tab_inbox_reachable": {
+      "status": "PASSED",
+      "details": "HTTP 200 for #inbox"
+    },
+    "tab_knowledge_reachable": {
+      "status": "PASSED",
+      "details": "HTTP 200 for #knowledge"
+    },
+    "tab_products_reachable": {
+      "status": "PASSED",
+      "details": "HTTP 200 for #products"
+    },
+    "tab_orders_reachable": {
+      "status": "PASSED",
+      "details": "HTTP 200 for #orders"
+    },
+    "tab_customers_reachable": {
+      "status": "PASSED",
+      "details": "HTTP 200 for #customers"
+    },
+    "tab_analytics_reachable": {
+      "status": "PASSED",
+      "details": "HTTP 200 for #analytics"
+    },
+    "tab_settings_reachable": {
+      "status": "PASSED",
+      "details": "HTTP 200 for #settings"
+    },
+    "tab_admins_reachable": {
+      "status": "PASSED",
+      "details": "HTTP 200 for #admins"
+    },
+    "tab_team_reachable": {
+      "status": "PASSED",
+      "details": "HTTP 200 for #team"
+    },
+    "tab_logs_reachable": {
+      "status": "PASSED",
+      "details": "HTTP 200 for #logs"
+    },
+    "tab_profile_reachable": {
+      "status": "PASSED",
+      "details": "HTTP 200 for #profile"
+    },
+    "tab_usage_reachable": {
+      "status": "PASSED",
+      "details": "HTTP 200 for #usage"
+    },
+    "tab_billing_reachable": {
+      "status": "PASSED",
+      "details": "HTTP 200 for #billing"
+    },
+    "tab_pricing_reachable": {
+      "status": "PASSED",
+      "details": "HTTP 200 for #pricing"
+    },
+    "tab_platform_reachable": {
+      "status": "PASSED",
+      "details": "HTTP 200 for #platform"
+    }
+  },
+  "security": {
+    "backend_health": {
+      "status": "PASSED",
+      "details": "Status: ok"
+    },
+    "unauthenticated_rejected_401": {
+      "status": "PASSED",
+      "details": "HTTP 401"
+    },
+    "non_existent_org_returns_404_not_silent_fallback": {
+      "status": "PASSED",
+      "details": "HTTP 404 ({\"detail\":\"Tashkilot topilmadi\"})"
+    }
+  },
+  "api_data": {
+    "mrr_arr_formula_check": {
+      "status": "PASSED",
+      "details": "MRR: $133.83, ARR: $1606.0 (12x verified)"
+    },
+    "metrics_types_numeric": {
+      "status": "PASSED",
+      "details": "Orgs: 86, Margin: 100.0%"
+    },
+    "system_health_real_check": {
+      "status": "PASSED",
+      "details": "System: ok"
+    },
+    "organizations_list_real": {
+      "status": "PASSED",
+      "details": "Total active stores: 86"
+    },
+    "overview_metrics_fields": {
+      "status": "PASSED",
+      "details": "Conversations: 6, AI: 1"
+    }
+  },
+  "a11y_responsive": {
+    "html_lang_attribute": {
+      "status": "PASSED",
+      "details": "lang='uz' present"
+    },
+    "anti_flash_script_present": {
+      "status": "PASSED",
+      "details": "Pre-hydration theme & font script detected"
+    },
+    "viewport_meta_tag": {
+      "status": "PASSED",
+      "details": "Responsive viewport configured"
+    },
+    "dark_theme_root_attribute": {
+      "status": "PASSED",
+      "details": "Default dark theme applied"
+    },
+    "custom_fonts_supported": {
+      "status": "PASSED",
+      "details": "Olline and Pogonia font tokens ready"
+    }
+  },
+  "summary": {
+    "total": 31,
+    "passed": 31,
+    "failed": 0
+  }
+}
