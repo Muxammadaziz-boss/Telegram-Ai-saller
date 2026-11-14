@@ -1,12 +1,30 @@
 {
-  "routing": {
+  "static_inspection": {
+    "dashboard_profile_route_guard": {
+      "status": "PASSED",
+      "details": "Guard '(zone === \"platform\" || tab === \"platform\") && tab !== \"profile\"' present"
+    },
+    "dashboard_no_silent_tenant1_fallback": {
+      "status": "PASSED",
+      "details": "Confirmed lines 255-272 silent fallback to tenant 1 removed"
+    },
+    "dashboard_uses_pushstate_for_tabs": {
+      "status": "PASSED",
+      "details": "Verified window.history.pushState used for tab navigation history"
+    },
+    "dashboard_listens_to_popstate": {
+      "status": "PASSED",
+      "details": "Verified popstate and hashchange dual listeners active"
+    },
+    "custom_fonts_css_definitions": {
+      "status": "PASSED",
+      "details": "Olline and Pogonia @font-face rules and [data-font] tokens verified in globals.css"
+    }
+  },
+  "runtime_routing": {
     "base_url_status_200": {
       "status": "PASSED",
       "details": "HTTP 200"
-    },
-    "html_contains_app_shell": {
-      "status": "PASSED",
-      "details": "HTML contains linear theme root"
     },
     "tab_overview_reachable": {
       "status": "PASSED",
@@ -73,67 +91,60 @@
       "details": "HTTP 200 for #platform"
     }
   },
-  "security": {
-    "backend_health": {
+  "runtime_security": {
+    "backend_health_check": {
       "status": "PASSED",
-      "details": "Status: ok"
+      "details": "HTTP 200, status=ok"
     },
-    "unauthenticated_rejected_401": {
+    "unauthenticated_overview_denied_401": {
       "status": "PASSED",
       "details": "HTTP 401"
     },
-    "non_existent_org_returns_404_not_silent_fallback": {
+    "regular_tenant_forbidden_from_platform_metrics": {
+      "status": "PASSED",
+      "details": "HTTP 403 (detail: {\"detail\":\"Foydalanuvchida admin yoki boshqaruv ruxsati mavjud emas\"})"
+    },
+    "non_existent_org_strictly_returns_404": {
       "status": "PASSED",
       "details": "HTTP 404 ({\"detail\":\"Tashkilot topilmadi\"})"
     }
   },
-  "api_data": {
-    "mrr_arr_formula_check": {
+  "runtime_financial_trace": {
+    "formula_arr_equals_12x_mrr": {
       "status": "PASSED",
-      "details": "MRR: $133.83, ARR: $1606.0 (12x verified)"
+      "details": "MRR: $133.83, ARR: $1606.0 (Delta: 0.0400)"
     },
-    "metrics_types_numeric": {
+    "formula_gross_margin_accuracy": {
       "status": "PASSED",
-      "details": "Orgs: 86, Margin: 100.0%"
+      "details": "Reported Margin: 100.0%, AI Cost: $0.0"
     },
-    "system_health_real_check": {
+    "metrics_schema_and_types_valid": {
       "status": "PASSED",
-      "details": "System: ok"
-    },
-    "organizations_list_real": {
-      "status": "PASSED",
-      "details": "Total active stores: 86"
-    },
-    "overview_metrics_fields": {
-      "status": "PASSED",
-      "details": "Conversations: 6, AI: 1"
+      "details": "Organizations: 86, Schema matches FinancialMetrics model"
     }
   },
   "a11y_responsive": {
-    "html_lang_attribute": {
+    "html_lang_attribute_uz": {
       "status": "PASSED",
-      "details": "lang='uz' present"
+      "details": "Found lang='uz' attribute on <html>"
     },
-    "anti_flash_script_present": {
+    "anti_flash_script_complete": {
       "status": "PASSED",
-      "details": "Pre-hydration theme & font script detected"
+      "details": "Pre-hydration script binds theme and data-font"
     },
-    "viewport_meta_tag": {
+    "viewport_meta_tag_present": {
       "status": "PASSED",
-      "details": "Responsive viewport configured"
+      "details": "Found name='viewport' meta tag"
     },
-    "dark_theme_root_attribute": {
+    "default_dark_theme_attributes": {
       "status": "PASSED",
-      "details": "Default dark theme applied"
-    },
-    "custom_fonts_supported": {
-      "status": "PASSED",
-      "details": "Olline and Pogonia font tokens ready"
+      "details": "Found data-bs-theme='dark' and class='theme-dark'"
     }
   },
   "summary": {
-    "total": 31,
-    "passed": 31,
-    "failed": 0
+    "total": 33,
+    "passed": 33,
+    "failed": 0,
+    "skipped": 0
   }
 }

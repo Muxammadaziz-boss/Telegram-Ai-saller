@@ -1,0 +1,159 @@
+{
+  "viewports": {
+    "mobile_375x812": {
+      "no_horizontal_overflow_overview": {
+        "status": "PASSED",
+        "details": "scrollWidth <= innerWidth (375px)"
+      },
+      "main_content_visible": {
+        "status": "PASSED",
+        "details": "Main content area rendered with height > 100px"
+      },
+      "sidebar_or_mobile_nav_accessible": {
+        "status": "PASSED",
+        "details": "Mobile navigation/sidebar toggle accessible"
+      },
+      "inbox_navigation_functional": {
+        "status": "PASSED",
+        "details": "Live Inbox tab rendered and loaded"
+      },
+      "tables_remain_usable": {
+        "status": "PASSED",
+        "details": "Orders table or scrollable container exists"
+      },
+      "no_overflow_platform_owner": {
+        "status": "PASSED",
+        "details": "Platform Owner view fits without page-level spill"
+      },
+      "modal_fits_viewport": {
+        "status": "PASSED",
+        "details": "Logo modal bounds do not exceed viewport"
+      }
+    },
+    "tablet_768x1024": {
+      "no_horizontal_overflow_overview": {
+        "status": "PASSED",
+        "details": "scrollWidth <= innerWidth (768px)"
+      },
+      "main_content_visible": {
+        "status": "PASSED",
+        "details": "Main content area rendered with height > 100px"
+      },
+      "sidebar_accessible": {
+        "status": "PASSED",
+        "details": "Sidebar navigation visible and rendered"
+      },
+      "inbox_navigation_functional": {
+        "status": "PASSED",
+        "details": "Live Inbox tab rendered and loaded"
+      },
+      "tables_remain_usable": {
+        "status": "PASSED",
+        "details": "Orders table or scrollable container exists"
+      },
+      "no_overflow_platform_owner": {
+        "status": "PASSED",
+        "details": "Platform Owner view fits without page-level spill"
+      },
+      "modal_fits_viewport": {
+        "status": "PASSED",
+        "details": "Logo modal bounds do not exceed viewport"
+      }
+    },
+    "laptop_1366x768": {
+      "no_horizontal_overflow_overview": {
+        "status": "PASSED",
+        "details": "scrollWidth <= innerWidth (1366px)"
+      },
+      "main_content_visible": {
+        "status": "PASSED",
+        "details": "Main content area rendered with height > 100px"
+      },
+      "sidebar_accessible": {
+        "status": "PASSED",
+        "details": "Sidebar navigation visible and rendered"
+      },
+      "inbox_navigation_functional": {
+        "status": "PASSED",
+        "details": "Live Inbox tab rendered and loaded"
+      },
+      "tables_remain_usable": {
+        "status": "PASSED",
+        "details": "Orders table or scrollable container exists"
+      },
+      "no_overflow_platform_owner": {
+        "status": "PASSED",
+        "details": "Platform Owner view fits without page-level spill"
+      },
+      "modal_fits_viewport": {
+        "status": "PASSED",
+        "details": "Logo modal bounds do not exceed viewport"
+      }
+    },
+    "desktop_1440x900": {
+      "no_horizontal_overflow_overview": {
+        "status": "PASSED",
+        "details": "scrollWidth <= innerWidth (1440px)"
+      },
+      "main_content_visible": {
+        "status": "PASSED",
+        "details": "Main content area rendered with height > 100px"
+      },
+      "sidebar_accessible": {
+        "status": "PASSED",
+        "details": "Sidebar navigation visible and rendered"
+      },
+      "inbox_navigation_functional": {
+        "status": "PASSED",
+        "details": "Live Inbox tab rendered and loaded"
+      },
+      "tables_remain_usable": {
+        "status": "PASSED",
+        "details": "Orders table or scrollable container exists"
+      },
+      "no_overflow_platform_owner": {
+        "status": "PASSED",
+        "details": "Platform Owner view fits without page-level spill"
+      },
+      "modal_fits_viewport": {
+        "status": "PASSED",
+        "details": "Logo modal bounds do not exceed viewport"
+      }
+    },
+    "ultrawide_1920x1080": {
+      "no_horizontal_overflow_overview": {
+        "status": "PASSED",
+        "details": "scrollWidth <= innerWidth (1920px)"
+      },
+      "main_content_visible": {
+        "status": "PASSED",
+        "details": "Main content area rendered with height > 100px"
+      },
+      "sidebar_accessible": {
+        "status": "PASSED",
+        "details": "Sidebar navigation visible and rendered"
+      },
+      "inbox_navigation_functional": {
+        "status": "PASSED",
+        "details": "Live Inbox tab rendered and loaded"
+      },
+      "tables_remain_usable": {
+        "status": "PASSED",
+        "details": "Orders table or scrollable container exists"
+      },
+      "no_overflow_platform_owner": {
+        "status": "PASSED",
+        "details": "Platform Owner view fits without page-level spill"
+      },
+      "modal_fits_viewport": {
+        "status": "PASSED",
+        "details": "Logo modal bounds do not exceed viewport"
+      }
+    }
+  },
+  "summary": {
+    "total": 35,
+    "passed": 35,
+    "failed": 0
+  }
+}

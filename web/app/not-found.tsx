@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import { IconArrowLeft, IconAlertTriangle } from "@tabler/icons-react";
 

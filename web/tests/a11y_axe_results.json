@@ -1,0 +1,98 @@
+{
+  "timestamp": "2026-11-14T10:19:19.748Z",
+  "environment": {
+    "browser": "Google Chrome",
+    "standard": "WCAG 2.1 Level AA",
+    "tags": [
+      "wcag2a",
+      "wcag2aa",
+      "wcag21a",
+      "wcag21aa"
+    ]
+  },
+  "themeAudits": {
+    "dark": {
+      "overview": {
+        "name": "Overview Dashboard",
+        "passesCount": 23,
+        "violationsCount": 0,
+        "violations": [],
+        "incompleteCount": 1
+      },
+      "products": {
+        "name": "Products Catalog",
+        "passesCount": 23,
+        "violationsCount": 0,
+        "violations": [],
+        "incompleteCount": 1
+      },
+      "orders": {
+        "name": "Orders Management",
+        "passesCount": 23,
+        "violationsCount": 0,
+        "violations": [],
+        "incompleteCount": 1
+      },
+      "platform": {
+        "name": "Platform Owner Center",
+        "passesCount": 23,
+        "violationsCount": 0,
+        "violations": [],
+        "incompleteCount": 1
+      },
+      "profile": {
+        "name": "Profile & Appearance",
+        "passesCount": 23,
+        "violationsCount": 0,
+        "violations": [],
+        "incompleteCount": 1
+      }
+    },
+    "light": {
+      "overview": {
+        "name": "Overview Dashboard",
+        "passesCount": 23,
+        "violationsCount": 0,
+        "violations": [],
+        "incompleteCount": 1
+      },
+      "products": {
+        "name": "Products Catalog",
+        "passesCount": 23,
+        "violationsCount": 0,
+        "violations": [],
+        "incompleteCount": 1
+      },
+      "orders": {
+        "name": "Orders Management",
+        "passesCount": 23,
+        "violationsCount": 0,
+        "violations": [],
+        "incompleteCount": 1
+      },
+      "platform": {
+        "name": "Platform Owner Center",
+        "passesCount": 23,
+        "violationsCount": 0,
+        "violations": [],
+        "incompleteCount": 1
+      },
+      "profile": {
+        "name": "Profile & Appearance",
+        "passesCount": 23,
+        "violationsCount": 0,
+        "violations": [],
+        "incompleteCount": 1
+      }
+    }
+  },
+  "summary": {
+    "totalScans": 10,
+    "cleanPasses": 10,
+    "totalViolations": 0,
+    "criticalViolations": 0,
+    "seriousViolations": 0,
+    "moderateViolations": 0,
+    "minorViolations": 0
+  }
+}

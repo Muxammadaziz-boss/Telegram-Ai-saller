@@ -1,0 +1,136 @@
+{
+  "timestamp": "2026-11-14T10:21:06.804679+00:00",
+  "token_pricing_verification": {
+    "pricing_model_gemini-3.1-flash-lite": {
+      "status": "PASSED",
+      "model": "gemini-3.1-flash-lite",
+      "rates": {
+        "input_per_m": 0.075,
+        "output_per_m": 0.3
+      },
+      "msg": "Model gemini-3.1-flash-lite has input=$0.075/M and output=$0.3/M"
+    },
+    "pricing_model_gemini-3.5-flash": {
+      "status": "PASSED",
+      "model": "gemini-3.5-flash",
+      "rates": {
+        "input_per_m": 0.15,
+        "output_per_m": 0.6
+      },
+      "msg": "Model gemini-3.5-flash has input=$0.15/M and output=$0.6/M"
+    },
+    "pricing_model_gemini-3.8-flash": {
+      "status": "PASSED",
+      "model": "gemini-3.8-flash",
+      "rates": {
+        "input_per_m": 1.25,
+        "output_per_m": 5.0
+      },
+      "msg": "Model gemini-3.8-flash has input=$1.25/M and output=$5.0/M"
+    },
+    "pricing_model_gemini-embedding-001": {
+      "status": "PASSED",
+      "model": "gemini-embedding-001",
+      "rates": {
+        "input_per_m": 0.02,
+        "output_per_m": 0.0
+      },
+      "msg": "Model gemini-embedding-001 has input=$0.02/M and output=$0.0/M"
+    },
+    "pricing_model_default": {
+      "status": "PASSED",
+      "model": "default",
+      "rates": {
+        "input_per_m": 0.15,
+        "output_per_m": 0.6
+      },
+      "msg": "Model default has input=$0.15/M and output=$0.6/M"
+    }
+  },
+  "formula_unit_tests": {
+    "flash_lite_1m_tokens": {
+      "status": "PASSED",
+      "calculated": 0.375,
+      "expected": 0.375,
+      "msg": "1M in + 1M out = $0.375 (expected 0.375)"
+    },
+    "flash_3_5_typical_turn": {
+      "status": "PASSED",
+      "calculated": 0.0027,
+      "expected": 0.0027,
+      "msg": "10k in + 2k out = $0.0027 (expected 0.0027)"
+    },
+    "cents_conversion_375": {
+      "status": "PASSED",
+      "calculated_cents": 37,
+      "expected": 37,
+      "msg": "USD $0.375 converts to 37 cents"
+    },
+    "cents_conversion_min_clamp": {
+      "status": "PASSED",
+      "calculated_cents": 1,
+      "expected": 1,
+      "msg": "Sub-cent cost $2e-06 safely clamped to minimum 1 cent"
+    },
+    "yearly_normalization": {
+      "status": "PASSED",
+      "monthly_equivalent": 24.17,
+      "msg": "$290/yr normalized to $24.17/mo"
+    },
+    "zero_rev_zero_cost_margin": {
+      "status": "PASSED",
+      "margin": 100.0,
+      "msg": "Zero revenue and zero cost defaults to 100.0% margin"
+    }
+  },
+  "live_database_trace": {
+    "live_mrr_valid": {
+      "status": "PASSED",
+      "mrr_usd": 133.83,
+      "msg": "MRR calculated: $133.83"
+    },
+    "live_arr_calculation": {
+      "status": "PASSED",
+      "arr_actual": 1606.0,
+      "arr_expected": 1605.96,
+      "msg": "ARR ($1606.0) matches MRR*12 ($1605.96)"
+    },
+    "live_arpu_calculation": {
+      "status": "PASSED",
+      "arpu_actual": 44.61,
+      "arpu_expected": 44.61,
+      "msg": "ARPU ($44.61) matches MRR/active_subs ($44.61)"
+    },
+    "live_gross_margin": {
+      "status": "PASSED",
+      "actual_margin": 100.0,
+      "expected_margin": 100.0,
+      "msg": "Margin (100.0%) matches formula ((MRR-Cost)/MRR)*100 (100.0%)"
+    },
+    "org_profitability_list_loaded": {
+      "status": "PASSED",
+      "count": 10,
+      "sample_org": {
+        "id": 452,
+        "name": "Boutique A",
+        "slug": "boutique-a-6832",
+        "category": "Retail",
+        "plan": "None",
+        "subscription_status": "inactive",
+        "monthly_revenue_usd": 0.0,
+        "monthly_ai_cost_usd": 0.0,
+        "gross_margin_percent": 0.0,
+        "is_profitable": true,
+        "conversations_count": 0,
+        "bot_configured": false,
+        "created_at": "2026-11-14T08:58:50.263027+00:00"
+      },
+      "msg": "Retrieved 10 organizations with revenue/cost breakdowns"
+    }
+  },
+  "summary": {
+    "total_tests": 16,
+    "passed": 16,
+    "failed": 0
+  }
+}

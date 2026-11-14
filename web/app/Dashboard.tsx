@@ -867,6 +867,19 @@ export default function Dashboard({
     }
   }, [messages]);
 
+  // Modal Escape key dismissal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (showLogoModal) setShowLogoModal(false);
+        if (showOnboardingModal) setShowOnboardingModal(false);
+        if (upgradeModalConfig.isOpen) setUpgradeModalConfig({ isOpen: false });
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showLogoModal, showOnboardingModal, upgradeModalConfig.isOpen]);
+
   useEffect(() => {
     document.documentElement.setAttribute("data-bs-theme", theme);
   }, [theme]);
@@ -2110,7 +2123,7 @@ export default function Dashboard({
 
         {/* Modal for logo settings */}
         {showLogoModal && (
-          <div className="modal modal-blur fade show d-block" tabIndex={-1} style={{ backgroundColor: "rgba(0,0,0,0.7)" }}>
+          <div className="modal modal-blur fade show d-block" role="dialog" aria-modal="true" aria-label="Kompaniya Logotipini Sozlash" tabIndex={-1} style={{ backgroundColor: "rgba(0,0,0,0.7)" }}>
             <div className="modal-dialog modal-dialog-centered" role="document">
               <div className="modal-content border-0 shadow-lg" style={{ background: "#171d29", borderRadius: 16 }}>
                 <div className="modal-header border-bottom border-white-10">
@@ -2613,7 +2626,7 @@ export default function Dashboard({
 
       {/* Modal for logo settings */}
       {showLogoModal && (
-        <div className="modal modal-blur fade show d-block" tabIndex={-1} style={{ backgroundColor: "rgba(0,0,0,0.7)" }}>
+        <div className="modal modal-blur fade show d-block" role="dialog" aria-modal="true" aria-label="Kompaniya Logotipini Sozlash" tabIndex={-1} style={{ backgroundColor: "rgba(0,0,0,0.7)" }}>
           <div className="modal-dialog modal-dialog-centered" role="document">
             <div className="modal-content border-0 shadow-lg" style={{ background: "var(--bg-surface-elevated)", borderRadius: 16 }}>
               <div className="modal-header border-bottom border-subtle">

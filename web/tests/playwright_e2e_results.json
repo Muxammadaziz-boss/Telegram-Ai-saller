@@ -1,0 +1,168 @@
+{
+  "authentication": {
+    "admin_login_success": {
+      "status": "PASSED",
+      "details": "Logged in successfully with dashboard credentials"
+    }
+  },
+  "tab_transitions": {
+    "hash_overview_navigation": {
+      "status": "PASSED",
+      "details": "Navigated to http://localhost:3000/#overview"
+    },
+    "hash_inbox_navigation": {
+      "status": "PASSED",
+      "details": "Navigated to http://localhost:3000/#inbox"
+    },
+    "hash_knowledge_navigation": {
+      "status": "PASSED",
+      "details": "Navigated to http://localhost:3000/#knowledge"
+    },
+    "hash_products_navigation": {
+      "status": "PASSED",
+      "details": "Navigated to http://localhost:3000/#products"
+    },
+    "hash_orders_navigation": {
+      "status": "PASSED",
+      "details": "Navigated to http://localhost:3000/#orders"
+    },
+    "hash_customers_navigation": {
+      "status": "PASSED",
+      "details": "Navigated to http://localhost:3000/#customers"
+    },
+    "hash_analytics_navigation": {
+      "status": "PASSED",
+      "details": "Navigated to http://localhost:3000/#analytics"
+    },
+    "hash_settings_navigation": {
+      "status": "PASSED",
+      "details": "Navigated to http://localhost:3000/#settings"
+    },
+    "hash_admins_navigation": {
+      "status": "PASSED",
+      "details": "Navigated to http://localhost:3000/#admins"
+    },
+    "hash_team_navigation": {
+      "status": "PASSED",
+      "details": "Navigated to http://localhost:3000/#team"
+    },
+    "hash_logs_navigation": {
+      "status": "PASSED",
+      "details": "Navigated to http://localhost:3000/#logs"
+    },
+    "hash_profile_navigation": {
+      "status": "PASSED",
+      "details": "Navigated to http://localhost:3000/#profile"
+    },
+    "hash_usage_navigation": {
+      "status": "PASSED",
+      "details": "Navigated to http://localhost:3000/#usage"
+    },
+    "hash_billing_navigation": {
+      "status": "PASSED",
+      "details": "Navigated to http://localhost:3000/#billing"
+    },
+    "hash_pricing_navigation": {
+      "status": "PASSED",
+      "details": "Navigated to http://localhost:3000/#pricing"
+    },
+    "hash_platform_navigation": {
+      "status": "PASSED",
+      "details": "Navigated to http://localhost:3000/#platform"
+    }
+  },
+  "browser_history": {
+    "history_back_to_products": {
+      "status": "PASSED",
+      "details": "URL: http://localhost:3000/#products"
+    },
+    "history_back_to_overview": {
+      "status": "PASSED",
+      "details": "URL: http://localhost:3000/#overview"
+    },
+    "history_forward_to_products": {
+      "status": "PASSED",
+      "details": "URL: http://localhost:3000/#products"
+    }
+  },
+  "platform_tenant_navigation": {
+    "platform_owner_dashboard_rendered": {
+      "status": "PASSED",
+      "details": "Platform Owner metrics & store portfolio rendered"
+    }
+  },
+  "profile_both_zones": {
+    "profile_renders_without_masking": {
+      "status": "PASSED",
+      "details": "Profile & Appearance tab rendered with Olline & Pogonia options"
+    }
+  },
+  "theme_font_switching": {
+    "initial_theme_dark": {
+      "status": "PASSED",
+      "details": "data-bs-theme=\"dark\""
+    },
+    "switch_to_light_theme": {
+      "status": "PASSED",
+      "details": "data-bs-theme=\"light\""
+    },
+    "restore_dark_theme": {
+      "status": "PASSED",
+      "details": "data-bs-theme=\"dark\""
+    },
+    "switch_to_pogonia_font": {
+      "status": "PASSED",
+      "details": "html[data-font=\"pogonia\"]"
+    },
+    "switch_to_olline_font": {
+      "status": "PASSED",
+      "details": "html[data-font=\"olline\"]"
+    }
+  },
+  "modal_escape_focus": {
+    "modal_opens_on_click": {
+      "status": "PASSED",
+      "details": "Logo configuration modal rendered"
+    },
+    "modal_dismissed_on_escape": {
+      "status": "PASSED",
+      "details": "Modal closed on Escape key press"
+    }
+  },
+  "keyboard_navigation": {
+    "tab_traverses_focus_elements": {
+      "status": "PASSED",
+      "details": "Focused tags: BUTTON -> BUTTON"
+    }
+  },
+  "console_errors": [
+    "Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ],
+  "failed_requests": [
+    {
+      "url": "http://localhost:3000/fonts/Olline.woff2",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://localhost:3000/fonts/Olline.ttf",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://localhost:3000/fonts/Pogonia.woff2",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://localhost:3000/fonts/Pogonia.ttf",
+      "failure": "net::ERR_ABORTED"
+    }
+  ],
+  "summary": {
+    "total": 30,
+    "passed": 30,
+    "failed": 0
+  }
+}
