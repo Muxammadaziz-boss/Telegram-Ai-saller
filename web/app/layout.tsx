@@ -16,8 +16,18 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             __html: `
               (function() {
                 try {
-                  document.documentElement.setAttribute('data-bs-theme', 'dark');
-                  document.documentElement.classList.add('theme-dark');
+                  var savedTheme = localStorage.getItem('ai_sales_theme') || 'dark';
+                  var savedFont = localStorage.getItem('ai_sales_app_font') || 'olline';
+                  document.documentElement.setAttribute('data-theme', savedTheme);
+                  document.documentElement.setAttribute('data-bs-theme', savedTheme);
+                  document.documentElement.setAttribute('data-font', savedFont);
+                  if (savedTheme === 'light') {
+                    document.documentElement.classList.remove('theme-dark');
+                    document.documentElement.classList.add('theme-light');
+                  } else {
+                    document.documentElement.classList.remove('theme-light');
+                    document.documentElement.classList.add('theme-dark');
+                  }
                 } catch(e) {}
                 window.addEventListener('error', function(e) {
                   if (e.filename && e.filename.includes('chrome-extension://')) {

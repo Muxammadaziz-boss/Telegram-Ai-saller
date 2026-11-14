@@ -72,6 +72,19 @@ import { PricingTab } from "./components/saas/PricingTab";
 import { PlatformOwnerTab } from "./components/saas/PlatformOwnerTab";
 import { OnboardingModal } from "./components/saas/OnboardingModal";
 import { UpgradeModal } from "./components/saas/UpgradeModal";
+import { AppShell } from "./components/layout/AppShell";
+import { OverviewTab } from "./components/tabs/OverviewTab";
+import { InboxTab } from "./components/tabs/InboxTab";
+import { KnowledgeTab } from "./components/tabs/KnowledgeTab";
+import { ProductsTab } from "./components/tabs/ProductsTab";
+import { OrdersTab } from "./components/tabs/OrdersTab";
+import { CustomersTab } from "./components/tabs/CustomersTab";
+import { AnalyticsTab } from "./components/tabs/AnalyticsTab";
+import { SettingsTab } from "./components/tabs/SettingsTab";
+import { AdminsTab } from "./components/tabs/AdminsTab";
+import { TeamTab } from "./components/tabs/TeamTab";
+import { LogsTab } from "./components/tabs/LogsTab";
+import { ProfileTab } from "./components/tabs/ProfileTab";
 
 type Overview = {
   conversations: number;
@@ -878,6 +891,23 @@ export default function Dashboard({
     document.documentElement.setAttribute("data-ui-style", next);
     try {
       localStorage.setItem("ai_sales_ui_style", next);
+    } catch {}
+  };
+
+  const toggleTheme = () => {
+    const next = theme === "dark" ? "light" : "dark";
+    setTheme(next);
+    document.documentElement.setAttribute("data-theme", next);
+    document.documentElement.setAttribute("data-bs-theme", next);
+    if (next === "light") {
+      document.documentElement.classList.remove("theme-dark");
+      document.documentElement.classList.add("theme-light");
+    } else {
+      document.documentElement.classList.remove("theme-light");
+      document.documentElement.classList.add("theme-dark");
+    }
+    try {
+      localStorage.setItem("ai_sales_theme", next);
     } catch {}
   };
 
@@ -2156,3973 +2186,380 @@ export default function Dashboard({
     );
   }
 
+  const breadcrumb = zone === "platform" ? "SAAS / PLATFORM OWNER CONTROL" : (
+    tab === "overview" ? "WORKSPACE / OVERVIEW" :
+    tab === "inbox" ? "WORKSPACE / LIVE INBOX" :
+    tab === "knowledge" ? "WORKSPACE / KNOWLEDGE BASE" :
+    tab === "products" ? "SALES / PRODUCTS CATALOG" :
+    tab === "orders" ? "SALES / ORDERS MANAGEMENT" :
+    tab === "customers" ? "SALES / CUSTOMERS DIRECTORY" :
+    tab === "usage" ? "SAAS / USAGE & LIMITS METERING" :
+    tab === "billing" ? "SAAS / SUBSCRIPTION & INVOICES" :
+    tab === "pricing" ? "SAAS / COMMERCIAL PLANS MATRIX" :
+    tab === "platform" ? "SAAS / PLATFORM OWNER CONTROL" :
+    tab === "analytics" ? "INTELLIGENCE / ANALYTICS" :
+    tab === "settings" ? "INTELLIGENCE / AI CONFIGURATION" :
+    tab === "admins" ? "SYSTEM / ADMINISTRATION" :
+    tab === "team" ? "SYSTEM / TEAM & ACCESS ROLES" :
+    tab === "logs" ? "SYSTEM / AUDIT & ACTIVITY LOGS" :
+    "SYSTEM / ADMIN PROFILE & APPEARANCE"
+  );
+
+  const tabTitle = zone === "platform" ? (
+    platformSubTab === "overview" ? "Platforma Umumiy Ko'rinishi (MRR & AI Xarajatlari)" :
+    platformSubTab === "stores" ? "Do'konlar Portfeli (Tenants)" :
+    platformSubTab === "users" ? "Platforma Foydalanuvchilari" :
+    platformSubTab === "plans" ? "Tarif Rejalari va Narxlar" :
+    platformSubTab === "usage" ? "AI Xarajatlari va Resurslar Sarfi" :
+    platformSubTab === "system" ? "Tizim va Integratsiyalar Holati" :
+    "Audit va Xavfsizlik Tarixi"
+  ) : (
+    tab === "overview" ? "Boshqaruv Paneli" :
+    tab === "inbox" ? "Jonli Suhbatlar (Live Inbox)" :
+    tab === "knowledge" ? "Telegram Mahsulotlar Bazasi" :
+    tab === "products" ? "Mahsulotlar Katalogi" :
+    tab === "orders" ? "Buyurtmalar Jurnali" :
+    tab === "customers" ? "Mijozlar Ro'yxati" :
+    tab === "usage" ? "Foydalanish va Resurs Limitlari" :
+    tab === "billing" ? "Obuna va Hisob-Kitoblar" :
+    tab === "pricing" ? "Tariflar va Imkoniyatlar" :
+    tab === "platform" ? "Platforma Egasi Boshqaruv Markazi" :
+    tab === "analytics" ? "Savdo va AI Statistikasi" :
+    tab === "settings" ? "AI va Tizim Sozlamalari" :
+    tab === "admins" ? "Administratorlar Boshqaruvi" :
+    tab === "team" ? "Jamoa va Ruxsatlar Tizimi" :
+    tab === "logs" ? "Tizim Amallari Tarixi" :
+    "Admin Profili va Dizayn Sozlamalari"
+  );
+
   return (
-    <div className="page">
-      {/* ========================================================
-          5. SIDEBAR: NATIVE TABLER VERTICAL NAVBAR
-          ======================================================== */}
-      <aside
-        className={`navbar navbar-vertical navbar-expand-lg ${
-          sidebarCollapsed ? "navbar-vertical-collapsed" : ""
-        }`}
-        data-bs-theme="dark"
+    <div className="linear-app">
+      <AppShell
+        activeTab={tab}
+        onSelectTab={(newTab) => {
+          setTab(newTab);
+          if (newTab === "platform") {
+            setZone("platform");
+          } else if (zone === "platform") {
+            setZone("tenant");
+          }
+          if (typeof window !== "undefined") {
+            window.location.hash = newTab;
+          }
+        }}
+        organizations={userOrganizations}
+        activeOrgId={activeOrgId}
+        onSelectOrg={switchOrganization}
+        onOpenNewStoreModal={() => setShowOnboardingModal(true)}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        loading={loading}
+        onRefresh={load}
+        isPlatformOwner={isPlatformOwner}
+        zone={zone === "platform" ? "platform" : "store"}
+        onSwitchZone={(z) => {
+          if (z === "platform") {
+            setZone("platform");
+            setTab("platform");
+          } else {
+            setZone("tenant");
+            setTab("overview");
+          }
+        }}
+        storeName={activeStoreMeta?.name || userOrganizations.find((o) => o.id === activeOrgId)?.name || "AI Sales Central"}
+        adminName={currentAdmin?.name || "Admin"}
+        adminRole={currentAdmin?.role || "admin"}
+        adminAvatarUrl={Boolean(activeAdminTelegramId) && activeAdminTelegramId > 0 && !navAvatarError ? `/api/proxy?path=/admin/users/${activeAdminTelegramId}/avatar` : ""}
+        aiModel={aiModel}
+        unreadCount={conversations.filter((c) => c.status === "human_takeover").length}
+        productsCount={products.length}
+        ordersCount={orders.length}
+        logoUrl={logoUrl}
+        onOpenLogoModal={() => setShowLogoModal(true)}
+        onLogout={logout}
+        breadcrumb={breadcrumb}
+        tabTitle={tabTitle}
       >
-        <div className="container-fluid">
-          <button
-            className="navbar-toggler"
-            type="button"
-            data-bs-toggle="collapse"
-            data-bs-target="#sidebar-menu"
-            aria-controls="sidebar-menu"
-            aria-expanded="false"
-            aria-label="Toggle navigation"
-          >
-            <span className="navbar-toggler-icon"></span>
-          </button>
-
-          <div
-            className={`d-flex align-items-center ${
-              sidebarCollapsed ? "flex-column gap-2" : "justify-content-between"
-            } w-100 my-2`}
-          >
-            <h1 className="navbar-brand navbar-brand-autodark m-0 p-0">
-              <a
-                href="#"
-                onClick={(e) => {
-                  e.preventDefault();
-                  if (zone === "platform") {
-                    setPlatformSubTab("overview");
-                  } else {
-                    setTab("overview");
-                  }
-                }}
-                className="d-flex align-items-center gap-2 text-decoration-none"
-                title="AI Sales Control Enterprise"
-              >
-                <AppLogo src={logoUrl} size="sm" />
-                <div className="d-flex flex-column text-start app-brand-text">
-                  <span className="fw-bold fs-3 text-white lh-1">
-                    {zone === "platform"
-                      ? "Platform Owner"
-                      : activeStoreMeta?.name || "AI Sales Control"}
-                  </span>
-                  <span className="text-secondary small" style={{ fontSize: "0.68rem" }}>
-                    {zone === "platform" ? "Super Admin Control" : "Enterprise v2.4"}
-                  </span>
-                </div>
-              </a>
-            </h1>
-
-            {/* Desktop Sidebar Collapse Toggle Button */}
-            <button
-              type="button"
-              className="btn btn-sm btn-icon btn-ghost-secondary d-none d-lg-inline-flex"
-              onClick={toggleSidebar}
-              title={sidebarCollapsed ? "Sidebarni kengaytirish" : "Sidebarni kichraytirish"}
-              style={{ minWidth: 28, height: 28, padding: 0 }}
-            >
-              {sidebarCollapsed ? (
-                <IconLayoutSidebarLeftExpand size={17} />
-              ) : (
-                <IconLayoutSidebarLeftCollapse size={17} />
-              )}
-            </button>
-          </div>
-
-          <div className="navbar-nav flex-row d-lg-none align-items-center gap-2">
-            <button
-              className="btn btn-sm btn-icon btn-ghost-secondary text-reset"
-              onClick={() => setTab("profile")}
-              title="Profil & Dizayn"
-            >
-              <IconPalette size={18} className={tab === "profile" ? "text-primary" : ""} />
-            </button>
-          </div>
-
-          <div className="collapse navbar-collapse show" id="sidebar-menu">
-            {zone === "platform" ? (
-              <ul className="navbar-nav pt-lg-3">
-                <div className="nav-section-title">PLATFORMA BOSHQARUVI</div>
-
-                <li className={`nav-item ${platformSubTab === "overview" ? "active" : ""}`}>
-                  <a
-                    className="nav-link"
-                    href="#overview"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setPlatformSubTab("overview");
-                    }}
-                    title="Platforma Umumiy Ko'rinishi (MRR, Tushum)"
-                  >
-                    <span className="nav-link-icon d-md-none d-lg-inline-block">
-                      <IconLayoutDashboard size={18} />
-                    </span>
-                    <span className="nav-link-title">Umumiy Ko'rinish</span>
-                  </a>
-                </li>
-
-                <li className={`nav-item ${platformSubTab === "stores" ? "active" : ""}`}>
-                  <a
-                    className="nav-link"
-                    href="#stores"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setPlatformSubTab("stores");
-                    }}
-                    title="Do'konlar Portfeli (Tenants)"
-                  >
-                    <span className="nav-link-icon d-md-none d-lg-inline-block">
-                      <IconBuildingSkyscraper size={18} className="text-warning" />
-                    </span>
-                    <span className="nav-link-title">Do'konlar</span>
-                    {((platformMetrics?.total_organizations ?? platformOrgs.length) > 0) && (
-                      <span className="badge badge-sm bg-warning-lt text-warning ms-auto font-monospace fw-bold">
-                        {platformMetrics?.total_organizations ?? platformOrgs.length}
-                      </span>
-                    )}
-                  </a>
-                </li>
-
-                <li className={`nav-item ${platformSubTab === "users" ? "active" : ""}`}>
-                  <a
-                    className="nav-link"
-                    href="#users"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setPlatformSubTab("users");
-                    }}
-                    title="Foydalanuvchilar Ro'yxati"
-                  >
-                    <span className="nav-link-icon d-md-none d-lg-inline-block">
-                      <IconUsers size={18} />
-                    </span>
-                    <span className="nav-link-title">Foydalanuvchilar</span>
-                    {platformUsers.length > 0 && (
-                      <span className="badge badge-sm bg-blue-lt ms-auto">
-                        {platformUsers.length}
-                      </span>
-                    )}
-                  </a>
-                </li>
-
-                <li className={`nav-item ${platformSubTab === "plans" ? "active" : ""}`}>
-                  <a
-                    className="nav-link"
-                    href="#plans"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setPlatformSubTab("plans");
-                    }}
-                    title="Tariflar va Narxlar"
-                  >
-                    <span className="nav-link-icon d-md-none d-lg-inline-block">
-                      <IconCrown size={18} />
-                    </span>
-                    <span className="nav-link-title">Tariflar & Narxlar</span>
-                  </a>
-                </li>
-
-                <li className={`nav-item ${platformSubTab === "usage" ? "active" : ""}`}>
-                  <a
-                    className="nav-link"
-                    href="#usage"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setPlatformSubTab("usage");
-                    }}
-                    title="Global AI Xarajatlari va Foydalanish"
-                  >
-                    <span className="nav-link-icon d-md-none d-lg-inline-block">
-                      <IconGauge size={18} />
-                    </span>
-                    <span className="nav-link-title">AI Xarajati & Usage</span>
-                  </a>
-                </li>
-
-                <div className="nav-section-title">XAVFSIZLIK VA TIZIM</div>
-
-                <li className={`nav-item ${platformSubTab === "system" ? "active" : ""}`}>
-                  <a
-                    className="nav-link"
-                    href="#system"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setPlatformSubTab("system");
-                    }}
-                    title="Tizim Holati"
-                  >
-                    <span className="nav-link-icon d-md-none d-lg-inline-block">
-                      <IconServer size={18} />
-                    </span>
-                    <span className="nav-link-title">Tizim Holati</span>
-                    <span className="badge badge-sm bg-green-lt text-green ms-auto">OK</span>
-                  </a>
-                </li>
-
-                <li className={`nav-item ${platformSubTab === "audit" ? "active" : ""}`}>
-                  <a
-                    className="nav-link"
-                    href="#audit"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setPlatformSubTab("audit");
-                    }}
-                    title="Xavfsizlik va Audit Tarixi"
-                  >
-                    <span className="nav-link-icon d-md-none d-lg-inline-block">
-                      <IconActivity size={18} />
-                    </span>
-                    <span className="nav-link-title">Audit Tarixi</span>
-                  </a>
-                </li>
-              </ul>
-            ) : (
-              <ul className="navbar-nav pt-lg-3">
-                {isPlatformOwner && (
-                  <div className="px-3 pb-2">
-                    <button
-                      type="button"
-                      className="btn btn-warning w-100 btn-sm d-flex align-items-center justify-content-center gap-2 fw-semibold shadow-sm"
-                      onClick={handleExitStore}
-                      title="Platforma boshqaruviga qaytish"
-                    >
-                      <IconBuildingSkyscraper size={16} />
-                      <span>Platformaga qaytish</span>
-                    </button>
-                  </div>
-                )}
-                {/* WORKSPACE SECTION */}
-                <div className="nav-section-title">WORKSPACE</div>
-
-                <li className={`nav-item ${tab === "overview" ? "active" : ""}`}>
-                  <a
-                    className="nav-link"
-                    href="#overview"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setTab("overview");
-                    }}
-                    title="Overview (Umumiy ko'rinish)"
-                  >
-                    <span className="nav-link-icon d-md-none d-lg-inline-block">
-                      <IconLayoutDashboard size={18} />
-                    </span>
-                    <span className="nav-link-title">Overview</span>
-                  </a>
-                </li>
-
-                <li className={`nav-item ${tab === "inbox" ? "active" : ""}`}>
-                  <a
-                    className="nav-link"
-                    href="#inbox"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setTab("inbox");
-                    }}
-                    title="Live Inbox (Jonli muloqot)"
-                  >
-                    <span className="nav-link-icon d-md-none d-lg-inline-block">
-                      <IconMessages size={18} />
-                    </span>
-                    <span className="nav-link-title">Live Inbox</span>
-                    {overview && overview.human_takeover > 0 && (
-                      <span className="badge badge-sm bg-yellow text-yellow-fg ms-auto">
-                        {overview.human_takeover}
-                      </span>
-                    )}
-                  </a>
-                </li>
-
-                <li className={`nav-item ${tab === "knowledge" ? "active" : ""}`}>
-                  <a
-                    className="nav-link"
-                    href="#knowledge"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setTab("knowledge");
-                    }}
-                    title="Knowledge Base (Ma'lumotlar bazasi)"
-                  >
-                    <span className="nav-link-icon d-md-none d-lg-inline-block">
-                      <IconDatabase size={18} />
-                    </span>
-                    <span className="nav-link-title">Knowledge Base</span>
-                    <span className="badge badge-sm bg-blue-lt ms-auto">
-                      {posts.length}
-                    </span>
-                  </a>
-                </li>
-
-                {/* SALES SECTION */}
-                <div className="nav-section-title">SALES</div>
-
-                <li className={`nav-item ${tab === "products" ? "active" : ""}`}>
-                  <a
-                    className="nav-link"
-                    href="#products"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setTab("products");
-                    }}
-                    title="Products (Mahsulotlar katalogi)"
-                  >
-                    <span className="nav-link-icon d-md-none d-lg-inline-block">
-                      <IconPackage size={18} />
-                    </span>
-                    <span className="nav-link-title">Products</span>
-                  </a>
-                </li>
-
-                <li className={`nav-item ${tab === "orders" ? "active" : ""}`}>
-                  <a
-                    className="nav-link"
-                    href="#orders"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setTab("orders");
-                    }}
-                    title="Orders (Buyurtmalar)"
-                  >
-                    <span className="nav-link-icon d-md-none d-lg-inline-block">
-                      <IconShoppingCart size={18} />
-                    </span>
-                    <span className="nav-link-title">Orders</span>
-                    <span className="badge badge-sm bg-green-lt ms-auto">{orders.length}</span>
-                  </a>
-                </li>
-
-                <li className={`nav-item ${tab === "customers" ? "active" : ""}`}>
-                  <a
-                    className="nav-link"
-                    href="#customers"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setTab("customers");
-                    }}
-                    title="Customers (Mijozlar bazasi)"
-                  >
-                    <span className="nav-link-icon d-md-none d-lg-inline-block">
-                      <IconUsers size={18} />
-                    </span>
-                    <span className="nav-link-title">Customers</span>
-                  </a>
-                </li>
-
-                {/* INTELLIGENCE SECTION */}
-                <div className="nav-section-title">INTELLIGENCE</div>
-
-                <li className={`nav-item ${tab === "analytics" ? "active" : ""}`}>
-                  <a
-                    className="nav-link"
-                    href="#analytics"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setTab("analytics");
-                    }}
-                    title="Analytics (Tahlil va Statistika)"
-                  >
-                    <span className="nav-link-icon d-md-none d-lg-inline-block">
-                      <IconTrendingUp size={18} />
-                    </span>
-                    <span className="nav-link-title">Analytics</span>
-                  </a>
-                </li>
-
-                <li className={`nav-item ${tab === "settings" ? "active" : ""}`}>
-                  <a
-                    className="nav-link"
-                    href="#settings"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setTab("settings");
-                    }}
-                    title="AI Settings (AI sozlamalari)"
-                  >
-                    <span className="nav-link-icon d-md-none d-lg-inline-block">
-                      <IconSettings size={18} />
-                    </span>
-                    <span className="nav-link-title">AI Settings</span>
-                  </a>
-                </li>
-
-                {/* SAAS & SUBSCRIPTION SECTION */}
-                <div className="nav-section-title">SAAS & BILLING</div>
-
-                <li className={`nav-item ${tab === "usage" ? "active" : ""}`}>
-                  <a
-                    className="nav-link"
-                    href="#usage"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setTab("usage");
-                    }}
-                    title="Foydalanish va Limitlar"
-                  >
-                    <span className="nav-link-icon d-md-none d-lg-inline-block">
-                      <IconGauge size={18} />
-                    </span>
-                    <span className="nav-link-title">Usage & Limits</span>
-                  </a>
-                </li>
-
-                <li className={`nav-item ${tab === "billing" ? "active" : ""}`}>
-                  <a
-                    className="nav-link"
-                    href="#billing"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setTab("billing");
-                    }}
-                    title="Obuna va To'lovlar"
-                  >
-                    <span className="nav-link-icon d-md-none d-lg-inline-block">
-                      <IconCreditCard size={18} />
-                    </span>
-                    <span className="nav-link-title">Subscription</span>
-                    {subscriptionData?.is_trial && (
-                      <span className="badge badge-sm bg-blue-lt ms-auto">Trial</span>
-                    )}
-                  </a>
-                </li>
-
-                <li className={`nav-item ${tab === "pricing" ? "active" : ""}`}>
-                  <a
-                    className="nav-link"
-                    href="#pricing"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setTab("pricing");
-                    }}
-                    title="Tariflar va Rejalar"
-                  >
-                    <span className="nav-link-icon d-md-none d-lg-inline-block">
-                      <IconCrown size={18} />
-                    </span>
-                    <span className="nav-link-title">Plans & Pricing</span>
-                  </a>
-                </li>
-
-                {isPlatformOwner && (
-                  <>
-                    <div className="nav-section-title">PLATFORM OWNER</div>
-                    <li className="nav-item">
-                      <a
-                        className="nav-link"
-                        href="/platform"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          handleExitStore();
-                        }}
-                        title="Platform Owner Dashboard (MRR, Tenants, AI Costs)"
-                      >
-                        <span className="nav-link-icon d-md-none d-lg-inline-block">
-                          <IconBuildingSkyscraper size={18} className="text-warning" />
-                        </span>
-                        <span className="nav-link-title text-warning fw-semibold">Platformaga qaytish</span>
-                      </a>
-                    </li>
-                  </>
-                )}
-
-                {/* SYSTEM SECTION */}
-                <div className="nav-section-title">SYSTEM</div>
-
-                <li className={`nav-item ${tab === "admins" ? "active" : ""}`}>
-                  <a
-                    className="nav-link"
-                    href="#admins"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setTab("admins");
-                    }}
-                    title="Administration (Adminlar boshqaruvi)"
-                  >
-                    <span className="nav-link-icon d-md-none d-lg-inline-block">
-                      <IconShieldLock size={18} />
-                    </span>
-                    <span className="nav-link-title">Administration</span>
-                  </a>
-                </li>
-
-                <li className={`nav-item ${tab === "team" ? "active" : ""}`}>
-                  <a
-                    className="nav-link"
-                    href="#team"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setTab("team");
-                    }}
-                    title="Team & Access (Jamoa va Ruxsatlar)"
-                  >
-                    <span className="nav-link-icon d-md-none d-lg-inline-block">
-                      <IconUsersGroup size={18} />
-                    </span>
-                    <span className="nav-link-title">Team & Access</span>
-                  </a>
-                </li>
-
-                <li className={`nav-item ${tab === "logs" ? "active" : ""}`}>
-                  <a
-                    className="nav-link"
-                    href="#logs"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setTab("logs");
-                    }}
-                    title="Activity Logs"
-                  >
-                    <span className="nav-link-icon d-md-none d-lg-inline-block">
-                      <IconActivity size={18} />
-                    </span>
-                    <span className="nav-link-title">Activity Logs</span>
-                  </a>
-                </li>
-              </ul>
-            )}
-          </div>
-        </div>
-      </aside>
-
-      {/* ========================================================
-          PAGE WRAPPER
-          ======================================================== */}
-      <div className="page-wrapper">
-        {/* STICKY IMPERSONATION BANNER (Platform Owner Inside Tenant View) */}
+        {/* Sticky Impersonation Banner if Platform Owner is exploring a store */}
         {zone === "tenant" && (isOwnerImpersonating || isPlatformOwner) && (
           <div
-            className="sticky-top bg-warning text-dark px-3 py-2 d-flex align-items-center justify-content-between shadow-sm"
-            style={{ zIndex: 1045, borderBottom: "2px solid #b45309" }}
+            className="p-3 mb-3 rounded-2 d-flex align-items-center justify-content-between border"
+            style={{
+              backgroundColor: "var(--warning-subtle)",
+              borderColor: "var(--warning-border)",
+              color: "var(--warning-text)",
+            }}
           >
-            <div className="d-flex align-items-center gap-2">
-              <IconAlertCircle size={20} className="text-dark flex-shrink-0" />
-              <span className="fw-semibold">
-                ⚠️ Siz <strong>{activeStoreMeta?.name || userOrganizations.find(o => o.id === activeOrgId)?.name || "Do'kon"}</strong> ichidasiz (Platform Owner ko'rinishi)
-              </span>
-              <span className="badge bg-dark text-white text-uppercase ms-2" style={{ fontSize: "10px" }}>
-                Impersonation Faol
+            <div className="d-flex align-items-center gap-2 small">
+              <IconAlertCircle size={18} />
+              <span>
+                Siz <strong>{activeStoreMeta?.name || userOrganizations.find((o) => o.id === activeOrgId)?.name || "Do'kon"}</strong> ichidasiz (Platform Owner ko'rinishi)
               </span>
             </div>
             <button
               type="button"
-              className="btn btn-sm btn-dark text-white d-inline-flex align-items-center gap-1.5 rounded-pill px-3 shadow-sm"
+              className="btn btn-sm btn-outline-warning"
               onClick={handleExitStore}
             >
-              <span>Platformaga qaytish</span>
-              <IconArrowRight size={14} />
+              Platformaga qaytish
             </button>
           </div>
         )}
 
-        {/* ========================================================
-            4. FLOATING TOP NAVBAR (STRICT USER SPECIFICATION)
-            ======================================================== */}
-        <header className="navbar navbar-expand-md d-print-none navbar-floating">
-          <div className="container-xl">
-            {/* Search Input */}
-            <div className="my-2 my-md-0 flex-grow-1 flex-md-grow-0 order-first order-md-last">
-              <div className="input-icon">
-                <span className="input-icon-addon">
-                  <IconSearch size={18} />
-                </span>
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="Qidiruv (Ctrl + K)..."
-                  aria-label="Search"
-                  value={inboxSearch}
-                  onChange={(e) => setInboxSearch(e.target.value)}
-                />
-              </div>
+        {/* Global Toast Alerts */}
+        {error && (
+          <div
+            className="p-3 mb-3 rounded-2 d-flex align-items-center justify-content-between border"
+            style={{
+              backgroundColor: "var(--danger-subtle)",
+              borderColor: "var(--danger-border)",
+              color: "var(--danger-text)",
+            }}
+          >
+            <div className="d-flex align-items-center gap-2 small">
+              <IconAlertCircle size={18} />
+              <span>{error}</span>
             </div>
-
-            {/* Organization Switcher Dropdown OR Platform Mode Badge */}
-            {zone === "platform" ? (
-              <div className="d-flex align-items-center gap-2 ms-2">
-                <span className="badge bg-warning-lt text-warning fw-semibold px-2.5 py-1.5 rounded-pill d-flex align-items-center gap-1">
-                  <IconCrown size={14} />
-                  <span>Platform Owner Rejimi</span>
-                </span>
-                <span className="badge bg-body-secondary text-secondary small d-none d-md-inline">
-                  {(platformMetrics?.total_organizations ?? platformOrgs.length) || 0} ta do'kon
-                </span>
-              </div>
-            ) : (
-              <div className="nav-item dropdown ms-2 position-relative">
-                <button
-                  type="button"
-                  className="btn btn-sm btn-outline-secondary d-flex align-items-center gap-2 rounded-pill px-3"
-                  onClick={() => setShowOrgDropdown(!showOrgDropdown)}
-                  style={{ height: 38, borderColor: "rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.04)" }}
-                >
-                  <IconBuildingSkyscraper size={16} className="text-primary flex-shrink-0" />
-                  <span className="fw-semibold text-white small text-truncate" style={{ maxWidth: 140 }}>
-                    {userOrganizations.find((o) => o.id === activeOrgId)?.name || "AI Sales Central"}
-                  </span>
-                  <span className="badge bg-primary text-white text-uppercase" style={{ fontSize: "10px" }}>
-                    {subscriptionData?.plan?.name || "PRO"}
-                  </span>
-                  <IconChevronDown size={14} className="text-secondary flex-shrink-0" />
-                </button>
-                {showOrgDropdown && (
-                  <div
-                    className="dropdown-menu dropdown-menu-start show shadow-lg border-secondary border-opacity-25 p-2"
-                    style={{ minWidth: 260, position: "absolute", top: "100%", left: 0, zIndex: 1050 }}
-                  >
-                    <div className="dropdown-header small text-secondary text-uppercase fw-bold px-2 py-1">
-                      Tashkilotlar (Tenants)
-                    </div>
-                    {userOrganizations.map((org) => (
-                      <button
-                        key={org.id}
-                        type="button"
-                        className={`dropdown-item d-flex align-items-center justify-content-between rounded py-2 px-2.5 mb-1 ${
-                          activeOrgId === org.id ? "active bg-primary text-white" : ""
-                        }`}
-                        onClick={() => {
-                          switchOrganization(org.id);
-                          setShowOrgDropdown(false);
-                        }}
-                      >
-                        <div className="d-flex align-items-center gap-2 text-truncate">
-                          <IconBuildingSkyscraper size={16} />
-                          <span className="text-truncate fw-medium">{org.name}</span>
-                        </div>
-                        <span className={`badge ${activeOrgId === org.id ? "bg-white text-primary" : "bg-body-secondary text-secondary"} small`}>
-                          {org.subscription?.plan_name || "START"}
-                        </span>
-                      </button>
-                    ))}
-                    <div className="dropdown-divider my-1" />
-                    <button
-                      type="button"
-                      className="dropdown-item d-flex align-items-center gap-2 rounded py-2 text-primary fw-medium"
-                      onClick={() => {
-                        setShowOrgDropdown(false);
-                        setShowOnboardingModal(true);
-                      }}
-                    >
-                      <IconPlus size={16} />
-                      <span>Yangi Biznes Qo'shish (7 kun bepul)</span>
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Navbar Items Right */}
-            <div className="navbar-nav flex-row order-md-last ms-auto align-items-center gap-2">
-              {/* AI Engine Status Pill */}
-              <div className="nav-item d-none d-sm-flex">
-                <span className="badge bg-green-lt text-green d-flex align-items-center gap-1.5 py-1.5 px-2.5 rounded-pill">
-                  <span className="status-dot status-dot-animated bg-green"></span>
-                  AI Online (Faol)
-                </span>
-              </div>
-
-              {/* Refresh Button */}
-              <div className="nav-item">
-                <button
-                  type="button"
-                  className="btn btn-icon btn-outline-secondary rounded-circle"
-                  style={{ width: 36, height: 36 }}
-                  title="Yangilash"
-                  onClick={load}
-                  disabled={loading}
-                >
-                  <IconRefresh size={17} className={loading ? "spin" : ""} />
-                </button>
-              </div>
-
-              {/* Logout Button */}
-              <div className="nav-item">
-                <button
-                  type="button"
-                  className="btn btn-outline-danger btn-sm d-flex align-items-center gap-1 rounded-pill px-2.5"
-                  style={{ height: 36 }}
-                  onClick={logout}
-                  title="Tizimdan chiqish"
-                >
-                  <IconLogout size={16} />
-                  <span className="d-none d-lg-inline small">Chiqish</span>
-                </button>
-              </div>
-
-              {/* Admin Avatar Round Button (Placed at the far right edge of Navbar) */}
-              <div className="nav-item ms-1">
-                <button
-                  type="button"
-                  className={`admin-navbar-avatar-btn ${tab === "profile" ? "active" : ""}`}
-                  title={`${currentAdmin?.name || "Super Admin"} (@${currentAdmin?.username || "Dr4x1l"}) • Telegram ID: ${activeAdminTelegramId}`}
-                  onClick={() => setTab("profile")}
-                >
-                  {!navAvatarError && Boolean(activeAdminTelegramId) && Number(activeAdminTelegramId) > 0 ? (
-                    <img
-                      key={activeAdminTelegramId}
-                      src={`/api/proxy?path=/admin/users/${activeAdminTelegramId}/avatar`}
-                      alt={currentAdmin?.name || "Admin"}
-                      className="admin-navbar-avatar-img"
-                      onError={() => setNavAvatarError(true)}
-                    />
-                  ) : (
-                    <div className="admin-navbar-avatar-fallback">
-                      {currentAdmin?.name
-                        ? currentAdmin.name.substring(0, 2).toUpperCase()
-                        : <IconShieldCheck size={18} />}
-                    </div>
-                  )}
-                  <span className="admin-navbar-avatar-status" title="Online" />
-                </button>
-              </div>
-            </div>
+            <button
+              type="button"
+              className="btn-close"
+              onClick={() => setError("")}
+            />
           </div>
-        </header>
+        )}
 
-        {/* Global Floating Toast Notifications (Top-Right Glassmorphism with Auto-Dismiss) */}
-        <div className="toast-container-fixed">
-          {error && (
-            <div
-              className="toast show align-items-center text-white border-0 shadow-lg mb-2 toast-floating toast-slide-in"
-              role="alert"
-              style={{
-                background: "rgba(220, 38, 38, 0.92)",
-                boxShadow: "0 10px 25px -5px rgba(220, 38, 38, 0.5), 0 8px 10px -6px rgba(220, 38, 38, 0.3)",
-              }}
-            >
-              <div className="d-flex align-items-center p-3">
-                <IconAlertCircle className="me-2.5 flex-shrink-0 text-white" size={22} />
-                <div className="toast-body p-0 flex-grow-1" style={{ fontSize: "14px", fontWeight: 500, lineHeight: 1.4 }}>
-                  {error}
-                </div>
-                <button
-                  type="button"
-                  className="btn-close btn-close-white ms-2"
-                  aria-label="Close"
-                  onClick={() => setError("")}
-                />
-              </div>
+        {success && (
+          <div
+            className="p-3 mb-3 rounded-2 d-flex align-items-center justify-content-between border"
+            style={{
+              backgroundColor: "var(--success-subtle)",
+              borderColor: "var(--success-border)",
+              color: "var(--success-text)",
+            }}
+          >
+            <div className="d-flex align-items-center gap-2 small">
+              <IconCheck size={18} />
+              <span>{success}</span>
             </div>
-          )}
-
-          {success && (
-            <div
-              className="toast show align-items-center text-white border-0 shadow-lg mb-2 toast-floating toast-slide-in"
-              role="alert"
-              style={{
-                background: "rgba(16, 185, 129, 0.92)",
-                boxShadow: "0 10px 25px -5px rgba(16, 185, 129, 0.5), 0 8px 10px -6px rgba(16, 185, 129, 0.3)",
-              }}
-            >
-              <div className="d-flex align-items-center p-3">
-                <IconCheck className="me-2.5 flex-shrink-0 text-white" size={22} />
-                <div className="toast-body p-0 flex-grow-1" style={{ fontSize: "14px", fontWeight: 500, lineHeight: 1.4 }}>
-                  {success}
-                </div>
-                <button
-                  type="button"
-                  className="btn-close btn-close-white ms-2"
-                  aria-label="Close"
-                  onClick={() => setSuccess("")}
-                />
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* ========================================================
-            PAGE HEADER
-            ======================================================== */}
-        <div className="page-header d-print-none">
-          <div className="container-xl">
-            <div className="row g-2 align-items-center">
-              <div className="col">
-                <div className="page-pretitle">
-                  {zone === "platform" ? "SAAS / PLATFORM OWNER CONTROL" : (
-                    <>
-                      {tab === "overview" && "WORKSPACE / OVERVIEW"}
-                      {tab === "inbox" && "WORKSPACE / LIVE INBOX"}
-                      {tab === "knowledge" && "WORKSPACE / KNOWLEDGE BASE"}
-                      {tab === "products" && "SALES / PRODUCTS CATALOG"}
-                      {tab === "orders" && "SALES / ORDERS MANAGEMENT"}
-                      {tab === "customers" && "SALES / CUSTOMERS DIRECTORY"}
-                      {tab === "usage" && "SAAS / USAGE & LIMITS METERING"}
-                      {tab === "billing" && "SAAS / SUBSCRIPTION & INVOICES"}
-                      {tab === "pricing" && "SAAS / COMMERCIAL PLANS MATRIX"}
-                      {tab === "platform" && "SAAS / PLATFORM OWNER CONTROL"}
-                      {tab === "analytics" && "INTELLIGENCE / ANALYTICS"}
-                      {tab === "settings" && "INTELLIGENCE / AI CONFIGURATION"}
-                      {tab === "admins" && "SYSTEM / ADMINISTRATION"}
-                      {tab === "team" && "SYSTEM / TEAM & ACCESS ROLES"}
-                      {tab === "logs" && "SYSTEM / AUDIT & ACTIVITY LOGS"}
-                      {tab === "profile" && "SYSTEM / ADMIN PROFILE & APPEARANCE"}
-                    </>
-                  )}
-                </div>
-                <h2 className="page-title">
-                  {zone === "platform" ? (
-                    platformSubTab === "overview" ? "Platforma Umumiy Ko'rinishi (MRR & AI Xarajatlari)" :
-                    platformSubTab === "stores" ? "Do'konlar Portfeli (Tenants)" :
-                    platformSubTab === "users" ? "Platforma Foydalanuvchilari" :
-                    platformSubTab === "plans" ? "Tarif Rejalari va Narxlar" :
-                    platformSubTab === "usage" ? "AI Xarajatlari va Resurslar Sarfi" :
-                    platformSubTab === "system" ? "Tizim va Integratsiyalar Holati" :
-                    "Audit va Xavfsizlik Tarixi"
-                  ) : (
-                    <>
-                      {tab === "overview" && "Boshqaruv Paneli"}
-                      {tab === "inbox" && "Jonli Suhbatlar (Live Inbox)"}
-                      {tab === "knowledge" && "Telegram Mahsulotlar Bazasi"}
-                      {tab === "products" && "Mahsulotlar Katalogi"}
-                      {tab === "orders" && "Buyurtmalar Jurnali"}
-                      {tab === "customers" && "Mijozlar Ro'yxati"}
-                      {tab === "usage" && "Foydalanish va Resurs Limitlari"}
-                      {tab === "billing" && "Obuna va Hisob-Kitoblar"}
-                      {tab === "pricing" && "Tariflar va Imkoniyatlar"}
-                      {tab === "platform" && "Platforma Egasi Boshqaruv Markazi"}
-                      {tab === "analytics" && "Savdo va AI Statistikasi"}
-                      {tab === "settings" && "AI va Tizim Sozlamalari"}
-                      {tab === "admins" && "Administratorlar Boshqaruvi"}
-                      {tab === "team" && "Jamoa va Ruxsatlar Tizimi"}
-                      {tab === "logs" && "Tizim Amallari Tarixi"}
-                      {tab === "profile" && "Admin Profili va Dizayn Sozlamalari"}
-                    </>
-                  )}
-                </h2>
-              </div>
-            </div>
+            <button
+              type="button"
+              className="btn-close"
+              onClick={() => setSuccess("")}
+            />
           </div>
-        </div>
+        )}
 
-        {/* ========================================================
-            PAGE BODY (TAB CONTENTS)
-            ======================================================== */}
-        <div className="page-body">
-          <div className="container-xl">
-            {zone === "platform" ? (
-              <PlatformOwnerTab
-                subTab={platformSubTab}
-                metrics={platformMetrics}
-                organizations={platformOrgs}
-                usersList={platformUsers}
-                systemHealth={systemHealth}
-                auditLogs={auditLogs}
-                loading={loading}
-                onRefresh={loadPlatformData}
-                onUpdatePlan={handleUpdatePlanConfig}
-                onEnterStore={handleEnterStore}
-                onSwitchSubTab={setPlatformSubTab}
-                onCreateStore={handleCreateStore}
-                onUpdateStoreStatus={handleUpdateStoreStatus}
-                onDeleteStore={handleDeleteStore}
-              />
-            ) : (
-              <>
-                {/* 1. OVERVIEW TAB */}
+        {/* Tab Modules */}
+        {zone === "platform" || tab === "platform" ? (
+          <PlatformOwnerTab
+            subTab={platformSubTab}
+            metrics={platformMetrics}
+            organizations={platformOrgs}
+            usersList={platformUsers}
+            systemHealth={systemHealth}
+            auditLogs={auditLogs}
+            loading={loading}
+            onRefresh={loadPlatformData}
+            onUpdatePlan={handleUpdatePlanConfig}
+            onEnterStore={handleEnterStore}
+            onSwitchSubTab={setPlatformSubTab}
+            onCreateStore={handleCreateStore}
+            onUpdateStoreStatus={handleUpdateStoreStatus}
+            onDeleteStore={handleDeleteStore}
+          />
+        ) : (
+          <>
             {tab === "overview" && (
-              <div>
-                {/* LIVE METRICS HEADER BAR */}
-                <div className="d-flex align-items-center justify-content-between px-1 mb-2">
-                  <div className="d-flex align-items-center gap-2">
-                    <span className="status-dot status-dot-animated bg-success"></span>
-                    <span className="text-secondary small fw-medium">
-                      Jonli Kuzatuv Paneli • Haqiqiy vaqtdagi AI savdo ko'rsatkichlari
-                    </span>
-                  </div>
-                  <div className="d-flex align-items-center gap-2 text-secondary small">
-                    <span className="badge bg-green-lt text-green d-none d-sm-inline-flex align-items-center gap-1">
-                      <span className="status-dot status-dot-animated bg-success"></span>
-                      Auto-Sync: Har 6s
-                    </span>
-                    <span>Oxirgi yangilanish: hozir</span>
-                  </div>
-                </div>
-
-                {/* 4 TOP STAT CARDS */}
-                <div className="row row-deck row-cards g-3 mb-3">
-
-                {/* 1. JAMI SUHBATLAR */}
-                <div className="col-sm-6 col-lg-3">
-                  <div
-                    className="card stat-card-interactive stat-card-blue shadow-sm"
-                    onClick={() => {
-                      setTab("inbox");
-                      setInboxFilter("all");
-                    }}
-                    title="Barcha suhbatlar ro'yxatini ochish"
-                  >
-                    <div className="card-body p-3">
-                      <div className="d-flex align-items-center justify-content-between mb-2">
-                        <span className="subheader text-uppercase fw-bold text-secondary mb-0">Jami Suhbatlar</span>
-                        <span className="badge bg-blue-lt text-blue d-inline-flex align-items-center gap-1">
-                          <IconTrendingUp size={12} /> +12% bugun
-                        </span>
-                      </div>
-
-                      <div className="d-flex align-items-center justify-content-between my-2">
-                        <div>
-                          <div className="display-6 fw-bold text-white lh-1">
-                            {overview?.conversations ?? 0}
-                          </div>
-                          <div className="text-secondary small mt-1">Mijozlar bilan faol aloqa</div>
-                        </div>
-                        <div className="stat-icon-badge bg-blue-lt text-blue shadow-sm">
-                          <IconMessages size={22} />
-                        </div>
-                      </div>
-
-                      <div className="my-2">
-                        <MiniSparkline
-                          data={[2, 3, 4, 3, 5, 5, overview?.conversations ?? 6]}
-                          color="#206bc4"
-                          id="conv"
-                        />
-                      </div>
-
-                      <div className="d-flex justify-content-between align-items-center text-secondary small mb-1">
-                        <span>Qamrov darajasi</span>
-                        <span className="fw-bold text-blue">100%</span>
-                      </div>
-                      <div className="progress progress-xs">
-                        <div
-                          className="progress-bar progress-bar-striped progress-bar-animated bg-primary"
-                          style={{ width: "100%" }}
-                        ></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 2. AI BOSHQARUVIDA */}
-                <div className="col-sm-6 col-lg-3">
-                  <div
-                    className="card stat-card-interactive stat-card-green shadow-sm"
-                    onClick={() => {
-                      setTab("inbox");
-                      setInboxFilter("ai");
-                    }}
-                    title="AI javob berayotgan suhbatlarni ochish"
-                  >
-                    <div className="card-body p-3">
-                      <div className="d-flex align-items-center justify-content-between mb-2">
-                        <span className="subheader text-uppercase fw-bold text-secondary mb-0">AI Boshqaruvida</span>
-                        <span className="badge bg-green-lt text-green d-inline-flex align-items-center gap-1">
-                          <span className="status-dot status-dot-animated bg-success"></span>
-                          Avtomat • Tezkor
-                        </span>
-                      </div>
-
-                      <div className="d-flex align-items-center justify-content-between my-2">
-                        <div>
-                          <div className="display-6 fw-bold text-green lh-1">
-                            {overview?.ai_active ?? 0}
-                          </div>
-                          <div className="text-secondary small mt-1">
-                            {overview && overview.conversations > 0
-                              ? Math.round((overview.ai_active / overview.conversations) * 100)
-                              : 0}% avtomatik yechim
-                          </div>
-                        </div>
-                        <div className="stat-icon-badge bg-green-lt text-green shadow-sm">
-                          <IconRobot size={22} />
-                        </div>
-                      </div>
-
-                      <div className="my-2">
-                        <MiniSparkline
-                          data={[1, 1, 2, 2, 3, 2, overview?.ai_active ?? 2]}
-                          color="#2fb344"
-                          id="ai"
-                        />
-                      </div>
-
-                      <div className="d-flex justify-content-between align-items-center text-secondary small mb-1">
-                        <span>O'rtacha javob: ~1.2s</span>
-                        <span className="fw-bold text-green">
-                          {overview && overview.conversations > 0
-                            ? Math.round((overview.ai_active / overview.conversations) * 100)
-                            : 0}%
-                        </span>
-                      </div>
-                      <div className="progress progress-xs">
-                        <div
-                          className="progress-bar progress-bar-striped progress-bar-animated bg-green"
-                          style={{
-                            width: `${
-                              overview && overview.conversations > 0
-                                ? (overview.ai_active / overview.conversations) * 100
-                                : 0
-                            }%`,
-                          }}
-                        ></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 3. OPERATOR QABULIDA */}
-                <div className="col-sm-6 col-lg-3">
-                  <div
-                    className="card stat-card-interactive stat-card-amber shadow-sm"
-                    onClick={() => {
-                      setTab("inbox");
-                      setInboxFilter("human");
-                    }}
-                    title="Operator javobini kutayotgan suhbatlarni ochish"
-                  >
-                    <div className="card-body p-3">
-                      <div className="d-flex align-items-center justify-content-between mb-2">
-                        <span className="subheader text-uppercase fw-bold text-secondary mb-0">Operator Qabulida</span>
-                        <span className="badge bg-yellow-lt text-yellow d-inline-flex align-items-center gap-1">
-                          <span className="status-dot status-dot-animated bg-warning"></span>
-                          Inson nazorati
-                        </span>
-                      </div>
-
-                      <div className="d-flex align-items-center justify-content-between my-2">
-                        <div>
-                          <div className="display-6 fw-bold text-yellow lh-1">
-                            {overview?.human_takeover ?? 0}
-                          </div>
-                          <div className="text-secondary small mt-1">
-                            Tezkor javob talab etiladi
-                          </div>
-                        </div>
-                        <div className="stat-icon-badge bg-yellow-lt text-yellow shadow-sm">
-                          <IconHeadset size={22} />
-                        </div>
-                      </div>
-
-                      <div className="my-2">
-                        <MiniSparkline
-                          data={[1, 2, 3, 2, 4, 3, overview?.human_takeover ?? 4]}
-                          color="#f59f00"
-                          id="operator"
-                        />
-                      </div>
-
-                      <div className="d-flex justify-content-between align-items-center text-secondary small mb-1">
-                        <span>Navbatdagi mijozlar</span>
-                        <span className="fw-bold text-yellow">
-                          {overview && overview.conversations > 0
-                            ? Math.round((overview.human_takeover / overview.conversations) * 100)
-                            : 0}%
-                        </span>
-                      </div>
-                      <div className="progress progress-xs">
-                        <div
-                          className="progress-bar progress-bar-striped progress-bar-animated bg-warning"
-                          style={{
-                            width: `${
-                              overview && overview.conversations > 0
-                                ? (overview.human_takeover / overview.conversations) * 100
-                                : 0
-                            }%`,
-                          }}
-                        ></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 4. SINXRON POSTLAR */}
-                <div className="col-sm-6 col-lg-3">
-                  <div
-                    className="card stat-card-interactive stat-card-purple shadow-sm"
-                    onClick={() => setTab("knowledge")}
-                    title="Telegram postlar bazasini ochish"
-                  >
-                    <div className="card-body p-3">
-                      <div className="d-flex align-items-center justify-content-between mb-2">
-                        <span className="subheader text-uppercase fw-bold text-secondary mb-0">Sinxron Postlar</span>
-                        <span className="badge bg-purple-lt text-purple d-inline-flex align-items-center gap-1">
-                          <IconDatabase size={12} /> AI Katalog
-                        </span>
-                      </div>
-
-                      <div className="d-flex align-items-center justify-content-between my-2">
-                        <div>
-                          <div className="display-6 fw-bold text-purple lh-1">
-                            {overview?.knowledge_posts ?? posts.length}
-                          </div>
-                          <div className="text-secondary small mt-1">
-                            {channels.length > 0
-                              ? `${channels.length} ta faol kanal`
-                              : "Kanal ulanmagan"}
-                          </div>
-                        </div>
-                        <div className="stat-icon-badge bg-purple-lt text-purple shadow-sm">
-                          <IconDatabase size={22} />
-                        </div>
-                      </div>
-
-                      <div className="my-2">
-                        <MiniSparkline
-                          data={[3, 5, 6, 7, 8, 8, overview?.knowledge_posts ?? 9]}
-                          color="#ae3ec9"
-                          id="posts"
-                        />
-                      </div>
-
-                      <div className="d-flex justify-content-between align-items-center text-secondary small mb-1">
-                        <span className="text-truncate me-2" style={{ maxWidth: 160 }}>
-                          {channels[0]?.channel_username ? `@${channels[0].channel_username}` : "Bazaga ulangan"}
-                        </span>
-                        <span className="fw-bold text-purple">100%</span>
-                      </div>
-                      <div className="progress progress-xs">
-                        <div
-                          className="progress-bar bg-purple"
-                          style={{ width: "100%" }}
-                        ></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-                {/* MAIN DASHBOARD CONTENT */}
-                <div className="row row-cards g-3">
-                  {/* Left Column: So'nggi Mijoz Murojaatlari */}
-                  <div className="col-lg-7 col-xl-8">
-                    <div className="card shadow-sm h-100">
-                      <div className="card-header">
-                        <h3 className="card-title">So'nggi Mijoz Murojaatlari</h3>
-                        <div className="card-actions">
-                          <button
-                            className="btn btn-outline-secondary btn-sm"
-                            onClick={() => setTab("inbox")}
-                          >
-                            Barchasini ko'rish
-                          </button>
-                        </div>
-                      </div>
-                      <div className="table-responsive">
-                        <table className="table table-vcenter card-table table-striped">
-                          <thead>
-                            <tr>
-                              <th>Mijoz</th>
-                              <th>Status</th>
-                              <th>Sabab</th>
-                              <th>So'nggi xabar</th>
-                              <th className="w-1">Amal</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {conversations.slice(0, 5).map((conv) => (
-                              <tr key={conv.id}>
-                                <td>
-                                  <div className="d-flex py-1 align-items-center">
-                                    <TelegramUserAvatar userId={conv.chat_id} name={conv.customer_name} size="md" className="me-2" />
-                                    <div className="flex-fill">
-                                      <div className="font-weight-medium">{conv.customer_name}</div>
-                                      <div className="text-secondary">
-                                        {conv.username ? `@${conv.username}` : `ID: ${conv.chat_id}`}
-                                      </div>
-                                    </div>
-                                  </div>
-                                </td>
-                                <td>
-                                  {conv.status === "ai_active" ? (
-                                    <span className="badge bg-green-lt text-green">
-                                      <span className="status-dot status-dot-animated bg-green me-1"></span>
-                                      AI Faol
-                                    </span>
-                                  ) : (
-                                    <span className="badge bg-warning-lt text-warning">
-                                      <IconHeadset size={14} className="me-1" />
-                                      Operator
-                                    </span>
-                                  )}
-                                </td>
-                                <td className="text-secondary">
-                                  {conv.handoff_reason || "Mijoz maslahat so'radi"}
-                                </td>
-                                <td className="text-secondary">{timeLabel(conv.last_message_at)}</td>
-                                <td>
-                                  <button
-                                    className="btn btn-sm btn-outline-primary"
-                                    onClick={() => {
-                                      setSelected(conv.id);
-                                      setTab("inbox");
-                                    }}
-                                  >
-                                    Ochish
-                                  </button>
-                                </td>
-                              </tr>
-                            ))}
-                            {conversations.length === 0 && (
-                              <tr>
-                                <td colSpan={5} className="text-center text-secondary py-4">
-                                  Hozircha suhbatlar mavjud emas
-                                </td>
-                              </tr>
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Right Column: Today's Orders & AI Engine Status (Stacked Vertically, Full Width) */}
-                  <div className="col-lg-5 col-xl-4 d-flex flex-column gap-3">
-                    {/* Card 1: Bugungi Savdo va Buyurtmalar */}
-                    <div className="card shadow-sm w-100">
-                      <div className="card-header d-flex align-items-center justify-content-between py-2.5">
-                        <h3 className="card-title d-flex align-items-center gap-2 mb-0">
-                          <IconShoppingCart size={18} className="text-primary" />
-                          <span>Bugungi Savdo va Buyurtmalar</span>
-                        </h3>
-                        <span className="badge bg-green-lt text-green fw-bold fs-5">$2,190</span>
-                      </div>
-                      <div className="card-body p-3">
-                        {/* Mini KPI metrics */}
-                        <div className="row g-2 text-center mb-3">
-                          <div className="col-4">
-                            <div className="p-2 rounded bg-body-tertiary border border-secondary border-opacity-10 h-100 d-flex flex-column justify-content-center">
-                              <div className="text-secondary small text-nowrap" style={{ fontSize: "0.72rem" }}>Jami bitim</div>
-                              <div className="fw-bold text-white fs-4 mt-1">{orders.length} ta</div>
-                            </div>
-                          </div>
-                          <div className="col-4">
-                            <div className="p-2 rounded bg-body-tertiary border border-secondary border-opacity-10 h-100 d-flex flex-column justify-content-center">
-                              <div className="text-secondary small text-nowrap" style={{ fontSize: "0.72rem" }}>O'rtacha chek</div>
-                              <div className="fw-bold text-info fs-4 mt-1">$438</div>
-                            </div>
-                          </div>
-                          <div className="col-4">
-                            <div className="p-2 rounded bg-body-tertiary border border-secondary border-opacity-10 h-100 d-flex flex-column justify-content-center">
-                              <div className="text-secondary small text-nowrap" style={{ fontSize: "0.72rem" }}>Konversiya</div>
-                              <div className="fw-bold text-green fs-4 mt-1">83%</div>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Status distribution progress bar */}
-                        <div className="mb-3">
-                          <div className="d-flex align-items-center justify-content-between text-secondary small mb-1" style={{ fontSize: "0.75rem" }}>
-                            <span>Buyurtmalar taqsimoti:</span>
-                            <span className="fw-medium text-white">3 tasdiqlangan • 2 jarayonda</span>
-                          </div>
-                          <div className="progress progress-xs">
-                            <div className="progress-bar bg-success" style={{ width: "60%" }} title="Tasdiqlangan / Bajarilgan: 60%" />
-                            <div className="progress-bar bg-primary" style={{ width: "40%" }} title="Jarayonda / Yangi: 40%" />
-                          </div>
-                        </div>
-
-                        {/* Recent Orders Compact List */}
-                        <div className="d-flex align-items-center justify-content-between mb-2">
-                          <span className="subheader text-uppercase fw-bold text-secondary mb-0" style={{ fontSize: "0.7rem" }}>
-                            So'nggi buyurtmalar
-                          </span>
-                          <span className="text-secondary small" style={{ fontSize: "0.7rem" }}>
-                            Oxirgi 3 tasi
-                          </span>
-                        </div>
-
-                        <div className="list-group list-group-flush mb-3">
-                          {orders.slice(0, 3).map((ord) => (
-                            <div
-                              key={ord.id}
-                              className="list-group-item px-2.5 py-2 d-flex align-items-center justify-content-between bg-transparent border border-secondary border-opacity-10 rounded mb-1.5"
-                              style={{ background: "rgba(255,255,255,0.02)" }}
-                            >
-                              <div className="text-truncate me-2">
-                                <div className="d-flex align-items-center gap-1.5">
-                                  <span className="fw-semibold text-white small text-truncate">{ord.customer}</span>
-                                  <span className="text-secondary small text-truncate" style={{ fontSize: "0.7rem" }}>{ord.username}</span>
-                                </div>
-                                <div className="text-secondary text-truncate" style={{ fontSize: "0.75rem" }}>
-                                  {ord.product}
-                                </div>
-                              </div>
-                              <div className="text-end flex-shrink-0">
-                                <div className="fw-bold text-green small">{ord.amount}</div>
-                                <span
-                                  className={`badge ${
-                                    ord.status === "Confirmed"
-                                      ? "bg-green-lt text-green"
-                                      : ord.status === "Processing"
-                                      ? "bg-blue-lt text-blue"
-                                      : ord.status === "Completed"
-                                      ? "bg-cyan-lt text-cyan"
-                                      : "bg-warning-lt text-warning"
-                                  } py-0 px-1.5`}
-                                  style={{ fontSize: "0.68rem" }}
-                                >
-                                  {ord.status === "Confirmed"
-                                    ? "Tasdiqlandi"
-                                    : ord.status === "Processing"
-                                    ? "Jarayonda"
-                                    : ord.status === "Completed"
-                                    ? "Bajarildi"
-                                    : "Yangi"}
-                                </span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-
-                        {/* Footer action */}
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-outline-primary w-100 d-flex align-items-center justify-content-center gap-1.5"
-                          onClick={() => setTab("orders")}
-                        >
-                          <IconArrowUpRight size={15} />
-                          <span>Barcha buyurtmalarni ko'rish ({orders.length})</span>
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Card 2: AI Sales Engine Holati */}
-                    <div className="card shadow-sm w-100">
-                      <div className="card-header py-2.5 d-flex align-items-center justify-content-between">
-                        <h3 className="card-title d-flex align-items-center gap-2 mb-0">
-                          <IconBolt size={18} className="text-warning" />
-                          <span>AI Sales Engine Holati</span>
-                        </h3>
-                        <span className="badge bg-green-lt text-green d-flex align-items-center gap-1">
-                          <span className="status-dot status-dot-animated bg-success" />
-                          Online
-                        </span>
-                      </div>
-                      <div className="card-body p-3">
-                        <ul className="list-unstyled mb-0 space-y-2">
-                          <li className="d-flex align-items-center justify-content-between py-1 border-bottom border-secondary border-opacity-10">
-                            <span className="text-secondary small text-nowrap">AI Model:</span>
-                            <span className="badge bg-blue-lt fw-bold text-truncate" style={{ maxWidth: 140 }}>{aiModel}</span>
-                          </li>
-                          <li className="d-flex align-items-center justify-content-between py-1 border-bottom border-secondary border-opacity-10">
-                            <span className="text-secondary small text-nowrap">Telegram Webhook:</span>
-                            <span className="badge bg-green-lt text-green text-nowrap">Faol va Ulangan</span>
-                          </li>
-                          <li className="d-flex align-items-center justify-content-between py-1 border-bottom border-secondary border-opacity-10">
-                            <span className="text-secondary small text-nowrap">O'rtacha javob tezligi:</span>
-                            <span className="fw-bold text-white small text-nowrap">~1.8 soniya</span>
-                          </li>
-                          <li className="d-flex align-items-center justify-content-between py-1 border-bottom border-secondary border-opacity-10">
-                            <span className="text-secondary small text-nowrap">Dublyor tasdiqlash:</span>
-                            <span className="badge bg-blue-lt text-nowrap">Yoqilgan</span>
-                          </li>
-                          <li className="d-flex align-items-center justify-content-between py-1">
-                            <span className="text-secondary small text-nowrap">Kanal sinxronlash:</span>
-                            <span className="text-green fw-bold small text-nowrap">Avtomatik</span>
-                          </li>
-                        </ul>
-                        <hr className="my-2.5" />
-                        <button
-                          type="button"
-                          className="btn btn-outline-primary btn-sm w-100 d-flex align-items-center justify-content-center gap-2 py-2 px-3 text-nowrap"
-                          onClick={handleSyncKnowledge}
-                          disabled={busy}
-                        >
-                          <IconRefresh size={16} className={`flex-shrink-0 ${busy ? "spin" : ""}`} />
-                          <span className="text-nowrap fw-medium">Kanalni hozir tekshirish</span>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <OverviewTab
+                overview={overview}
+                conversations={conversations}
+                orders={orders}
+                channels={channels}
+                aiModel={aiModel}
+                onSelectConversation={(id) => setSelected(id)}
+                onNavigateTab={(targetTab, filter) => {
+                  setTab(targetTab);
+                  if (filter) setInboxFilter(filter as any);
+                }}
+                onRefresh={load}
+                loading={loading}
+              />
             )}
 
-            {/* 2. LIVE INBOX TAB */}
             {tab === "inbox" && (
-              <div className="row g-3">
-                {/* Left: Conversations list */}
-                <div className="col-md-4 col-lg-3">
-                  <div className="card">
-                    <div className="card-header d-flex flex-column gap-2">
-                      <div className="d-flex align-items-center justify-content-between w-100">
-                        <h3 className="card-title mb-0">
-                          Suhbatlar ({filteredConversations.length}
-                          {filteredConversations.length !== conversations.length ? ` / ${conversations.length}` : ""})
-                        </h3>
-                        <span className="badge bg-primary-lt">Jonli</span>
-                      </div>
-                      <div className="input-icon w-100">
-                        <span className="input-icon-addon">
-                          <IconSearch size={16} />
-                        </span>
-                        <input
-                          type="text"
-                          className="form-control form-control-sm"
-                          placeholder="Mijoz nomi yoki username..."
-                          value={inboxSearch}
-                          onChange={(e) => setInboxSearch(e.target.value)}
-                        />
-                      </div>
-                      <div className="btn-group w-100" role="group">
-                        <button
-                          type="button"
-                          className={`btn btn-sm ${inboxFilter === "all" ? "btn-primary" : "btn-outline-secondary"}`}
-                          onClick={() => setInboxFilter("all")}
-                        >
-                          Barchasi ({conversations.length})
-                        </button>
-                        <button
-                          type="button"
-                          className={`btn btn-sm ${inboxFilter === "ai" ? "btn-primary" : "btn-outline-secondary"}`}
-                          onClick={() => setInboxFilter("ai")}
-                        >
-                          AI ({conversations.filter((c) => c.status === "ai_active").length})
-                        </button>
-                        <button
-                          type="button"
-                          className={`btn btn-sm ${inboxFilter === "human" ? "btn-primary" : "btn-outline-secondary"}`}
-                          onClick={() => setInboxFilter("human")}
-                        >
-                          Operator ({conversations.filter((c) => c.status === "human_takeover").length})
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="list-group list-group-flush conversations-scroll-container">
-                      {filteredConversations.map((c) => {
-                        const isSelected = c.id === selected;
-                        return (
-                          <a
-                            key={c.id}
-                            href="#"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              setSelected(c.id);
-                            }}
-                            className={`list-group-item list-group-item-action ${isSelected ? "active" : ""}`}
-                          >
-                            <div className="d-flex align-items-center">
-                              <TelegramUserAvatar userId={c.chat_id} name={c.customer_name} size="sm" className="me-2" isSelected={isSelected} />
-                              <div className="text-truncate flex-fill">
-                                <div className="d-flex align-items-center justify-content-between">
-                                  <strong className="text-truncate">{c.customer_name}</strong>
-                                  <small className={isSelected ? "text-white-50" : "text-secondary"}>
-                                    {timeLabel(c.last_message_at)}
-                                  </small>
-                                </div>
-                                <div className="d-flex align-items-center justify-content-between mt-1">
-                                  <small className={isSelected ? "text-white-50" : "text-secondary"}>
-                                    {c.username ? `@${c.username}` : `ID: ${c.chat_id}`}
-                                  </small>
-                                  {c.status === "ai_active" ? (
-                                    <span className={`badge badge-sm ${isSelected ? "bg-white text-green" : "bg-green-lt text-green"}`}>
-                                      AI
-                                    </span>
-                                  ) : (
-                                    <span className={`badge badge-sm ${isSelected ? "bg-white text-yellow" : "bg-yellow-lt text-yellow"}`}>
-                                      Operator
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          </a>
-                        );
-                      })}
-
-                      {filteredConversations.length === 0 && (
-                        <div className="p-4 text-center text-secondary">
-                          Suhbat topilmadi
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Middle: Active Chat Window */}
-                <div className="col-md-5 col-lg-6">
-                  {activeConversation ? (
-                    <div className="card">
-                      <div className="card-header d-flex align-items-center justify-content-between">
-                        <div className="d-flex align-items-center">
-                          <TelegramUserAvatar userId={activeConversation.chat_id} name={activeConversation.customer_name} size="md" className="me-2" />
-                          <div>
-                            <h3 className="card-title mb-0">{activeConversation.customer_name}</h3>
-                            <div className="text-secondary fs-5">
-                              {activeConversation.username ? `@${activeConversation.username}` : `Chat ID: ${activeConversation.chat_id}`}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="d-flex gap-2">
-                          {activeConversation.status === "ai_active" ? (
-                            <button
-                              className="btn btn-sm btn-outline-warning d-flex align-items-center gap-1"
-                              onClick={() => perform(`/admin/conversations/${activeConversation.id}/takeover`)}
-                              disabled={busy}
-                            >
-                              <IconHeadset size={16} /> Takeover
-                            </button>
-                          ) : (
-                            <button
-                              className="btn btn-sm btn-outline-success d-flex align-items-center gap-1"
-                              onClick={() => perform(`/admin/conversations/${activeConversation.id}/resume`)}
-                              disabled={busy}
-                            >
-                              <IconRobot size={16} /> Resume AI
-                            </button>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Native Tabler Chat Component */}
-                      <div className="card-body p-0">
-                        <div className="chat chat-history-container" ref={chatContainerRef}>
-                          <div className="chat-bubbles d-flex flex-column gap-2">
-                            {messages.map((m) => {
-                              const isMe =
-                                m.direction === "assistant" ||
-                                m.direction === "admin" ||
-                                m.direction === "outgoing";
-                              const isAdmin = m.direction === "admin";
-
-                              return (
-                                <div
-                                  key={m.id}
-                                  className={`chat-item d-flex ${isMe ? "justify-content-end" : "justify-content-start"}`}
-                                >
-                                  <div
-                                    className={`chat-bubble-custom ${isMe ? "bubble-outgoing" : "bubble-incoming"}`}
-                                    style={{ maxWidth: "76%" }}
-                                  >
-                                    {/* Sender Label (ONLY for AI or Operator, subtle & clean) */}
-                                    {isMe && (
-                                      <div
-                                        className="chat-sender-tag"
-                                        style={{ color: isAdmin ? "#fcd34d" : "#93c5fd" }}
-                                      >
-                                        {isAdmin ? (
-                                          <>
-                                            <IconHeadset size={12} />
-                                            <span>Operator</span>
-                                          </>
-                                        ) : (
-                                          <>
-                                            <IconRobot size={12} />
-                                            <span>AI Assistent</span>
-                                          </>
-                                        )}
-                                      </div>
-                                    )}
-
-                                    {/* Message Text */}
-                                    <div
-                                      style={{
-                                        whiteSpace: "pre-wrap",
-                                        fontSize: "0.93rem",
-                                        lineHeight: 1.44,
-                                        color: isMe ? "#ffffff" : "#f1f5f9",
-                                      }}
-                                    >
-                                      {m.text}
-                                    </div>
-
-                                    {/* Timestamp at bottom right */}
-                                    <div
-                                      className="chat-time-tag text-end mt-1"
-                                      style={{
-                                        color: isMe ? "rgba(255, 255, 255, 0.65)" : "rgba(255, 255, 255, 0.45)",
-                                      }}
-                                    >
-                                      {formatChatTime(m.created_at)}
-                                      {isMe && <span className="ms-1" style={{ fontSize: "0.72rem" }}>✓✓</span>}
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })}
-
-                            <div ref={messagesEndRef} />
-
-                            {messages.length === 0 && (
-                              <div className="text-center text-secondary py-5">
-                                Ushbu suhbatda hali xabarlar yo'q
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Chat message composer */}
-                      <div className="card-footer">
-                        <form
-                          onSubmit={(e) => {
-                            e.preventDefault();
-                            void sendReply();
-                          }}
-                        >
-                          <div className="input-group">
-                            <input
-                              type="text"
-                              className="form-control"
-                              placeholder="Mijozga operator sifatida javob yozing..."
-                              value={draft}
-                              onChange={(e) => setDraft(e.target.value)}
-                              disabled={busy}
-                            />
-                            <button
-                              type="submit"
-                              className="btn btn-primary d-flex align-items-center gap-1"
-                              disabled={busy || !draft.trim()}
-                            >
-                              <IconSend size={16} />
-                              Yuborish
-                            </button>
-                          </div>
-                        </form>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="card">
-                      <div className="card-body text-center text-secondary py-5">
-                        <IconMessages size={48} className="mb-3 text-muted" />
-                        <p>Chap tarafdagi ro'yxatdan birorta suhbatni tanlang</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Right: Customer Profile & Details Panel */}
-                <div className="col-md-3 col-lg-3">
-                  {activeConversation ? (
-                    <div className="card">
-                      <div className="card-header">
-                        <h3 className="card-title">Mijoz Profili</h3>
-                      </div>
-                      <div className="card-body">
-                        <div className="text-center mb-3">
-                          <TelegramUserAvatar userId={activeConversation.chat_id} name={activeConversation.customer_name} size="xl" className="mx-auto mb-2" />
-                          <h3 className="m-0 mb-1 mt-2">{activeConversation.customer_name}</h3>
-                          <div className="text-secondary">
-                            {activeConversation.username ? `@${activeConversation.username}` : "Username ko'rsatilmagan"}
-                          </div>
-                        </div>
-
-                        <div className="list-group list-group-flush mb-3">
-                          <div className="list-group-item px-0 d-flex justify-content-between">
-                            <span className="text-secondary">Telegram Chat ID:</span>
-                            <span className="font-monospace">{activeConversation.chat_id}</span>
-                          </div>
-                          <div className="list-group-item px-0 d-flex justify-content-between">
-                            <span className="text-secondary">Status:</span>
-                            {activeConversation.status === "ai_active" ? (
-                              <span className="badge bg-green-lt">AI Boshqaruvida</span>
-                            ) : (
-                              <span className="badge bg-warning-lt">Operator Nazorati</span>
-                            )}
-                          </div>
-                          <div className="list-group-item px-0 d-flex justify-content-between">
-                            <span className="text-secondary">Xabarlar soni:</span>
-                            <span className="fw-bold">{messages.length}</span>
-                          </div>
-                        </div>
-
-                        <hr className="my-3 border-secondary border-opacity-15" />
-
-                        {/* 1. OPERATOR NOTES (INTERNAL ONLY) */}
-                        <div className="mb-3">
-                          <div className="d-flex align-items-center justify-content-between mb-2">
-                            <span className="subheader text-uppercase fw-bold text-secondary mb-0">
-                              Operator Eslatmasi
-                            </span>
-                            {customerNotes[activeConversation.id] ? (
-                              <span className="badge bg-green-lt text-green d-inline-flex align-items-center gap-1" style={{ fontSize: "10px" }}>
-                                <IconCheck size={11} /> Saqlangan
-                              </span>
-                            ) : (
-                              <span className="text-secondary small" style={{ fontSize: "11px" }}>Ichki qayd</span>
-                            )}
-                          </div>
-                          <textarea
-                            className="form-control form-control-sm mb-2"
-                            rows={3}
-                            placeholder="Mijoz haqida ichki qayd yozing (qidirayotgan model, byudjet, kelishuv)..."
-                            value={customerNotes[activeConversation.id] || ""}
-                            onChange={(e) =>
-                              setCustomerNotes({
-                                ...customerNotes,
-                                [activeConversation.id]: e.target.value,
-                              })
-                            }
-                            style={{ resize: "none", fontSize: "0.82rem", lineHeight: 1.4 }}
-                          />
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-outline-secondary w-100 d-flex align-items-center justify-content-center gap-1.5"
-                            onClick={() => handleSaveCustomerNote(activeConversation.id)}
-                          >
-                            <IconPencil size={14} className="text-warning" />
-                            <span>Eslatmani saqlash</span>
-                          </button>
-                        </div>
-
-                        <hr className="my-3 border-secondary border-opacity-15" />
-
-                        {/* 2. CLIENT-FACING QUICK OFFERS & ACTIONS */}
-                        <div>
-                          <div className="subheader text-uppercase fw-bold text-secondary mb-2">
-                            Mijozga Tezkor Takliflar
-                          </div>
-                          <div className="d-flex flex-column gap-2">
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-outline-primary w-100 d-flex align-items-center justify-content-start px-2.5 py-2 gap-2 text-start"
-                              onClick={handleSendCatalogProposal}
-                              title="Eng ommabop noutbuklar katalogini chatga tayyorlash"
-                              style={{ background: "rgba(32, 107, 196, 0.05)" }}
-                            >
-                              <span className="badge bg-primary-lt text-primary p-1 rounded flex-shrink-0">
-                                <IconPackage size={15} />
-                              </span>
-                              <div className="flex-fill text-truncate">
-                                <div className="fw-medium text-white small text-truncate">Noutbuklar katalogi</div>
-                                <div className="text-secondary small text-truncate" style={{ fontSize: "0.7rem" }}>Asus, ThinkPad, Victus, Mac</div>
-                              </div>
-                            </button>
-
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-outline-success w-100 d-flex align-items-center justify-content-start px-2.5 py-2 gap-2 text-start"
-                              onClick={handleSendDiscountProposal}
-                              title="Maxsus 5% chegirma va bepul yetkazish taklifini kiritish"
-                              style={{ background: "rgba(47, 179, 68, 0.05)" }}
-                            >
-                              <span className="badge bg-success-lt text-success p-1 rounded flex-shrink-0">
-                                <IconSparkles size={15} />
-                              </span>
-                              <div className="flex-fill text-truncate">
-                                <div className="fw-medium text-white small text-truncate">5% chegirma + Bepul yetkazish</div>
-                                <div className="text-secondary small text-truncate" style={{ fontSize: "0.7rem" }}>Bugun buyurtma uchun bonus</div>
-                              </div>
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-              </div>
+              <InboxTab
+                conversations={conversations}
+                selectedId={selected}
+                onSelectConversation={(id) => setSelected(id)}
+                messages={messages}
+                inboxFilter={inboxFilter}
+                setInboxFilter={setInboxFilter}
+                inboxSearch={inboxSearch}
+                setInboxSearch={setInboxSearch}
+                draft={draft}
+                setDraft={setDraft}
+                onSendMessage={sendReply}
+                onTakeover={(convId) => perform(`/admin/conversations/${convId}/takeover`)}
+                onResumeAi={(convId) => perform(`/admin/conversations/${convId}/resume`)}
+                busy={busy}
+                customerNotes={customerNotes}
+                onSaveCustomerNote={handleSaveCustomerNote}
+                onSendCatalogProposal={handleSendCatalogProposal}
+                onSendDiscountProposal={handleSendDiscountProposal}
+              />
             )}
 
-            {/* 3. KNOWLEDGE BASE TAB */}
             {tab === "knowledge" && (
-              <div className="row row-deck row-cards">
-                {/* CONNECTED CHANNELS CARD */}
-                <div className="col-12">
-                  <div className="card">
-                    <div className="card-header">
-                      <div>
-                        <h3 className="card-title">Ulangan Telegram Kanallar ({channels.length})</h3>
-                        <p className="card-subtitle">
-                          Bir nechta kanallarni ulashingiz mumkin. Barcha kanallardagi postlar birlashtirilib AI bilim bazasiga olinadi.
-                        </p>
-                      </div>
-                      <div className="card-actions d-flex gap-2">
-                        <button
-                          className="btn btn-outline-info d-flex align-items-center gap-1"
-                          onClick={handleExtractProductsFromPosts}
-                          disabled={busy || posts.length === 0}
-                          title="Telegram kanal postlaridan mahsulotlar va narxlarni aniqlash"
-                        >
-                          <IconSparkles size={18} />
-                          Mahsulotlarni aniqlash
-                        </button>
-                        <button
-                          className="btn btn-outline-primary d-flex align-items-center gap-1"
-                          onClick={() => handleSyncChannel()}
-                          disabled={busy || channels.length === 0}
-                        >
-                          <IconRefresh size={18} className={busy ? "spin" : ""} />
-                          Barcha kanallarni sinxronlash
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="card-body border-bottom py-3">
-                      <form onSubmit={handleConnectChannel} className="d-flex gap-2">
-                        <div className="input-icon flex-grow-1">
-                          <span className="input-icon-addon">
-                            <IconPlus size={18} />
-                          </span>
-                          <input
-                            type="text"
-                            className="form-control"
-                            placeholder="Telegram kanal username yoki havolasi (masalan: @kanal_nomi yoki https://t.me/kanal_nomi)"
-                            value={newChannelInput}
-                            onChange={(e) => setNewChannelInput(e.target.value)}
-                            disabled={busy}
-                          />
-                        </div>
-                        <button
-                          type="submit"
-                          className="btn btn-primary d-flex align-items-center gap-1 text-nowrap"
-                          disabled={busy || !newChannelInput.trim()}
-                        >
-                          <IconPlus size={18} /> Kanal ulash
-                        </button>
-                      </form>
-                    </div>
-
-                    <div className="table-responsive">
-                      <table className="table table-vcenter card-table">
-                        <thead>
-                          <tr>
-                            <th>Kanal</th>
-                            <th>Status</th>
-                            <th>Postlar</th>
-                            <th>So'nggi Sinxron</th>
-                            <th className="text-end">Amallar</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {channels.length === 0 ? (
-                            <tr>
-                              <td colSpan={5} className="text-center text-secondary py-3">
-                                Hozircha hech qanday kanal ulanmagan. Yuqoridagi maydondan kanal havolasini kiriting.
-                              </td>
-                            </tr>
-                          ) : (
-                            channels.map((ch) => (
-                              <tr key={ch.id}>
-                                <td>
-                                  <span className="badge bg-blue-lt me-2 font-monospace fs-6">@{ch.channel_username}</span>
-                                  <a
-                                    href={`https://t.me/${ch.channel_username}`}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="text-secondary small d-inline-flex align-items-center gap-1"
-                                  >
-                                    <IconExternalLink size={13} /> ochish
-                                  </a>
-                                </td>
-                                <td>
-                                  <span className="badge bg-success-lt">Faol</span>
-                                </td>
-                                <td>
-                                  <strong>{ch.posts_count}</strong> ta post
-                                </td>
-                                <td className="text-secondary small">
-                                  {timeLabel(ch.last_synced_at)}
-                                </td>
-                                <td className="text-end">
-                                  <div className="btn-list justify-content-end">
-                                    <button
-                                      className="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1"
-                                      onClick={() => handleSyncChannel(ch.channel_username)}
-                                      disabled={busy}
-                                      title="Kanalni sinxronlash"
-                                    >
-                                      <IconRefresh size={14} className={busy ? "spin" : ""} />
-                                      Sinxronlash
-                                    </button>
-                                    <button
-                                      className="btn btn-sm btn-outline-danger d-inline-flex align-items-center gap-1"
-                                      onClick={() => handleDeleteChannel(ch.channel_username)}
-                                      disabled={busy}
-                                      title="Kanalni o'chirish"
-                                    >
-                                      <IconTrash size={14} />
-                                      O'chirish
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
-
-                {/* POSTS LIST CARD */}
-                <div className="col-12">
-                  <div className="card">
-                    <div className="card-header">
-                      <div>
-                        <h3 className="card-title">Telegram Mahsulotlar Bazasi</h3>
-                        <p className="card-subtitle">
-                          {channelFilter === "all"
-                            ? `Jami ${posts.length} ta post saqlangan`
-                            : `@${channelFilter} kanalidagi postlar (${posts.filter((p) => p.channel_username === channelFilter).length} ta)`}
-                        </p>
-                      </div>
-                      <div className="card-actions d-flex align-items-center gap-2">
-                        {channels.length > 1 && (
-                          <div className="d-flex align-items-center gap-1">
-                            <span className="text-secondary small">Kanal:</span>
-                            <select
-                              className="form-select form-select-sm w-auto"
-                              value={channelFilter}
-                              onChange={(e) => setChannelFilter(e.target.value)}
-                            >
-                              <option value="all">Barcha kanallar ({posts.length})</option>
-                              {channels.map((ch) => (
-                                <option key={ch.id} value={ch.channel_username}>
-                                  @{ch.channel_username} ({posts.filter((p) => p.channel_username === ch.channel_username).length})
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="table-responsive">
-                      <table className="table table-vcenter card-table table-hover">
-                        <thead>
-                          <tr>
-                            <th className="w-1">ID</th>
-                            <th>Telegram Post</th>
-                            <th>Kanal</th>
-                            <th>AI Rasm Tahlili (Vision)</th>
-                            <th>Manba</th>
-                            <th className="w-1 text-center">Amal</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {posts
-                            .filter((p) => channelFilter === "all" || p.channel_username === channelFilter)
-                            .map((p) => (
-                              <tr key={p.id}>
-                                <td className="text-secondary font-monospace">#{p.telegram_message_id}</td>
-                                <td style={{ maxWidth: "420px" }}>
-                                  <div className="text-truncate fw-medium">{p.text.slice(0, 100)}...</div>
-                                </td>
-                                <td>
-                                  <span className="badge bg-azure-lt font-monospace">@{p.channel_username}</span>
-                                </td>
-                                <td className="text-secondary" style={{ maxWidth: "340px" }}>
-                                  {p.image_description || "Rasm mavjud emas"}
-                                </td>
-                                <td>
-                                  {p.source_url ? (
-                                    <a
-                                      href={p.source_url}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
-                                    >
-                                      <IconExternalLink size={14} /> Post
-                                    </a>
-                                  ) : (
-                                    <span className="text-muted">—</span>
-                                  )}
-                                </td>
-                                <td>
-                                  <button
-                                    type="button"
-                                    className="btn btn-sm btn-outline-danger d-flex align-items-center justify-content-center p-1.5"
-                                    onClick={() => handleDeletePost(p.id, p.telegram_message_id)}
-                                    title="Ushbu postni bilimlar bazasidan o'chirish"
-                                    disabled={busy}
-                                  >
-                                    <IconTrash size={14} />
-                                  </button>
-                                </td>
-                              </tr>
-                            ))}
-                          {posts.length === 0 && (
-                            <tr>
-                              <td colSpan={5} className="text-center text-secondary py-4">
-                                Postlar mavjud emas. Yuqoridan kanal qo'shing va sinxronlash tugmasini bosing.
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <KnowledgeTab
+                channels={channels}
+                posts={posts}
+                channelFilter={channelFilter}
+                setChannelFilter={setChannelFilter}
+                newChannelInput={newChannelInput}
+                setNewChannelInput={setNewChannelInput}
+                onConnectChannel={handleConnectChannel}
+                onSyncChannel={handleSyncChannel}
+                onDeleteChannel={handleDeleteChannel}
+                onDeletePost={handleDeletePost}
+                onExtractProducts={handleExtractProductsFromPosts}
+                busy={busy}
+              />
             )}
 
-            {/* 4. PRODUCTS TAB */}
             {tab === "products" && (
-              <div className="row row-deck row-cards">
-                <div className="col-12">
-                  <div className="card">
-                    <div className="card-header">
-                      <h3 className="card-title">Mahsulotlar Katalogi ({filteredProducts.length})</h3>
-                      <div className="card-actions d-flex gap-2">
-                        <div className="input-icon">
-                          <span className="input-icon-addon">
-                            <IconSearch size={16} />
-                          </span>
-                          <input
-                            type="text"
-                            className="form-control form-control-sm"
-                            placeholder="Noutbuk nomini izlash..."
-                            value={productSearch}
-                            onChange={(e) => setProductSearch(e.target.value)}
-                          />
-                        </div>
-                        <button
-                          className="btn btn-outline-info btn-sm d-flex align-items-center gap-1"
-                          onClick={handleExtractProductsFromPosts}
-                          disabled={busy}
-                          title="Telegram kanal postlaridan mahsulotlar va narxlarni avtomatik aniqlash"
-                        >
-                          <IconSparkles size={16} /> Kanal postlaridan aniqlash
-                        </button>
-                        <button
-                          className="btn btn-primary btn-sm d-flex align-items-center gap-1"
-                          onClick={() => setIsAddingProduct(true)}
-                        >
-                          <IconPlus size={16} /> Yangi mahsulot
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="table-responsive">
-                      <table className="table table-vcenter card-table table-striped">
-                        <thead>
-                          <tr>
-                            <th className="w-1">Mahsulot Kodi</th>
-                            <th>Mahsulot Nomi</th>
-                            <th>Kategoriya</th>
-                            <th>Xarakteristikasi (Specs)</th>
-                            <th>Narxi</th>
-                            <th>Status</th>
-                            <th>Kafolat</th>
-                            <th className="w-1">Amallar</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {filteredProducts.map((prod) => (
-                            <tr key={prod.id}>
-                              <td className="font-monospace text-secondary">{prod.id}</td>
-                              <td className="fw-bold">{prod.name}</td>
-                              <td>
-                                <span className="badge bg-blue-lt">{prod.category}</span>
-                              </td>
-                              <td className="text-secondary">{prod.specs}</td>
-                              <td className="fw-bold text-success">{prod.price}</td>
-                              <td>
-                                {prod.stock === "In Stock" && (
-                                  <span className="badge bg-green-lt text-green">Mavjud</span>
-                                )}
-                                {prod.stock === "Low Stock" && (
-                                  <span className="badge bg-warning-lt text-warning">Kam qoldi</span>
-                                )}
-                                {prod.stock === "Pre-order" && (
-                                  <span className="badge bg-secondary-lt">Buyurtmaga</span>
-                                )}
-                              </td>
-                              <td className="text-secondary">{prod.warranty}</td>
-                              <td>
-                                <div className="btn-list flex-nowrap">
-                                  <button
-                                    className="btn btn-sm btn-outline-secondary"
-                                    onClick={() => setEditingProduct(prod)}
-                                    title="Tahrirlash"
-                                  >
-                                    <IconPencil size={14} />
-                                  </button>
-                                  <button
-                                    className="btn btn-sm btn-outline-danger"
-                                    onClick={() => handleDeleteProduct(prod)}
-                                    title="O'chirish"
-                                  >
-                                    <IconTrash size={14} />
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
-
-                {/* PRODUCT EDIT / CREATE MODAL */}
-                {(editingProduct || isAddingProduct) && (
-                  <div className="modal modal-blur fade show d-block" tabIndex={-1} style={{ backgroundColor: "rgba(0,0,0,0.65)" }}>
-                    <div className="modal-dialog modal-dialog-centered">
-                      <div className="modal-content shadow-lg border-secondary border-opacity-25">
-                        <div className="modal-header">
-                          <h5 className="modal-title d-flex align-items-center gap-2">
-                            <IconPackage size={18} className="text-primary" />
-                            <span>{editingProduct ? `${editingProduct.name} — Tahrirlash` : "Yangi Noutbuk Qo'shish"}</span>
-                          </h5>
-                          <button
-                            type="button"
-                            className="btn-close"
-                            onClick={() => {
-                              setEditingProduct(null);
-                              setIsAddingProduct(false);
-                            }}
-                          />
-                        </div>
-                        <div className="modal-body">
-                          {editingProduct ? (
-                            <div className="space-y-3">
-                              <div className="mb-3">
-                                <label className="form-label required">Noutbuk Nomi</label>
-                                <input
-                                  type="text"
-                                  className="form-control"
-                                  value={editingProduct.name}
-                                  onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })}
-                                />
-                              </div>
-                              <div className="row g-2 mb-3">
-                                <div className="col-6">
-                                  <label className="form-label">Kategoriya</label>
-                                  <select
-                                    className="form-select"
-                                    value={editingProduct.category}
-                                    onChange={(e) => setEditingProduct({ ...editingProduct, category: e.target.value })}
-                                  >
-                                    <option value="Gaming">Gaming</option>
-                                    <option value="Business">Business</option>
-                                    <option value="Ultrabook">Ultrabook</option>
-                                    <option value="Premium">Premium</option>
-                                  </select>
-                                </div>
-                                <div className="col-6">
-                                  <label className="form-label required">Narxi</label>
-                                  <input
-                                    type="text"
-                                    className="form-control"
-                                    value={editingProduct.price}
-                                    onChange={(e) => setEditingProduct({ ...editingProduct, price: e.target.value })}
-                                    placeholder="$450"
-                                  />
-                                </div>
-                              </div>
-                              <div className="mb-3">
-                                <label className="form-label">Xarakteristikasi (Specs)</label>
-                                <textarea
-                                  className="form-control"
-                                  rows={2}
-                                  value={editingProduct.specs}
-                                  onChange={(e) => setEditingProduct({ ...editingProduct, specs: e.target.value })}
-                                />
-                              </div>
-                              <div className="row g-2">
-                                <div className="col-6">
-                                  <label className="form-label">Status</label>
-                                  <select
-                                    className="form-select"
-                                    value={editingProduct.stock}
-                                    onChange={(e) => setEditingProduct({ ...editingProduct, stock: e.target.value as any })}
-                                  >
-                                    <option value="In Stock">Mavjud (In Stock)</option>
-                                    <option value="Low Stock">Kam qoldi (Low Stock)</option>
-                                    <option value="Pre-order">Buyurtmaga (Pre-order)</option>
-                                  </select>
-                                </div>
-                                <div className="col-6">
-                                  <label className="form-label">Kafolat</label>
-                                  <input
-                                    type="text"
-                                    className="form-control"
-                                    value={editingProduct.warranty}
-                                    onChange={(e) => setEditingProduct({ ...editingProduct, warranty: e.target.value })}
-                                    placeholder="3 oy kafolat"
-                                  />
-                                </div>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="space-y-3">
-                              <div className="mb-3">
-                                <label className="form-label required">Noutbuk Nomi</label>
-                                <input
-                                  type="text"
-                                  className="form-control"
-                                  value={newProduct.name || ""}
-                                  onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
-                                  placeholder="Masalan: Lenovo Legion 5 Pro"
-                                />
-                              </div>
-                              <div className="row g-2 mb-3">
-                                <div className="col-6">
-                                  <label className="form-label">Kategoriya</label>
-                                  <select
-                                    className="form-select"
-                                    value={newProduct.category || "Gaming"}
-                                    onChange={(e) => setNewProduct({ ...newProduct, category: e.target.value })}
-                                  >
-                                    <option value="Gaming">Gaming</option>
-                                    <option value="Business">Business</option>
-                                    <option value="Ultrabook">Ultrabook</option>
-                                    <option value="Premium">Premium</option>
-                                  </select>
-                                </div>
-                                <div className="col-6">
-                                  <label className="form-label required">Narxi</label>
-                                  <input
-                                    type="text"
-                                    className="form-control"
-                                    value={newProduct.price || ""}
-                                    onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
-                                    placeholder="$580"
-                                  />
-                                </div>
-                              </div>
-                              <div className="mb-3">
-                                <label className="form-label">Xarakteristikasi (Specs)</label>
-                                <textarea
-                                  className="form-control"
-                                  rows={2}
-                                  value={newProduct.specs || ""}
-                                  onChange={(e) => setNewProduct({ ...newProduct, specs: e.target.value })}
-                                  placeholder="Ryzen 7 5800H / 16GB RAM / 512GB SSD / RTX3060 6GB"
-                                />
-                              </div>
-                              <div className="row g-2">
-                                <div className="col-6">
-                                  <label className="form-label">Status</label>
-                                  <select
-                                    className="form-select"
-                                    value={newProduct.stock || "In Stock"}
-                                    onChange={(e) => setNewProduct({ ...newProduct, stock: e.target.value as any })}
-                                  >
-                                    <option value="In Stock">Mavjud (In Stock)</option>
-                                    <option value="Low Stock">Kam qoldi (Low Stock)</option>
-                                    <option value="Pre-order">Buyurtmaga (Pre-order)</option>
-                                  </select>
-                                </div>
-                                <div className="col-6">
-                                  <label className="form-label">Kafolat</label>
-                                  <input
-                                    type="text"
-                                    className="form-control"
-                                    value={newProduct.warranty || "2 oy kafolat"}
-                                    onChange={(e) => setNewProduct({ ...newProduct, warranty: e.target.value })}
-                                    placeholder="2 oy kafolat"
-                                  />
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                        <div className="modal-footer">
-                          <button
-                            type="button"
-                            className="btn btn-outline-secondary"
-                            onClick={() => {
-                              setEditingProduct(null);
-                              setIsAddingProduct(false);
-                            }}
-                          >
-                            Bekor qilish
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn-primary"
-                            onClick={editingProduct ? handleSaveProductEdit : handleCreateProduct}
-                          >
-                            <IconCheck size={16} /> Saqlash
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
+              <ProductsTab
+                products={products}
+                productSearch={productSearch}
+                setProductSearch={setProductSearch}
+                isAddingProduct={isAddingProduct}
+                setIsAddingProduct={setIsAddingProduct}
+                editingProduct={editingProduct}
+                setEditingProduct={setEditingProduct}
+                newProduct={newProduct}
+                setNewProduct={setNewProduct}
+                onSaveProduct={() => {
+                  if (editingProduct) void handleSaveProductEdit();
+                  else void handleCreateProduct();
+                }}
+                onDeleteProduct={handleDeleteProduct}
+                onExtractProducts={handleExtractProductsFromPosts}
+                busy={busy}
+              />
             )}
 
-            {/* 5. ORDERS TAB */}
             {tab === "orders" && (
-              <div className="row row-deck row-cards">
-                <div className="col-12">
-                  <div className="card">
-                    <div className="card-header">
-                      <h3 className="card-title">Buyurtmalar Ro'yxati ({filteredOrders.length})</h3>
-                      <div className="card-actions">
-                        <div className="input-icon">
-                          <span className="input-icon-addon">
-                            <IconSearch size={16} />
-                          </span>
-                          <input
-                            type="text"
-                            className="form-control form-control-sm"
-                            placeholder="Mijoz yoki buyurtma ID..."
-                            value={orderSearch}
-                            onChange={(e) => setOrderSearch(e.target.value)}
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="table-responsive">
-                      <table className="table table-vcenter card-table table-hover">
-                        <thead>
-                          <tr>
-                            <th>Buyurtma ID</th>
-                            <th>Mijoz</th>
-                            <th>Mahsulot</th>
-                            <th>Summa</th>
-                            <th>Status</th>
-                            <th>Sana</th>
-                            <th>Kanal</th>
-                            <th className="w-1">Amal</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {filteredOrders.map((ord) => (
-                            <tr key={ord.id}>
-                              <td className="font-monospace fw-bold">{ord.id}</td>
-                              <td>
-                                <div className="fw-medium">{ord.customer}</div>
-                                <small className="text-secondary">{ord.username}</small>
-                              </td>
-                              <td>{ord.product}</td>
-                              <td className="fw-bold">{ord.amount}</td>
-                              <td>
-                                {ord.status === "Confirmed" && (
-                                  <span className="badge bg-green-lt text-green">Tasdiqlangan</span>
-                                )}
-                                {ord.status === "Processing" && (
-                                  <span className="badge bg-blue-lt text-blue">Jarayonda</span>
-                                )}
-                                {ord.status === "New" && (
-                                  <span className="badge bg-yellow-lt text-yellow">Yangi</span>
-                                )}
-                                {ord.status === "Completed" && (
-                                  <span className="badge bg-secondary-lt">Bajarilgan</span>
-                                )}
-                              </td>
-                              <td className="text-secondary">{ord.date}</td>
-                              <td>
-                                <span className="badge bg-azure-lt">{ord.channel}</span>
-                              </td>
-                              <td>
-                                <div className="btn-group btn-group-sm">
-                                  {ord.status?.toLowerCase() !== "confirmed" && ord.status?.toLowerCase() !== "completed" && (
-                                    <button
-                                      className="btn btn-outline-success"
-                                      onClick={() => handleUpdateOrderStatus(ord.id, "Confirmed")}
-                                      title="Tasdiqlash"
-                                    >
-                                      <IconCheck size={14} />
-                                    </button>
-                                  )}
-                                  {ord.status?.toLowerCase() !== "completed" && (
-                                    <button
-                                      className="btn btn-outline-primary"
-                                      onClick={() => handleUpdateOrderStatus(ord.id, "Completed")}
-                                      title="Bajarildi"
-                                    >
-                                      Bajarildi
-                                    </button>
-                                  )}
-                                  <button
-                                    className="btn btn-outline-danger"
-                                    onClick={() => handleDeleteOrder(ord.id)}
-                                    title="O'chirish"
-                                  >
-                                    <IconTrash size={14} />
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <OrdersTab
+                orders={orders}
+                orderSearch={orderSearch}
+                setOrderSearch={setOrderSearch}
+                onUpdateOrderStatus={handleUpdateOrderStatus}
+                onDeleteOrder={handleDeleteOrder}
+                busy={busy}
+              />
             )}
 
-            {/* 6. CUSTOMERS TAB */}
             {tab === "customers" && (
-              <div className="row row-deck row-cards">
-                <div className="col-12">
-                  <div className="card">
-                    <div className="card-header">
-                      <h3 className="card-title">Mijozlar Katalogi</h3>
-                    </div>
-                    <div className="table-responsive">
-                      <table className="table table-vcenter card-table table-striped">
-                        <thead>
-                          <tr>
-                            <th>Mijoz Nomi</th>
-                            <th>Username</th>
-                            <th>Chat ID</th>
-                            <th>Holati</th>
-                            <th>Oxirgi Muloqot</th>
-                            <th className="w-1">Amal</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {conversations.map((c) => (
-                            <tr key={c.id}>
-                              <td>
-                                <div className="d-flex align-items-center">
-                                  <TelegramUserAvatar userId={c.chat_id} name={c.customer_name} size="sm" className="me-2" />
-                                  <span className="fw-medium">{c.customer_name}</span>
-                                </div>
-                              </td>
-                              <td className="text-secondary">{c.username ? `@${c.username}` : "—"}</td>
-                              <td className="font-monospace text-secondary">{c.chat_id}</td>
-                              <td>
-                                {c.status === "ai_active" ? (
-                                  <span className="badge bg-green-lt">AI Boshqaruvida</span>
-                                ) : (
-                                  <span className="badge bg-yellow-lt">Operator Qabulida</span>
-                                )}
-                              </td>
-                              <td className="text-secondary">{timeLabel(c.last_message_at)}</td>
-                              <td>
-                                <button
-                                  className="btn btn-sm btn-outline-primary"
-                                  onClick={() => {
-                                    setSelected(c.id);
-                                    setTab("inbox");
-                                  }}
-                                >
-                                  Chatni ochish
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                          {conversations.length === 0 && (
-                            <tr>
-                              <td colSpan={6} className="text-center text-secondary py-4">
-                                Mijozlar ma'lumotlari topilmadi
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <CustomersTab
+                conversations={conversations}
+                onSelectConversation={(id) => setSelected(id)}
+                onNavigateInbox={() => setTab("inbox")}
+              />
             )}
 
-            {/* 7. ANALYTICS TAB */}
             {tab === "analytics" && (
-              <div className="row row-deck row-cards">
-                <div className="col-sm-6 col-lg-3">
-                  <div className="card">
-                    <div className="card-body">
-                      <div className="subheader">Konversiya darajasi</div>
-                      <div className="h1 mb-2">34.8%</div>
-                      <div className="text-success d-flex align-items-center">
-                        <IconTrendingUp size={16} className="me-1" /> +4.2% o'tgan haftaga nisbatan
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="col-sm-6 col-lg-3">
-                  <div className="card">
-                    <div className="card-body">
-                      <div className="subheader">O'rtacha javob vaqti</div>
-                      <div className="h1 mb-2">1.8 soniya</div>
-                      <div className="text-success d-flex align-items-center">
-                        <IconBolt size={16} className="me-1" /> Yuqori tezlikda
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="col-sm-6 col-lg-3">
-                  <div className="card">
-                    <div className="card-body">
-                      <div className="subheader">AI Avtonomiya koeffitsienti</div>
-                      <div className="h1 mb-2">91.4%</div>
-                      <div className="text-secondary">Operator yordamisiz to'liq javob</div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="col-sm-6 col-lg-3">
-                  <div className="card">
-                    <div className="card-body">
-                      <div className="subheader">Mijozlar roziligi (CSAT)</div>
-                      <div className="h1 mb-2">4.9 / 5.0</div>
-                      <div className="text-success">A'lo darajada</div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="col-lg-6">
-                  <div className="card">
-                    <div className="card-header">
-                      <h3 className="card-title">Murojaatlar Taqsimoti (Kunlik)</h3>
-                    </div>
-                    <div className="card-body">
-                      <div className="d-flex align-items-center justify-content-between mb-3">
-                        <span className="text-secondary">Ertalabki soatlar (08:00 - 12:00)</span>
-                        <span className="fw-bold">28% (64 ta murojaat)</span>
-                      </div>
-                      <div className="progress mb-4" style={{ height: "8px" }}>
-                        <div className="progress-bar bg-primary" style={{ width: "28%" }}></div>
-                      </div>
-
-                      <div className="d-flex align-items-center justify-content-between mb-3">
-                        <span className="text-secondary">Tushdan keyin (12:00 - 18:00)</span>
-                        <span className="fw-bold">52% (120 ta murojaat)</span>
-                      </div>
-                      <div className="progress mb-4" style={{ height: "8px" }}>
-                        <div className="progress-bar bg-success" style={{ width: "52%" }}></div>
-                      </div>
-
-                      <div className="d-flex align-items-center justify-content-between mb-3">
-                        <span className="text-secondary">Kechki soatlar (18:00 - 23:00)</span>
-                        <span className="fw-bold">20% (46 ta murojaat)</span>
-                      </div>
-                      <div className="progress" style={{ height: "8px" }}>
-                        <div className="progress-bar bg-info" style={{ width: "20%" }}></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="col-lg-6">
-                  <div className="card">
-                    <div className="card-header">
-                      <h3 className="card-title">Eng ko'p so'ralgan modellar</h3>
-                    </div>
-                    <div className="card-body">
-                      <ul className="list-group list-group-flush">
-                        <li className="list-group-item d-flex justify-content-between align-items-center px-0">
-                          <span>Asus TUF Gaming FX505GE</span>
-                          <span className="badge bg-primary">48 so'rov</span>
-                        </li>
-                        <li className="list-group-item d-flex justify-content-between align-items-center px-0">
-                          <span>Apple MacBook Air M1</span>
-                          <span className="badge bg-primary">36 so'rov</span>
-                        </li>
-                        <li className="list-group-item d-flex justify-content-between align-items-center px-0">
-                          <span>Lenovo ThinkPad E14</span>
-                          <span className="badge bg-primary">29 so'rov</span>
-                        </li>
-                        <li className="list-group-item d-flex justify-content-between align-items-center px-0">
-                          <span>HP Victus 15</span>
-                          <span className="badge bg-primary">22 so'rov</span>
-                        </li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <AnalyticsTab
+                conversations={conversations}
+                orders={orders}
+                overview={overview}
+              />
             )}
 
-            {/* 8. AI SETTINGS TAB */}
             {tab === "settings" && (
-              <div className="row row-deck row-cards">
-                <div className="col-lg-8">
-                  <div className="card">
-                    <div className="card-header">
-                      <h3 className="card-title">AI Konfiguratsiyasi va Modellari</h3>
-                    </div>
-                    <div className="card-body">
-                      <div className="mb-3">
-                        <label className="form-label">Asosiy AI Modeli</label>
-                        <select
-                          className="form-select"
-                          value={aiModel}
-                          onChange={(e) => setAiModel(e.target.value)}
-                        >
-                          <option value="gemini-3.1-flash-lite">gemini-3.1-flash-lite (Tavsiya etiladi - ultra tez 0.7s)</option>
-                          <option value="gemini-3.5-flash">gemini-3.5-flash (Yuqori aniqlik va muvozanat)</option>
-                          <option value="gemini-flash-latest">gemini-flash-latest (Avtomatik eng so'nggi versiya)</option>
-                        </select>
-                        <small className="form-hint">
-                          Telegram xabarlariga 1-2 soniyada javob qaytarish uchun yengil va optimallashgan model.
-                        </small>
-                      </div>
-
-                      <div className="mb-3">
-                        <label className="form-label">
-                          Kreativlik darajasi (Temperature): <strong>{aiTemperature}</strong>
-                        </label>
-                        <input
-                          type="range"
-                          className="form-range"
-                          min="0"
-                          max="1"
-                          step="0.05"
-                          value={aiTemperature}
-                          onChange={(e) => setAiTemperature(parseFloat(e.target.value))}
-                        />
-                        <div className="d-flex justify-content-between text-secondary fs-6">
-                          <span>Aniq va faktik (0.0)</span>
-                          <span>Muvozanatli (0.2)</span>
-                          <span>Ijodiy (1.0)</span>
-                        </div>
-                      </div>
-
-                      <hr className="my-4" />
-
-                      <div className="mb-3">
-                        <label className="form-check form-switch">
-                          <input
-                            className="form-check-input"
-                            type="checkbox"
-                            checked={autoHandoff}
-                            onChange={(e) => setAutoHandoff(e.target.checked)}
-                          />
-                          <span className="form-check-label">
-                            Avtomatik Takeover (Mijoz operator talab qilsa darhol insonga o'tkazish)
-                          </span>
-                        </label>
-                      </div>
-
-                      <div className="mb-3">
-                        <label className="form-check form-switch">
-                          <input
-                            className="form-check-input"
-                            type="checkbox"
-                            checked={doubleConfirmation}
-                            onChange={(e) => setDoubleConfirmation(e.target.checked)}
-                          />
-                          <span className="form-check-label">
-                            Dublyor tasdiqlash va "typing..." statusini ko'rsatish
-                          </span>
-                        </label>
-                      </div>
-
-                      <div className="mb-3">
-                        <label className="form-check form-switch">
-                          <input
-                            className="form-check-input"
-                            type="checkbox"
-                            checked={businessHoursOnly}
-                            onChange={(e) => setBusinessHoursOnly(e.target.checked)}
-                          />
-                          <span className="form-check-label">
-                            Faqat ish vaqtida faol bo'lish (09:00 - 20:00)
-                          </span>
-                        </label>
-                      </div>
-                    </div>
-                    <div className="card-footer text-end">
-                      <button
-                        className="btn btn-primary"
-                        onClick={() => {
-                          setSuccess("AI sozlamalari muvaffaqiyatli saqlandi!");
-                        }}
-                      >
-                        Sozlamalarni saqlash
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Telegram Bot & Webhook Card */}
-                  <div className="card mt-3">
-                    <div className="card-header d-flex align-items-center justify-content-between">
-                      <h3 className="card-title d-flex align-items-center gap-2 mb-0">
-                        <IconBrandTelegram size={20} className="text-primary" />
-                        <span>Telegram Bot va Webhook Integratsiyasi</span>
-                      </h3>
-                      <div>
-                        {currentOrgDetails?.telegram_bot_token_set ? (
-                          <span className="badge bg-success-lt text-success d-inline-flex align-items-center gap-1">
-                            <IconCheck size={14} /> Bot Ulangan
-                          </span>
-                        ) : (
-                          <span className="badge bg-warning-lt text-warning d-inline-flex align-items-center gap-1">
-                            <IconAlertCircle size={14} /> Bot Ulanmagan
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="card-body">
-                      {/* Bot Token Section */}
-                      <div className="mb-3">
-                        <label className="form-label fw-semibold">
-                          Telegram Bot Token (BotFather'dan olingan)
-                        </label>
-                        <div className="input-group">
-                          <input
-                            type={showBotToken ? "text" : "password"}
-                            className="form-control font-monospace"
-                            placeholder={currentOrgDetails?.telegram_bot_token_set ? "••••••••••••••••••••••••••••••••" : "Masalan: 123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ"}
-                            value={botTokenInput}
-                            onChange={(e) => setBotTokenInput(e.target.value)}
-                          />
-                          <button
-                            type="button"
-                            className="btn btn-outline-secondary"
-                            onClick={() => setShowBotToken(!showBotToken)}
-                            title={showBotToken ? "Yashirish" : "Ko'rsatish"}
-                          >
-                            {showBotToken ? <IconEyeOff size={16} /> : <IconEye size={16} />}
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn-outline-primary d-inline-flex align-items-center gap-1"
-                            onClick={handleVerifyBotToken}
-                            disabled={botTokenVerifying || !botTokenInput.trim()}
-                          >
-                            {botTokenVerifying ? (
-                              <span className="spinner-border spinner-border-sm" role="status" />
-                            ) : (
-                              <IconCheck size={16} />
-                            )}
-                            Tekshirish
-                          </button>
-                        </div>
-                        <small className="form-hint">
-                          Token shifrlangan holda (AES-128 Fernet) saqlanadi va xavfsiz Telegram Webhook orqali ishlaydi.
-                        </small>
-                      </div>
-
-                      {/* Bot Verification Alert */}
-                      {botTokenResult && (
-                        <div className={`alert ${botTokenResult.valid ? "alert-success" : "alert-danger"} d-flex align-items-center gap-2 py-2 mb-3`}>
-                          {botTokenResult.valid ? <IconCheck size={18} /> : <IconAlertCircle size={18} />}
-                          <div>
-                            {botTokenResult.valid ? (
-                              <>
-                                <strong>Bot tasdiqlandi:</strong> @{botTokenResult.bot_username} ({botTokenResult.bot_name}) • ID: {botTokenResult.bot_id}
-                              </>
-                            ) : (
-                              <>
-                                <strong>Xatolik:</strong> {botTokenResult.error}
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Webhook Endpoint Info */}
-                      <div className="mb-3">
-                        <label className="form-label fw-semibold">Webhook Havolasi</label>
-                        <div className="p-2 rounded bg-dark border border-secondary border-opacity-25 d-flex align-items-center justify-content-between font-monospace small">
-                          <span className="text-info text-truncate">
-                            {currentOrgDetails?.webhook_url || `/telegram/webhook/${currentOrgDetails?.slug || activeOrgId}`}
-                          </span>
-                          <span className="badge bg-secondary-lt text-secondary">POST</span>
-                        </div>
-                        <small className="form-hint">
-                          Telegram har bir yangi xabarni ushbu xavfsiz tenant endpointiga maxsus secret token bilan yuboradi.
-                        </small>
-                      </div>
-
-                      {/* Webhook Actions */}
-                      <div className="d-flex flex-wrap gap-2 mb-3">
-                        <button
-                          type="button"
-                          className="btn btn-outline-success btn-sm d-inline-flex align-items-center gap-1"
-                          onClick={handleSetWebhook}
-                          disabled={webhookSetting || !currentOrgDetails?.telegram_bot_token_set}
-                        >
-                          {webhookSetting ? (
-                            <span className="spinner-border spinner-border-sm" role="status" />
-                          ) : (
-                            <IconRefresh size={14} />
-                          )}
-                          Telegram setWebhook Yangilash
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-outline-info btn-sm d-inline-flex align-items-center gap-1"
-                          onClick={handleCheckWebhookStatus}
-                          disabled={webhookStatusChecking || !currentOrgDetails?.telegram_bot_token_set}
-                        >
-                          {webhookStatusChecking ? (
-                            <span className="spinner-border spinner-border-sm" role="status" />
-                          ) : (
-                            <IconActivity size={14} />
-                          )}
-                          Webhook Holatini Tekshirish
-                        </button>
-                      </div>
-
-                      {/* Webhook Info Display */}
-                      {webhookInfo && (
-                        <div className="card bg-dark border border-secondary border-opacity-25 mb-3">
-                          <div className="card-body p-3">
-                            <div className="fw-semibold text-white small mb-2 d-flex align-items-center justify-content-between">
-                              <span>Telegram Webhook Statusi</span>
-                              <span className={`badge ${webhookInfo.webhook_info?.url ? "bg-success-lt text-success" : "bg-warning-lt text-warning"}`}>
-                                {webhookInfo.webhook_info?.url ? "Faol (O'rnatilgan)" : "O'rnatilmagan"}
-                              </span>
-                            </div>
-                            <div className="small text-secondary">
-                              <div><strong>URL:</strong> <span className="font-monospace text-info">{webhookInfo.webhook_info?.url || "Mavjud emas"}</span></div>
-                              <div><strong>Kutilayotgan yangilanishlar:</strong> {webhookInfo.webhook_info?.pending_update_count ?? 0}</div>
-                              <div><strong>Secret Token:</strong> {webhookInfo.has_webhook_secret ? "Himoyalangan" : "Yo'q"}</div>
-                              {webhookInfo.webhook_info?.last_error_message && (
-                                <div className="text-danger mt-1">
-                                  <strong>So'nggi xatolik:</strong> {webhookInfo.webhook_info.last_error_message}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Custom System Prompt */}
-                      <div className="mb-3">
-                        <label className="form-label fw-semibold">
-                          Do'kon AI Sotuvchisi Uchun Maxsus Tizim Ko'rsatmasi (System Prompt)
-                        </label>
-                        <textarea
-                          className="form-control font-monospace"
-                          rows={4}
-                          placeholder="Do'konning o'ziga xos xususiyatlari, yetkazib berish qoidalari yoki mijozlar bilan muloqot ohangi bo'yicha maxsus ko'rsatma..."
-                          value={customPromptInput}
-                          onChange={(e) => setCustomPromptInput(e.target.value)}
-                        />
-                        <small className="form-hint">
-                          Ushbu ko'rsatma har bir mijoz bilan muloqotda asosiy AI modeliga qo'shimcha kontekst sifatida kiritiladi.
-                        </small>
-                      </div>
-                    </div>
-                    <div className="card-footer text-end">
-                      <button
-                        type="button"
-                        className="btn btn-primary d-inline-flex align-items-center gap-1"
-                        onClick={handleSaveBotSettings}
-                        disabled={savingOrgSettings}
-                      >
-                        {savingOrgSettings ? (
-                          <span className="spinner-border spinner-border-sm" role="status" />
-                        ) : (
-                          <IconCheck size={16} />
-                        )}
-                        Bot va AI Sozlamalarini Saqlash
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="col-lg-4">
-                  <div className="card mb-3">
-                    <div className="card-header">
-                      <h3 className="card-title d-flex align-items-center gap-2">
-                        <IconPhoto size={18} className="text-primary" />
-                        <span>Kompaniya Logotipi</span>
-                      </h3>
-                    </div>
-                    <div className="card-body text-center">
-                      <div className="mb-3 p-3 rounded d-inline-flex flex-column align-items-center" style={{ background: "rgba(255,255,255,0.03)" }}>
-                        <div className="text-secondary small mb-2">Faol logotip ko'rinishi:</div>
-                        <AppLogo src={logoUrl} size="xl" />
-                      </div>
-
-                      <div className="mb-3 text-start">
-                        <label className="form-label text-secondary small">Yangi logotip yuklash (PNG, SVG, JPG):</label>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="form-control"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) handleLogoUpload(file);
-                          }}
-                        />
-                      </div>
-
-                      <div className="mb-3 text-start">
-                        <label className="form-label text-secondary small">Yoki logotip URL manzili:</label>
-                        <div className="input-group">
-                          <input
-                            type="text"
-                            className="form-control"
-                            placeholder="/logo.svg yoki https://..."
-                            value={customLogoInput}
-                            onChange={(e) => setCustomLogoInput(e.target.value)}
-                          />
-                          <button
-                            type="button"
-                            className="btn btn-primary"
-                            onClick={() => handleSaveLogoUrl(customLogoInput)}
-                          >
-                            Saqlash
-                          </button>
-                        </div>
-                        <small className="form-hint">
-                          Faylni <code>web/public/logo.png</code> yoki <code>web/public/logo.svg</code> papkasiga joylashtirib ham ishlatishingiz mumkin.
-                        </small>
-                      </div>
-
-                      <button
-                        type="button"
-                        className="btn btn-outline-secondary btn-sm w-100"
-                        onClick={() => {
-                          handleSaveLogoUrl("/logo.svg");
-                          setCustomLogoInput("/logo.svg");
-                        }}
-                      >
-                        Standart logotipga qaytarish
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="card">
-                    <div className="card-header">
-                      <h3 className="card-title">Tizim Ma'lumotlari</h3>
-                    </div>
-                    <div className="card-body">
-                      <div className="mb-3">
-                        <div className="text-secondary fs-6">Frontend Framework:</div>
-                        <div className="fw-bold">Next.js 15 Enterprise UI</div>
-                      </div>
-                      <div className="mb-3">
-                        <div className="text-secondary fs-6">Backend API:</div>
-                        <div className="fw-bold">FastAPI + SQLAlchemy + Asyncpg</div>
-                      </div>
-                      <div className="mb-3">
-                        <div className="text-secondary fs-6">Telegram Integratsiyasi:</div>
-                        <div className="fw-bold">Telegram Business Connection API</div>
-                      </div>
-                      <div className="mb-3">
-                        <div className="text-secondary fs-6">Ulangan Kanallar:</div>
-                        <div className="fw-bold">
-                          {channels.length > 0
-                            ? channels.map((c) => `@${c.channel_username}`).join(", ")
-                            : "Kanal ulanmagan"}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <SettingsTab
+                aiModel={aiModel}
+                setAiModel={setAiModel}
+                aiTemperature={aiTemperature}
+                setAiTemperature={setAiTemperature}
+                autoHandoff={autoHandoff}
+                setAutoHandoff={setAutoHandoff}
+                doubleConfirmation={doubleConfirmation}
+                setDoubleConfirmation={setDoubleConfirmation}
+                businessHoursOnly={businessHoursOnly}
+                setBusinessHoursOnly={setBusinessHoursOnly}
+                onSaveAiSettings={() => setSuccess("AI sozlamalari muvaffaqiyatli saqlandi!")}
+                currentOrgDetails={currentOrgDetails}
+                botTokenInput={botTokenInput}
+                setBotTokenInput={setBotTokenInput}
+                showBotToken={showBotToken}
+                setShowBotToken={setShowBotToken}
+                botTokenVerifying={botTokenVerifying}
+                onVerifyBotToken={handleVerifyBotToken}
+                botTokenResult={botTokenResult}
+                activeOrgId={activeOrgId}
+                webhookSetting={webhookSetting}
+                onSetWebhook={handleSetWebhook}
+                webhookStatusChecking={webhookStatusChecking}
+                onCheckWebhookStatus={handleCheckWebhookStatus}
+                webhookInfo={webhookInfo}
+                customPromptInput={customPromptInput}
+                setCustomPromptInput={setCustomPromptInput}
+                onSaveBotSettings={handleSaveBotSettings}
+                savingOrgSettings={savingOrgSettings}
+                logoUrl={logoUrl}
+                customLogoInput={customLogoInput}
+                setCustomLogoInput={setCustomLogoInput}
+                onSaveLogoUrl={handleSaveLogoUrl}
+                onLogoUpload={handleLogoUpload}
+                channels={channels}
+              />
             )}
 
-            {/* 9. ADMINISTRATION TAB */}
             {tab === "admins" && (
-              <div className="row row-deck row-cards">
-                <div className="col-lg-8">
-                  <div className="card shadow-sm">
-                    <div className="card-header d-flex align-items-center justify-content-between">
-                      <h3 className="card-title d-flex align-items-center gap-2 mb-0">
-                        <IconShieldLock size={20} className="text-primary" />
-                        <span>Administratorlar Ro'yxati</span>
-                        <span className="badge bg-primary-lt ms-1">{admins.length}</span>
-                      </h3>
-                      <span className="text-secondary small">Rol va ruxsatlarni boshqarish</span>
-                    </div>
-                    <div className="table-responsive">
-                      <table className="table table-vcenter card-table table-hover">
-                        <thead>
-                          <tr>
-                            <th style={{ width: "30%" }}>Admin</th>
-                            <th style={{ width: "16%" }}>Telegram ID</th>
-                            <th style={{ width: "18%" }}>Roli</th>
-                            <th style={{ width: "26%" }}>Ruxsatlar</th>
-                            <th style={{ width: "10%" }} className="text-center">Amallar</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {admins.map((adm) => {
-                            const cleanUser = cleanTelegramUsername(adm.username);
-                            const activeCount = Object.entries(adm.permissions || {}).filter(
-                              ([k, v]) => Boolean(v) && k !== "can_switch_admins" && k !== "switch_admins"
-                            ).length;
-                            const totalCount = Object.keys(PERMISSION_LABELS).length;
-                            const isOwner = adm.role === "owner";
-
-                            return (
-                              <tr key={adm.id} style={{ height: "62px" }}>
-                                <td>
-                                  <div className="d-flex align-items-center gap-2.5">
-                                    <TelegramUserAvatar userId={adm.telegram_user_id} name={adm.name} size="md" />
-                                    <div className="text-truncate" style={{ maxWidth: 210 }}>
-                                      <div className="fw-semibold text-white d-flex align-items-center gap-1.5">
-                                        <span className="text-truncate">{adm.name || "Noma'lum"}</span>
-                                        {isOwner && (
-                                          <span className="badge bg-warning-lt text-warning p-1" title="Bosh Admin (Owner)">
-                                            <IconCrown size={12} />
-                                          </span>
-                                        )}
-                                      </div>
-                                      <div className="small font-monospace">
-                                        {cleanUser ? (
-                                          <a
-                                            href={`https://t.me/${cleanUser}`}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            className="text-info text-decoration-none hover-underline d-inline-flex align-items-center gap-1"
-                                            title="Telegram profili ochish"
-                                          >
-                                            <span>@{cleanUser}</span>
-                                            <IconExternalLink size={11} className="opacity-70" />
-                                          </a>
-                                        ) : (
-                                          <span className="text-secondary opacity-60">—</span>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-                                </td>
-                                <td>
-                                  <span className="badge bg-dark text-cyan border border-secondary border-opacity-25 font-monospace px-2.5 py-1">
-                                    {adm.telegram_user_id}
-                                  </span>
-                                </td>
-                                <td>
-                                  {isOwner ? (
-                                    <span className="badge bg-warning-lt text-warning d-inline-flex align-items-center gap-1 px-2.5 py-1.5 fw-bold shadow-xs">
-                                      <IconCrown size={14} /> Owner
-                                    </span>
-                                  ) : (
-                                    <select
-                                      className="form-select form-select-sm bg-dark text-white border-secondary border-opacity-40"
-                                      style={{ width: "135px", fontSize: "12px", height: "30px", borderRadius: "6px" }}
-                                      value={adm.role}
-                                      onChange={(e) => handleRoleChange(adm.telegram_user_id, e.target.value)}
-                                      disabled={busy}
-                                    >
-                                      <option value="admin">🛡️ Admin</option>
-                                      <option value="moderator">👤 Moderator</option>
-                                    </select>
-                                  )}
-                                </td>
-                                <td>
-                                  {isOwner ? (
-                                    <span className="badge bg-green-lt text-green d-inline-flex align-items-center gap-1 px-2.5 py-1.5 fw-medium">
-                                      <IconShieldCheck size={14} /> Barcha ruxsatlar faol ({totalCount}/{totalCount})
-                                    </span>
-                                  ) : (
-                                    <div className="d-flex align-items-center gap-2">
-                                      <span
-                                        className={`badge ${
-                                          activeCount === totalCount
-                                            ? "bg-green-lt text-green"
-                                            : activeCount > 0
-                                            ? "bg-blue-lt text-blue"
-                                            : "bg-secondary-lt text-secondary"
-                                        } d-inline-flex align-items-center gap-1.5 px-2.5 py-1 fw-semibold`}
-                                        style={{ fontSize: "12px", cursor: "pointer" }}
-                                        onClick={() => setManagingPermissionsAdmin(adm)}
-                                        title="Ruxsatlarni ko'rish va sozlash"
-                                      >
-                                        <IconShieldCheck size={14} />
-                                        <span>{activeCount} / {totalCount} ta faol</span>
-                                      </span>
-                                      <button
-                                        type="button"
-                                        className="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1 px-2 py-0.5"
-                                        style={{ height: "28px", fontSize: "11px", borderRadius: "6px" }}
-                                        onClick={() => setManagingPermissionsAdmin(adm)}
-                                        title="Ruxsatlarni boshqarish"
-                                      >
-                                        <IconAdjustments size={13} />
-                                        <span>Sozlash</span>
-                                      </button>
-                                    </div>
-                                  )}
-                                </td>
-                                <td className="text-center">
-                                  {isOwner ? (
-                                    <span
-                                      className="text-secondary opacity-30 d-inline-flex align-items-center justify-content-center"
-                                      style={{ width: 28, height: 28 }}
-                                      title="Bosh adminni o'chirib bo'lmaydi"
-                                    >
-                                      <IconLock size={15} />
-                                    </span>
-                                  ) : (
-                                    <button
-                                      className="btn btn-sm btn-outline-danger p-1"
-                                      style={{ width: 30, height: 30 }}
-                                      onClick={() => handleDeleteAdmin(adm.telegram_user_id, adm.name)}
-                                      disabled={busy}
-                                      title="Adminni o'chirish"
-                                    >
-                                      <IconTrash size={14} />
-                                    </button>
-                                  )}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                          {admins.length === 0 && (
-                            <tr>
-                              <td colSpan={5} className="text-center text-secondary py-4">
-                                Administratorlar topilmadi
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="col-lg-4">
-                  <div className="card shadow-sm">
-                    <div className="card-header">
-                      <h3 className="card-title d-flex align-items-center gap-2 mb-0">
-                        <IconPlus size={18} className="text-primary" />
-                        <span>Yangi Admin Qo'shish</span>
-                      </h3>
-                    </div>
-                    <form onSubmit={handleAddAdmin}>
-                      <div className="card-body">
-                        <div className="mb-3">
-                          <label className="form-label required" htmlFor="new-admin-id">
-                            Telegram User ID
-                          </label>
-                          <input
-                            id="new-admin-id"
-                            type="number"
-                            className="form-control"
-                            placeholder="Masalan: 12345678"
-                            value={newAdminId}
-                            onChange={(e) => setNewAdminId(e.target.value)}
-                            required
-                          />
-                          <small className="form-hint">Adminning Telegram hisob raqami (ID)</small>
-                        </div>
-
-                        <div className="mb-3">
-                          <label className="form-label" htmlFor="new-admin-name">
-                            Admin Ismi
-                          </label>
-                          <input
-                            id="new-admin-name"
-                            type="text"
-                            className="form-control"
-                            placeholder="Alisher Zokirov"
-                            value={newAdminName}
-                            onChange={(e) => setNewAdminName(e.target.value)}
-                          />
-                        </div>
-
-                        <div className="mb-3">
-                          <label className="form-label" htmlFor="new-admin-user">
-                            Telegram Username
-                          </label>
-                          <div className="input-group">
-                            <span className="input-group-text">@</span>
-                            <input
-                              id="new-admin-user"
-                              type="text"
-                              className="form-control"
-                              placeholder="username"
-                              value={newAdminUsername}
-                              onChange={(e) => setNewAdminUsername(cleanTelegramUsername(e.target.value))}
-                            />
-                          </div>
-                          <small className="form-hint">Masalan: <code>Saida4881</code> yoki t.me havolasi</small>
-                        </div>
-
-                        <div className="mb-3">
-                          <label className="form-label" htmlFor="new-admin-role">
-                            Dastlabki Roli
-                          </label>
-                          <select
-                            id="new-admin-role"
-                            className="form-select"
-                            value={newAdminRole}
-                            onChange={(e) => setNewAdminRole(e.target.value as "admin" | "moderator")}
-                          >
-                            <option value="moderator">Moderator (Suhbatlarga javob berish)</option>
-                            <option value="admin">Admin (To'liq boshqaruv)</option>
-                          </select>
-                        </div>
-                      </div>
-                      <div className="card-footer bg-transparent text-end">
-                        <button type="submit" className="btn btn-primary d-inline-flex align-items-center gap-1.5" disabled={busy || !newAdminId.trim()}>
-                          <IconPlus size={16} /> Adminni saqlash
-                        </button>
-                      </div>
-                    </form>
-                  </div>
-                </div>
-
-                {/* PERMISSION MANAGEMENT MODAL */}
-                {managingPermissionsAdmin && (
-                  <div
-                    className="modal modal-blur fade show d-block"
-                    tabIndex={-1}
-                    style={{ backgroundColor: "rgba(0,0,0,0.72)", zIndex: 1060 }}
-                  >
-                    <div className="modal-dialog modal-dialog-centered modal-lg" role="document">
-                      <div className="modal-content shadow-lg border-secondary border-opacity-25" style={{ background: "#171d29", borderRadius: 16 }}>
-                        <div className="modal-header border-bottom border-white-10 py-3 px-4">
-                          <div className="d-flex align-items-center gap-3">
-                            <TelegramUserAvatar
-                              userId={managingPermissionsAdmin.telegram_user_id}
-                              name={managingPermissionsAdmin.name}
-                              size="md"
-                            />
-                            <div>
-                              <h5 className="modal-title text-white d-flex align-items-center gap-2 mb-0">
-                                <IconShieldLock size={20} className="text-primary" />
-                                <span>{managingPermissionsAdmin.name || "Admin"} — Ruxsatlar Boshqaruvi</span>
-                              </h5>
-                              <div className="d-flex align-items-center gap-2 mt-1">
-                                <span className="badge bg-dark text-cyan font-monospace px-2 py-0.5" style={{ fontSize: "11px" }}>
-                                  ID: {managingPermissionsAdmin.telegram_user_id}
-                                </span>
-                                {cleanTelegramUsername(managingPermissionsAdmin.username) && (
-                                  <span className="text-secondary small font-monospace">
-                                    @{cleanTelegramUsername(managingPermissionsAdmin.username)}
-                                  </span>
-                                )}
-                                <span className="badge bg-blue-lt text-blue px-2 py-0.5 text-uppercase" style={{ fontSize: "10px" }}>
-                                  {managingPermissionsAdmin.role}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            className="btn-close btn-close-white"
-                            aria-label="Close"
-                            onClick={() => setManagingPermissionsAdmin(null)}
-                          />
-                        </div>
-
-                        <div className="modal-body p-4" style={{ maxHeight: "68vh", overflowY: "auto" }}>
-                          {/* Quick Preset Action Bar */}
-                          <div
-                            className="d-flex flex-wrap align-items-center justify-content-between p-3 rounded-3 mb-4"
-                            style={{ background: "rgba(255, 255, 255, 0.04)", border: "1px solid rgba(255, 255, 255, 0.08)" }}
-                          >
-                            <div>
-                              <div className="text-white fw-bold small">Tezkor amallar:</div>
-                              <div className="text-secondary small" style={{ fontSize: "11px" }}>
-                                Bir bosishda barcha huquqlarni to'liq faollashtiring yoki tozalang
-                              </div>
-                            </div>
-                            <div className="d-flex gap-2 mt-2 mt-sm-0">
-                              <button
-                                type="button"
-                                className="btn btn-sm btn-outline-success d-inline-flex align-items-center gap-1.5"
-                                onClick={() => handleBatchPermissions(managingPermissionsAdmin.telegram_user_id, true)}
-                                disabled={busy}
-                              >
-                                <IconCheck size={14} /> Barchasini yoqish
-                              </button>
-                              <button
-                                type="button"
-                                className="btn btn-sm btn-outline-danger d-inline-flex align-items-center gap-1.5"
-                                onClick={() => handleBatchPermissions(managingPermissionsAdmin.telegram_user_id, false)}
-                                disabled={busy}
-                              >
-                                <IconX size={14} /> Barchasini o'chirish
-                              </button>
-                            </div>
-                          </div>
-
-                          {/* Grouped Permission Categories */}
-                          <div className="space-y-4">
-                            {PERMISSION_CATEGORIES.map((cat, idx) => (
-                              <div
-                                key={idx}
-                                className="rounded-3 p-3.5 mb-3"
-                                style={{ background: "rgba(255, 255, 255, 0.02)", border: "1px solid rgba(255, 255, 255, 0.06)" }}
-                              >
-                                <div className="d-flex align-items-center gap-2 mb-2 pb-2 border-bottom border-white-5">
-                                  <span style={{ fontSize: "18px" }}>{cat.icon}</span>
-                                  <div>
-                                    <div className="text-white fw-bold small mb-0">{cat.category}</div>
-                                    <div className="text-secondary small" style={{ fontSize: "11px" }}>{cat.description}</div>
-                                  </div>
-                                </div>
-
-                                <div className="row g-2.5 pt-1">
-                                  {cat.permissions.map((p) => {
-                                    const isEnabled = Boolean(managingPermissionsAdmin.permissions?.[p.key]);
-                                    return (
-                                      <div className="col-12 col-md-6" key={p.key}>
-                                        <div
-                                          className={`p-2.5 rounded-2 d-flex align-items-center justify-content-between transition-all ${
-                                            isEnabled ? "border border-success border-opacity-30" : "border border-white-5"
-                                          }`}
-                                          style={{
-                                            background: isEnabled ? "rgba(47, 179, 68, 0.08)" : "rgba(0, 0, 0, 0.2)",
-                                            cursor: "pointer",
-                                          }}
-                                          onClick={() =>
-                                            handleTogglePermission(
-                                              managingPermissionsAdmin.telegram_user_id,
-                                              p.key,
-                                              isEnabled
-                                            )
-                                          }
-                                        >
-                                          <div className="pe-2 flex-grow-1">
-                                            <div className={`fw-semibold small ${isEnabled ? "text-success" : "text-secondary"}`}>
-                                              {p.label}
-                                            </div>
-                                            <div className="text-secondary small" style={{ fontSize: "10.5px", lineHeight: 1.3 }}>
-                                              {p.desc}
-                                            </div>
-                                          </div>
-                                          <div className="form-check form-switch m-0 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-                                            <input
-                                              className="form-check-input"
-                                              type="checkbox"
-                                              role="switch"
-                                              checked={isEnabled}
-                                              onChange={() =>
-                                                handleTogglePermission(
-                                                  managingPermissionsAdmin.telegram_user_id,
-                                                  p.key,
-                                                  isEnabled
-                                                )
-                                              }
-                                              disabled={busy}
-                                              style={{ cursor: "pointer" }}
-                                            />
-                                          </div>
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-
-                        <div className="modal-footer border-top border-white-10 py-2.5 px-4 d-flex align-items-center justify-content-between">
-                          <div className="text-secondary small">
-                            Faol ruxsatlar soni:{" "}
-                            <span className="fw-bold text-white">
-                              {Object.entries(managingPermissionsAdmin.permissions || {}).filter(
-                                ([k, v]) => Boolean(v) && k !== "can_switch_admins" && k !== "switch_admins"
-                              ).length}
-                            </span>{" "}
-                            / {Object.keys(PERMISSION_LABELS).length}
-                          </div>
-                          <button
-                            type="button"
-                            className="btn btn-primary px-3"
-                            onClick={() => setManagingPermissionsAdmin(null)}
-                          >
-                            <IconCheck size={16} className="me-1" /> Saqlash va Yopish
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
+              <AdminsTab
+                admins={admins}
+                newAdminId={newAdminId}
+                setNewAdminId={setNewAdminId}
+                newAdminName={newAdminName}
+                setNewAdminName={setNewAdminName}
+                newAdminUsername={newAdminUsername}
+                setNewAdminUsername={setNewAdminUsername}
+                newAdminRole={newAdminRole}
+                setNewAdminRole={setNewAdminRole}
+                onAddAdmin={handleAddAdmin}
+                onRoleChange={handleRoleChange}
+                onDeleteAdmin={handleDeleteAdmin}
+                managingPermissionsAdmin={managingPermissionsAdmin}
+                setManagingPermissionsAdmin={setManagingPermissionsAdmin}
+                onTogglePermission={handleTogglePermission}
+                busy={busy}
+                permissionLabels={PERMISSION_LABELS}
+                permissionCategories={PERMISSION_CATEGORIES}
+              />
             )}
 
-            {/* 10. TEAM & ACCESS TAB */}
             {tab === "team" && (
-              <div className="row row-deck row-cards">
-                <div className="col-12">
-                  <div className="card mb-3">
-                    <div className="card-header">
-                      <h3 className="card-title">Rollar va Ruxsatlar Matritsasi</h3>
-                    </div>
-                    <div className="card-body">
-                      <div className="row g-3">
-                        <div className="col-md-4">
-                          <div className="card border">
-                            <div className="card-body">
-                              <span className="badge bg-purple-lt mb-2">Owner</span>
-                              <h4>Bosh Ega</h4>
-                              <p className="text-secondary fs-5">
-                                Barcha huquqlar to'liq berilgan. Adminlarni qo'shish, o'chirish va tizim sozlamalarini o'zgartirish huquqiga ega.
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="col-md-4">
-                          <div className="card border">
-                            <div className="card-body">
-                              <span className="badge bg-blue-lt mb-2">Admin</span>
-                              <h4>Tizim Menejeri</h4>
-                              <p className="text-secondary fs-5">
-                                Suhbatlar, kataloglar, buyurtmalar va bilimlarni to'liq boshqarishi mumkin.
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="col-md-4">
-                          <div className="card border">
-                            <div className="card-body">
-                              <span className="badge bg-green-lt mb-2">Moderator</span>
-                              <h4>Sotuvchi Operator</h4>
-                              <p className="text-secondary fs-5">
-                                Faqat jonli suhbatlarga javob berish va mijozlar bilan muloqot qilish vakolatiga ega.
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="mt-4 pt-3 border-top border-secondary-subtle">
-                        <h4 className="card-title mb-3 d-flex align-items-center gap-2">
-                          <IconKey size={18} className="text-primary" />
-                          <span>Granulyar Ruxsatlar Turlari (Permissions):</span>
-                        </h4>
-                        <div className="table-responsive">
-                          <table className="table table-vcenter card-table table-sm">
-                            <thead>
-                              <tr>
-                                <th>Ruxsat Kaliti</th>
-                                <th>Tavsifi</th>
-                                <th className="text-center">Owner</th>
-                                <th className="text-center">Admin</th>
-                                <th className="text-center">Moderator</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {Object.entries(PERMISSION_LABELS).map(([k, label]) => (
-                                <tr key={k}>
-                                  <td>
-                                    <span className="badge bg-secondary-lt font-monospace">{k}</span>
-                                  </td>
-                                  <td className="small">{label}</td>
-                                  <td className="text-center"><span className="badge bg-success-lt text-success">Ha</span></td>
-                                  <td className="text-center">
-                                    {["can_manage_admins"].includes(k) ? (
-                                      <span className="badge bg-danger-lt text-danger">Yo'q</span>
-                                    ) : (
-                                      <span className="badge bg-success-lt text-success">Ha</span>
-                                    )}
-                                  </td>
-                                  <td className="text-center">
-                                    {["can_view_conversations", "can_reply_customers", "can_takeover", "can_resume_ai", "can_view_knowledge", "can_view_orders"].includes(k) ? (
-                                      <span className="badge bg-success-lt text-success">Ha</span>
-                                    ) : (
-                                      <span className="badge bg-danger-lt text-danger">Yo'q</span>
-                                    )}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <TeamTab permissionLabels={PERMISSION_LABELS} />
             )}
 
-            {/* 11. ACTIVITY LOGS TAB */}
             {tab === "logs" && (
-              <div className="row row-deck row-cards">
-                <div className="col-12">
-                  <div className="card">
-                    <div className="card-header">
-                      <h3 className="card-title">Tizim Amallari Jurnali (Audit Logs)</h3>
-                      <div className="card-actions">
-                        <span className="badge bg-green-lt">Real-time Logging</span>
-                      </div>
-                    </div>
-                    <div className="table-responsive">
-                      <table className="table table-vcenter card-table table-hover">
-                        <thead>
-                          <tr>
-                            <th>Vaqt</th>
-                            <th>Foydalanuvchi / Servis</th>
-                            <th>Amal</th>
-                            <th>Tafsilotlar</th>
-                            <th>Holat</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr>
-                            <td className="text-secondary font-monospace">Hozirgina</td>
-                            <td>
-                              <span className="badge bg-blue-lt">AI Engine</span>
-                            </td>
-                            <td>Avtomatik mijozga javob</td>
-                            <td>Mijozga noutbuk parametrlari yuborildi</td>
-                            <td>
-                              <span className="badge bg-green-lt text-green">Muvaffaqiyatli</span>
-                            </td>
-                          </tr>
-                          <tr>
-                            <td className="text-secondary font-monospace">18:24</td>
-                            <td>
-                              <span className="badge bg-purple-lt">Telegram Webhook</span>
-                            </td>
-                            <td>Yangi buyurtma yaratildi</td>
-                            <td>ORD-9421 - Asus TUF Gaming</td>
-                            <td>
-                              <span className="badge bg-green-lt text-green">Muvaffaqiyatli</span>
-                            </td>
-                          </tr>
-                          <tr>
-                            <td className="text-secondary font-monospace">16:40</td>
-                            <td>
-                              <span className="badge bg-secondary-lt">Sync Cron</span>
-                            </td>
-                            <td>Kanal postlari tekshirildi</td>
-                            <td>12 ta yangi post sinxronlandi</td>
-                            <td>
-                              <span className="badge bg-green-lt text-green">OK</span>
-                            </td>
-                          </tr>
-                          <tr>
-                            <td className="text-secondary font-monospace">14:15</td>
-                            <td>
-                              <span className="badge bg-warning-lt text-warning">Operator</span>
-                            </td>
-                            <td>Takeover amalga oshirildi</td>
-                            <td>Chat #4 inson nazoratiga olindi</td>
-                            <td>
-                              <span className="badge bg-blue-lt">Qabul qilindi</span>
-                            </td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <LogsTab logs={auditLogs} />
             )}
 
-            {/* 12. ADMIN PROFILE & UNIFIED DESIGN SETTINGS TAB */}
             {tab === "profile" && (
-              <div className="row row-cards">
-                {/* Left Column: Admin Profile Card */}
-                <div className="col-12 col-lg-5">
-                  <div className="card shadow-sm h-100">
-                    <div className="card-header d-flex align-items-center justify-content-between">
-                      <h3 className="card-title d-flex align-items-center gap-2 mb-0">
-                        <IconShieldCheck size={20} className="text-primary" />
-                        <span>Admin Profili</span>
-                      </h3>
-                      <span className="badge bg-green-lt text-green d-flex align-items-center gap-1">
-                        <span className="status-dot status-dot-animated bg-green"></span>
-                        Online
-                      </span>
-                    </div>
-                    <div className="card-body text-center py-4">
-                      {/* Telegram Avatar Display */}
-                      <div className="position-relative d-inline-block mb-3">
-                        {!profileAvatarError && Boolean(activeAdminTelegramId) && Number(activeAdminTelegramId) > 0 ? (
-                          <img
-                            key={activeAdminTelegramId}
-                            src={`/api/proxy?path=/admin/users/${activeAdminTelegramId}/avatar`}
-                            alt={currentAdmin?.name || "Admin"}
-                            className="avatar avatar-xl rounded-circle shadow-lg"
-                            style={{
-                              width: 86,
-                              height: 86,
-                              objectFit: "cover",
-                              border: "3px solid #007aff",
-                              boxShadow: "0 0 16px rgba(0, 122, 255, 0.4)",
-                            }}
-                            onError={() => setProfileAvatarError(true)}
-                          />
-                        ) : (
-                          <span
-                            className="avatar avatar-xl rounded-circle text-white shadow-sm"
-                            style={{
-                              width: 86,
-                              height: 86,
-                              fontSize: "2.2rem",
-                              background: "linear-gradient(135deg, #007aff 0%, #0051a8 100%)",
-                            }}
-                          >
-                            <IconShieldCheck size={42} />
-                          </span>
-                        )}
-                        <span
-                          className="position-absolute bg-success rounded-circle border border-2 border-dark"
-                          style={{ width: 16, height: 16, bottom: 4, right: 4 }}
-                          title="Online"
-                        />
-                      </div>
-
-                      <h3 className="m-0 mb-1 fw-bold">
-                        {currentAdmin?.name || "Muxammadaziz"}
-                      </h3>
-                      {currentAdmin?.username && (
-                        <div className="mb-2">
-                          <a
-                            href={`https://t.me/${currentAdmin.username}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="badge bg-blue-lt text-decoration-none px-2 py-1"
-                          >
-                            @{currentAdmin.username}
-                          </a>
-                        </div>
-                      )}
-                      <div className="d-flex justify-content-center gap-2 mb-3">
-                        <span className="badge bg-purple-lt fw-semibold">
-                          {currentAdmin?.role === "owner" ? "Owner (Tizim Egasi)" : (currentAdmin?.role || "Admin")}
-                        </span>
-                        <span className="badge bg-dark text-cyan border border-secondary border-opacity-25 font-monospace px-2.5 py-1">
-                          ID: {activeAdminTelegramId}
-                        </span>
-                      </div>
-
-                      {/* Admin Ruxsatlari va Vakolatlari */}
-                      <div
-                        className="card text-start mb-3"
-                        style={{
-                          borderRadius: 14,
-                          background: "rgba(255, 255, 255, 0.05)",
-                          border: "1px solid rgba(255, 255, 255, 0.12)",
-                        }}
-                      >
-                        <div
-                          className="card-header py-2.5 px-3 d-flex align-items-center justify-content-between bg-transparent"
-                          style={{ borderBottom: "1px solid rgba(255, 255, 255, 0.1)" }}
-                        >
-                          <div className="d-flex align-items-center gap-2">
-                            <IconShieldLock size={18} className="text-primary" />
-                            <span className="fw-bold small" style={{ fontSize: "0.88rem", letterSpacing: "0.2px", color: "#ffffff" }}>
-                              Biriktirilgan Ruxsatlar
-                            </span>
-                          </div>
-                          <span className="badge bg-primary text-white small px-2 py-1 fw-semibold" style={{ fontSize: "0.72rem" }}>
-                            {currentAdmin?.role === "owner" ? "To'liq Huquq" : "Cheklangan"}
-                          </span>
-                        </div>
-                        <div className="card-body p-3">
-                          {currentAdmin?.role === "owner" ? (
-                            <div
-                              className="d-flex align-items-center mb-0 py-2.5 px-3 rounded-3"
-                              style={{
-                                background: "rgba(47, 179, 68, 0.15)",
-                                border: "1px solid rgba(47, 179, 68, 0.35)",
-                                color: "#ffffff",
-                              }}
-                            >
-                              <IconShieldCheck size={20} className="me-2.5 flex-shrink-0 text-success" />
-                              <div className="small text-white" style={{ lineHeight: 1.45 }}>
-                                <strong className="text-success fw-bold">Bosh Administrator (Owner):</strong> Tizimdagi barcha modullar, sozlamalar va adminlarni boshqarish huquqiga ega.
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="d-flex flex-wrap gap-1.5">
-                              {Object.entries(currentAdmin?.permissions || {})
-                                .filter(([k, v]) => Boolean(v) && k !== "can_switch_admins" && k !== "switch_admins")
-                                .map(([key]) => (
-                                  <span key={key} className="badge bg-green-lt text-green d-inline-flex align-items-center gap-1 py-1 px-2 fw-medium">
-                                    <IconCheck size={12} />
-                                    {PERMISSION_LABELS[key] || key.replace("can_", "")}
-                                  </span>
-                                ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="list-group list-group-flush text-start my-3" style={{ borderTop: "1px solid rgba(255,255,255,0.1)", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
-                        <div className="list-group-item d-flex justify-content-between px-2 py-2.5 bg-transparent" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-                          <span className="text-secondary fw-medium">Admin:</span>
-                          <span className="fw-semibold text-white">{currentAdmin?.name || "Muxammadaziz"}</span>
-                        </div>
-                        <div className="list-group-item d-flex justify-content-between px-2 py-2.5 bg-transparent" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-                          <span className="text-secondary fw-medium">Telegram ID:</span>
-                          <span className="font-monospace text-cyan fw-bold">{activeAdminTelegramId}</span>
-                        </div>
-                        <div className="list-group-item d-flex justify-content-between px-2 py-2.5 bg-transparent" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-                          <span className="text-secondary fw-medium">Rol:</span>
-                          <span className="fw-semibold text-capitalize text-white">{currentAdmin?.role || "Owner"}</span>
-                        </div>
-                        <div className="list-group-item d-flex justify-content-between px-2 py-2.5 bg-transparent">
-                          <span className="text-secondary fw-medium">Tizim holati:</span>
-                          <span className="text-success fw-semibold d-inline-flex align-items-center gap-1.5">
-                            <span className="status-dot status-dot-animated bg-success" style={{ width: 7, height: 7 }} /> Himoyalangan (SSL)
-                          </span>
-                        </div>
-                      </div>
-
-                      <button
-                        type="button"
-                        className="btn btn-outline-danger w-100 d-flex align-items-center justify-content-center gap-1.5 mt-2"
-                        onClick={logout}
-                      >
-                        <IconLogout size={16} /> Tizimdan chiqish (Logout)
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Right Column: Unified Design Tools & Appearance */}
-                <div className="col-12 col-lg-7">
-                  <div className="card shadow-sm">
-                    <div className="card-header">
-                      <h3 className="card-title d-flex align-items-center gap-2 mb-0">
-                        <IconPalette size={20} className="text-primary" />
-                        <span>Dizayn & Tashqi Ko'rinish Anjomlari</span>
-                      </h3>
-                    </div>
-                    <div className="card-body">
-                      {/* 1. Design System Switcher */}
-                      <div className="mb-4">
-                        <label className="form-label fw-bold d-flex align-items-center gap-1.5 mb-2">
-                          <IconDeviceMobile size={18} className="text-primary" />
-                          <span>Sayt Dizayn Uslubi:</span>
-                        </label>
-                        <div className="row g-3">
-                          <div className="col-sm-6">
-                            <div
-                              className={`p-3 rounded-3 border transition-all ${
-                                uiStyle === "ios"
-                                  ? "border-primary bg-primary-lt shadow-sm"
-                                  : "border-secondary-subtle"
-                              }`}
-                              style={{ cursor: "pointer" }}
-                              onClick={() => {
-                                if (uiStyle !== "ios") toggleUiStyle();
-                              }}
-                            >
-                              <div className="d-flex align-items-center justify-content-between mb-2">
-                                <div className="d-flex align-items-center gap-2">
-                                  <span className="avatar avatar-sm bg-primary text-white rounded-circle">
-                                    <IconBrandApple size={18} />
-                                  </span>
-                                  <span className="fw-bold text-white">Apple iOS Uslubi</span>
-                                </div>
-                                {uiStyle === "ios" && (
-                                  <span className="badge bg-primary text-white rounded-pill px-2">Faol</span>
-                                )}
-                              </div>
-                              <p className="small mb-0" style={{ color: "rgba(255, 255, 255, 0.72)" }}>
-                                OLED Deep Black fon, Frosted Glass (oynasimon xiralashuv), Dynamic Island va yumaloq iMessage pufakchalari.
-                              </p>
-                            </div>
-                          </div>
-
-                          <div className="col-sm-6">
-                            <div
-                              className={`p-3 rounded-3 border transition-all ${
-                                uiStyle === "tabler"
-                                  ? "border-primary bg-primary-lt shadow-sm"
-                                  : "border-secondary-subtle"
-                              }`}
-                              style={{ cursor: "pointer" }}
-                              onClick={() => {
-                                if (uiStyle !== "tabler") toggleUiStyle();
-                              }}
-                            >
-                              <div className="d-flex align-items-center justify-content-between mb-2">
-                                <div className="d-flex align-items-center gap-2">
-                                  <span className="avatar avatar-sm bg-secondary text-white rounded-3">
-                                    <IconLayoutDashboard size={18} />
-                                  </span>
-                                  <span className="fw-bold text-white">Klassik Uslub</span>
-                                </div>
-                                {uiStyle === "tabler" && (
-                                  <span className="badge bg-primary text-white rounded-pill px-2">Faol</span>
-                                )}
-                              </div>
-                              <p className="small mb-0" style={{ color: "rgba(255, 255, 255, 0.72)" }}>
-                                Standart boshqaruv paneli, qat'iy panjara (grid), to'q kulrang bloklar va klassik korporativ interfeys.
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <hr className="my-4 border-secondary-subtle" />
-
-                      {/* 2. Theme Mode Switcher */}
-                      <div className="mb-4">
-                        <label className="form-label fw-bold d-flex align-items-center gap-1.5 mb-2">
-                          <IconSun size={18} className="text-orange" />
-                          <span>Rangli Mavzu (Theme Mode):</span>
-                        </label>
-                        <div className="row g-3">
-                          <div className="col-6">
-                            <div
-                              className={`p-3 rounded-3 border d-flex align-items-center justify-content-between ${
-                                theme === "dark" ? "border-primary bg-primary-lt shadow-sm" : "border-secondary-subtle"
-                              }`}
-                              style={{ cursor: "pointer" }}
-                              onClick={() => setTheme("dark")}
-                            >
-                              <div className="d-flex align-items-center gap-2">
-                                <IconMoon size={20} className="text-yellow" />
-                                <span className="fw-medium">Qorong'i (Dark)</span>
-                              </div>
-                              {theme === "dark" && <IconCheck size={18} className="text-primary" />}
-                            </div>
-                          </div>
-
-                          <div className="col-6">
-                            <div
-                              className={`p-3 rounded-3 border d-flex align-items-center justify-content-between ${
-                                theme === "light" ? "border-primary bg-primary-lt shadow-sm" : "border-secondary-subtle"
-                              }`}
-                              style={{ cursor: "pointer" }}
-                              onClick={() => setTheme("light")}
-                            >
-                              <div className="d-flex align-items-center gap-2">
-                                <IconSun size={20} className="text-orange" />
-                                <span className="fw-medium">Yorug' (Light)</span>
-                              </div>
-                              {theme === "light" && <IconCheck size={18} className="text-primary" />}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <hr className="my-4 border-secondary-subtle" />
-
-                      {/* 3. Typography & Font Family Selector (Olline, Pogonia, Inter, SF Pro, Jakarta) */}
-                      <div className="mb-4">
-                        <div className="d-flex align-items-center justify-content-between mb-2">
-                          <label className="form-label fw-bold d-flex align-items-center gap-1.5 mb-0">
-                            <IconTypography size={18} className="text-primary" />
-                            <span>Interfeys Shrifti (Typography):</span>
-                          </label>
-                          <span className="badge bg-purple-lt text-purple small fw-semibold font-monospace px-2.5 py-1">
-                            {FONT_OPTIONS.find((f) => f.id === appFont)?.name || "Olline"} faol
-                          </span>
-                        </div>
-                        <p className="text-secondary small mb-3">
-                          Sarlavhalar, dashboard panellari va matnlar uchun yangi <strong>Olline</strong> va <strong>Pogonia</strong> yoki boshqa zamonaviy shriftlarni tanlang:
-                        </p>
-
-                        <div className="row g-3">
-                          {FONT_OPTIONS.map((font) => (
-                            <div key={font.id} className="col-sm-6 col-md-4">
-                              <div
-                                className={`p-3 rounded-3 border transition-all h-100 position-relative d-flex flex-column justify-content-between ${
-                                  appFont === font.id
-                                    ? "border-primary bg-primary-lt shadow-sm"
-                                    : "border-secondary-subtle"
-                                }`}
-                                style={{
-                                  cursor: "pointer",
-                                  background: appFont === font.id ? "rgba(0, 122, 255, 0.12)" : "rgba(255, 255, 255, 0.03)",
-                                }}
-                                onClick={() => handleSelectFont(font.id)}
-                              >
-                                {font.isNew && (
-                                  <span
-                                    className="position-absolute badge rounded-pill fw-bold"
-                                    style={{
-                                      top: 8,
-                                      right: 8,
-                                      background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
-                                      color: "#fff",
-                                      fontSize: "9px",
-                                      padding: "2px 6px",
-                                      boxShadow: "0 2px 6px rgba(245, 158, 11, 0.35)",
-                                    }}
-                                  >
-                                    ✨ YANGI FONT
-                                  </span>
-                                )}
-
-                                {/* Visual Typography Preview Box matching user's images */}
-                                <div
-                                  className="text-center py-2.5 px-2 rounded-2 mb-2"
-                                  style={{
-                                    background: "rgba(0, 0, 0, 0.35)",
-                                    border: "1px solid rgba(255, 255, 255, 0.08)",
-                                  }}
-                                >
-                                  <div
-                                    className="text-white text-truncate"
-                                    style={{
-                                      fontFamily: font.fontFamily,
-                                      fontSize: font.id === "olline" || font.id === "pogonia" ? "1.75rem" : "1.45rem",
-                                      fontWeight: font.id === "olline" ? 900 : font.id === "pogonia" ? 800 : 700,
-                                      lineHeight: 1.15,
-                                      letterSpacing: font.id === "olline" ? "-0.03em" : font.id === "pogonia" ? "-0.02em" : "-0.01em",
-                                    }}
-                                  >
-                                    {font.name}
-                                  </div>
-                                  <div
-                                    className="text-secondary small mt-1"
-                                    style={{
-                                      fontFamily: font.fontFamily,
-                                      fontSize: "0.75rem",
-                                      letterSpacing: "0.02em",
-                                    }}
-                                  >
-                                    {font.name}
-                                  </div>
-                                </div>
-
-                                <div className="d-flex align-items-center justify-content-between mt-auto pt-1">
-                                  <div>
-                                    <div className="fw-bold text-white small d-flex align-items-center gap-1">
-                                      <span>{font.name}</span>
-                                      <span className="badge bg-secondary-lt text-secondary font-monospace" style={{ fontSize: "9px" }}>
-                                        {font.styleTag}
-                                      </span>
-                                    </div>
-                                    <div className="text-secondary small" style={{ fontSize: "0.7rem", lineHeight: 1.3 }}>
-                                      {font.description}
-                                    </div>
-                                  </div>
-                                  {appFont === font.id && (
-                                    <span className="avatar avatar-xs bg-primary text-white rounded-circle flex-shrink-0 ms-1">
-                                      <IconCheck size={13} />
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      <hr className="my-4 border-secondary-subtle" />
-
-                      {/* 4. Company Brand Logo Customization */}
-                      <div>
-                        <label className="form-label fw-bold d-flex align-items-center gap-1.5 mb-2">
-                          <IconPhoto size={18} className="text-primary" />
-                          <span>Kompaniya Logotipi:</span>
-                        </label>
-
-                        <div className="d-flex align-items-center gap-3 p-3 rounded-3 mb-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                          <AppLogo src={logoUrl} size="lg" />
-                          <div className="flex-fill">
-                            <div className="fw-bold mb-1">Faol logotip ko'rinishi</div>
-                            <div className="text-secondary small">Sayt burchagida va login oynasida shu logotip aks etadi</div>
-                          </div>
-                        </div>
-
-                        <div className="mb-3">
-                          <label className="form-label text-secondary small">Kompyuterdan logotip yuklash (PNG, SVG, JPG, WebP):</label>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            className="form-control"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) handleLogoUpload(file);
-                            }}
-                          />
-                        </div>
-
-                        <div className="mb-3">
-                          <label className="form-label text-secondary small">Yoki logotip URL havolasi:</label>
-                          <div className="input-group">
-                            <input
-                              type="text"
-                              className="form-control"
-                              placeholder="/logo.svg yoki https://..."
-                              value={customLogoInput}
-                              onChange={(e) => setCustomLogoInput(e.target.value)}
-                            />
-                            <button
-                              type="button"
-                              className="btn btn-primary"
-                              onClick={() => handleSaveLogoUrl(customLogoInput)}
-                            >
-                              Saqlash
-                            </button>
-                          </div>
-                        </div>
-
-                        <button
-                          type="button"
-                          className="btn btn-outline-secondary btn-sm"
-                          onClick={() => {
-                            handleSaveLogoUrl("/logo.svg");
-                            setCustomLogoInput("/logo.svg");
-                          }}
-                        >
-                          Standart logotipga qaytarish
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <ProfileTab
+                currentAdmin={currentAdmin}
+                activeAdminTelegramId={activeAdminTelegramId}
+                profileAvatarError={profileAvatarError}
+                setProfileAvatarError={setProfileAvatarError}
+                theme={theme}
+                setTheme={setTheme}
+                appFont={appFont}
+                onSelectFont={handleSelectFont}
+                onLogout={logout}
+                permissionLabels={PERMISSION_LABELS}
+              />
             )}
 
-            {/* 13. SAAS USAGE & LIMITS TAB */}
             {tab === "usage" && (
               <UsageTab
                 usageData={usageData}
@@ -6132,7 +2569,6 @@ export default function Dashboard({
               />
             )}
 
-            {/* 14. SAAS BILLING & SUBSCRIPTION TAB */}
             {tab === "billing" && (
               <BillingTab
                 subscription={subscriptionData}
@@ -6144,7 +2580,6 @@ export default function Dashboard({
               />
             )}
 
-            {/* 15. SAAS PRICING & PLANS TAB */}
             {tab === "pricing" && (
               <PricingTab
                 plans={plansList}
@@ -6153,55 +2588,86 @@ export default function Dashboard({
                 loading={busy}
               />
             )}
+          </>
+        )}
+      </AppShell>
 
-            {/* 16. PLATFORM OWNER TAB */}
-            {tab === "platform" && (
-              <PlatformOwnerTab
-                subTab={platformSubTab}
-                metrics={platformMetrics}
-                organizations={platformOrgs}
-                usersList={platformUsers}
-                systemHealth={systemHealth}
-                auditLogs={auditLogs}
-                loading={loading}
-                onRefresh={loadPlatformData}
-                onUpdatePlan={handleUpdatePlanConfig}
-                onEnterStore={handleEnterStore}
-                onSwitchSubTab={setPlatformSubTab}
-                onCreateStore={handleCreateStore}
-                onUpdateStoreStatus={handleUpdateStoreStatus}
-                onDeleteStore={handleDeleteStore}
-              />
-            )}
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* ========================================================
-            PAGE FOOTER
-            ======================================================== */}
-        <footer className="footer footer-transparent d-print-none mt-auto py-3">
-          <div className="container-xl">
-            <div className="row text-center align-items-center flex-row-reverse">
-              <div className="col-lg-auto ms-lg-auto">
-                <ul className="list-inline list-inline-dots mb-0">
-                  <li className="list-inline-item text-secondary">
-                    Telegram AI Sales Engine v2.4
-                  </li>
-                </ul>
+      {/* Modal for logo settings */}
+      {showLogoModal && (
+        <div className="modal modal-blur fade show d-block" tabIndex={-1} style={{ backgroundColor: "rgba(0,0,0,0.7)" }}>
+          <div className="modal-dialog modal-dialog-centered" role="document">
+            <div className="modal-content border-0 shadow-lg" style={{ background: "var(--bg-surface-elevated)", borderRadius: 16 }}>
+              <div className="modal-header border-bottom border-subtle">
+                <h5 className="modal-title text-primary d-flex align-items-center gap-2">
+                  <span>Kompaniya Logotipini Sozlash</span>
+                </h5>
+                <button type="button" className="btn-close" onClick={() => setShowLogoModal(false)}></button>
               </div>
-              <div className="col-12 col-lg-auto mt-3 mt-lg-0">
-                <ul className="list-inline list-inline-dots mb-0">
-                  <li className="list-inline-item text-secondary">
-                    © 2026 AI Sales Control Center. Barcha huquqlar himoyalangan.
-                  </li>
-                </ul>
+              <div className="modal-body">
+                <div className="text-center mb-4 p-3 rounded" style={{ background: "var(--bg-canvas)" }}>
+                  <div className="text-secondary small mb-2">Joriy logotip ko'rinishi:</div>
+                  <AppLogo src={customLogoInput || logoUrl} size="xl" />
+                </div>
+
+                <div className="mb-3">
+                  <label className="form-label text-secondary small">Fayl yuklash (PNG, SVG, JPG, WebP):</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="linear-input"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleLogoUpload(file);
+                    }}
+                  />
+                </div>
+
+                <div className="mb-3">
+                  <label className="form-label text-secondary small">Yoki Logotip URL manzili:</label>
+                  <div className="d-flex gap-2">
+                    <input
+                      type="text"
+                      className="linear-input"
+                      placeholder="/logo.svg yoki https://..."
+                      value={customLogoInput}
+                      onChange={(e) => setCustomLogoInput(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline-primary"
+                      onClick={() => handleSaveLogoUrl(customLogoInput)}
+                    >
+                      Qo'llash
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div className="modal-footer border-top border-subtle d-flex justify-content-between">
+                <button
+                  type="button"
+                  className="btn btn-ghost-secondary btn-sm"
+                  onClick={() => {
+                    handleSaveLogoUrl("/logo.svg");
+                    setCustomLogoInput("/logo.svg");
+                  }}
+                >
+                  Standart logotip
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  onClick={() => {
+                    handleSaveLogoUrl(customLogoInput);
+                    setShowLogoModal(false);
+                  }}
+                >
+                  Tayyor
+                </button>
               </div>
             </div>
           </div>
-        </footer>
-      </div>
+        </div>
+      )}
 
       {/* Onboarding Wizard Modal */}
       <OnboardingModal
