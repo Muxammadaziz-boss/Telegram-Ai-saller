@@ -1,4 +1,11 @@
 .env
+.env.*
+!.env.example
+!.env.test.example
+web/.env
+web/.env.*
+!web/.env.example
+!web/.env.test.example
 __pycache__/
 *.py[cod]
 .pytest_cache/

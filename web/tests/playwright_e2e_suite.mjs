@@ -2,6 +2,7 @@ import { chromium } from "playwright";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { BASE_URL, DASHBOARD_PASSWORD, getLaunchOptions, getRunMetadata } from "./test_config.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -11,11 +12,8 @@ if (!fs.existsSync(SCREENSHOT_DIR)) {
   fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
 }
 
-const BASE_URL = "http://localhost:3000";
-const CHROME_PATH = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
-const DASHBOARD_PASSWORD = "mux@mm@d@z1z";
-
 const testResults = {
+  metadata: getRunMetadata("playwright_e2e_suite"),
   authentication: {},
   tab_transitions: {},
   browser_history: {},
@@ -26,7 +24,7 @@ const testResults = {
   keyboard_navigation: {},
   console_errors: [],
   failed_requests: [],
-  summary: { total: 0, passed: 0, failed: 0 }
+  summary: { total: 0, passed: 0, failed: 0, overall_status: "PENDING" },
 };
 
 function recordTest(suite, name, passed, details = "") {
@@ -38,19 +36,32 @@ function recordTest(suite, name, passed, details = "") {
   } else {
     testResults.summary.failed++;
     testResults[suite][name] = { status: "FAILED", details };
-    console.log(`[FAILED] ${suite}: ${name} - ${details}`);
+    console.error(`[FAILED] ${suite}: ${name} - ${details}`);
   }
 }
 
 async function runE2ETests() {
   console.log("==================================================================");
-  console.log("PLAYWRIGHT E2E AUTOMATED BROWSER TEST SUITE — PHASE 3.1");
+  console.log("PLAYWRIGHT E2E AUTOMATED BROWSER TEST SUITE — PHASE 3.2 HARDENED");
+  console.log(`Target: ${BASE_URL} | Commit: ${testResults.metadata.commitSha}`);
   console.log("==================================================================");
 
-  const browser = await chromium.launch({
-    executablePath: CHROME_PATH,
-    headless: true,
-  });
+  let browser;
+  try {
+    const launchOptions = getLaunchOptions();
+    browser = await chromium.launch(launchOptions);
+    testResults.metadata.browserVersion = browser.version();
+  } catch (launchErr) {
+    console.error("[FATAL ERROR] Browser launch failed:", launchErr.message);
+    testResults.summary.overall_status = "FAILED";
+    testResults.fatal_error = `Browser launch failed: ${launchErr.message}`;
+    fs.writeFileSync(
+      path.join(__dirname, "playwright_e2e_results.json"),
+      JSON.stringify(testResults, null, 2),
+      "utf-8"
+    );
+    process.exit(1);
+  }
 
   const context = await browser.newContext({
     viewport: { width: 1440, height: 900 },
@@ -58,10 +69,11 @@ async function runE2ETests() {
 
   const page = await context.newPage();
 
-  // Capture console errors & failed requests
+  // Capture console errors & failed requests (redacting any accidental sensitive tokens)
   page.on("console", (msg) => {
     if (msg.type() === "error") {
-      testResults.console_errors.push(msg.text());
+      const text = msg.text().replace(new RegExp(DASHBOARD_PASSWORD, "g"), "[REDACTED_SECRET]");
+      testResults.console_errors.push(text);
     }
   });
 
@@ -77,17 +89,24 @@ async function runE2ETests() {
     // 1. Initial Load & Authentication as Platform Owner
     // -------------------------------------------------------------------
     console.log("\n--- 1. Authenticating as Platform Owner ---");
-    await page.goto(`${BASE_URL}/`, { waitUntil: "networkidle" });
+    await page.goto(`${BASE_URL}/`, { waitUntil: "domcontentloaded" });
+    await page.waitForTimeout(500);
     await page.screenshot({ path: path.join(SCREENSHOT_DIR, "01_login_screen.png") });
 
     // Check if login form is displayed
     const pwdInput = page.locator("#admin-pwd");
     if (await pwdInput.isVisible()) {
       await pwdInput.fill(DASHBOARD_PASSWORD);
+      await page.waitForFunction(() => {
+        const btn = document.querySelector('button[type="submit"]');
+        return btn && !btn.disabled;
+      }, { timeout: 5000 });
       await page.click('button[type="submit"]');
-      await page.waitForTimeout(1000);
-      await page.waitForLoadState("networkidle");
-      recordTest("authentication", "admin_login_success", true, "Logged in successfully with dashboard credentials");
+      await pwdInput.waitFor({ state: "hidden", timeout: 8000 }).catch(async () => {
+        const errorText = await page.locator(".alert-danger").textContent().catch(() => "");
+        throw new Error(`Authentication failed: Login form still visible. Alert: "${errorText.trim()}"`);
+      });
+      recordTest("authentication", "admin_login_success", true, "Logged in successfully with environment credentials");
     } else {
       recordTest("authentication", "admin_already_authenticated", true, "Session already active");
     }
@@ -252,14 +271,20 @@ async function runE2ETests() {
     recordTest("keyboard_navigation", "tab_traverses_focus_elements", focused, `Focused tags: ${el1} -> ${el2}`);
 
   } catch (err) {
-    console.error("E2E Test Run Error:", err);
+    console.error("[FATAL ERROR] E2E Suite Unhandled Exception:", err.message);
     testResults.console_errors.push(String(err));
+    testResults.summary.failed++;
+    testResults.summary.overall_status = "FAILED";
   } finally {
-    await browser.close();
+    if (browser) await browser.close();
   }
+
+  const isSuccess = testResults.summary.failed === 0 && testResults.summary.total > 0;
+  testResults.summary.overall_status = isSuccess ? "PASSED" : "FAILED";
 
   console.log("\n" + "=".repeat(66));
   console.log(`PLAYWRIGHT E2E SUMMARY: ${testResults.summary.passed}/${testResults.summary.total} PASSED (${testResults.summary.failed} failed)`);
+  console.log(`OVERALL STATUS: ${testResults.summary.overall_status}`);
   console.log("=".repeat(66));
 
   fs.writeFileSync(
@@ -267,6 +292,13 @@ async function runE2ETests() {
     JSON.stringify(testResults, null, 2),
     "utf-8"
   );
+
+  if (!isSuccess) {
+    process.exit(1);
+  }
 }
 
-runE2ETests().catch(console.error);
+runE2ETests().catch((fatal) => {
+  console.error("[FATAL UNCAUGHT]:", fatal);
+  process.exit(1);
+});

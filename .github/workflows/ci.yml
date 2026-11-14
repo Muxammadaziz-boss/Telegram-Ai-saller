@@ -1,0 +1,161 @@
+name: CI Release Gate
+
+on:
+  push:
+    branches: [ "frontend/linear-redesign", "main" ]
+  pull_request:
+    branches: [ "frontend/linear-redesign", "main" ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-audit:
+    name: Backend Pytest & Financial Verification
+    runs-on: ubuntu-latest
+    env:
+      ENVIRONMENT: test
+      TESTING: "true"
+      SECRET_KEY: test-secret-key-32-chars-minimum-required!
+      DATABASE_URL: sqlite+aiosqlite:///./test_saas.db
+      TELEGRAM_BOT_TOKEN: 123456789:TEST_BOT_TOKEN_FOR_CI
+      TELEGRAM_WEBHOOK_SECRET: ci_secret_webhook
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio httpx
+
+      - name: Run Backend Pytest Suite
+        run: |
+          pytest -v
+
+      - name: Run Financial Precision & Formula Trace
+        run: |
+          python scripts/financial_formula_trace.py
+
+      - name: Upload Financial Trace Artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: financial-trace-results
+          path: financial_trace_results.json
+          if-no-files-found: ignore
+
+  frontend-build:
+    name: Frontend TypeScript & Next.js Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript Typecheck
+        run: npm run typecheck
+
+      - name: Next.js Production Build
+        run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+
+  e2e-and-accessibility:
+    name: Playwright E2E, Responsive & Axe-Core Suites
+    needs: [backend-audit, frontend-build]
+    runs-on: ubuntu-latest
+    env:
+      ENVIRONMENT: test
+      TESTING: "true"
+      SECRET_KEY: test-secret-key-32-chars-minimum-required!
+      DATABASE_URL: sqlite+aiosqlite:///./test_ci.db
+      TELEGRAM_BOT_TOKEN: 123456789:TEST_BOT_TOKEN_FOR_CI
+      TELEGRAM_WEBHOOK_SECRET: ci_secret_webhook
+      DASHBOARD_PASSWORD: test_secure_ci_password_12345
+      NEXT_PUBLIC_API_URL: http://127.0.0.1:8000
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install uvicorn
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Install Playwright Browsers with dependencies
+        working-directory: web
+        run: npx playwright install --with-deps chromium
+
+      - name: Start Backend Server
+        run: |
+          python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 &
+          sleep 4
+          curl -f http://127.0.0.1:8000/docs || exit 1
+
+      - name: Start Next.js Server
+        working-directory: web
+        run: |
+          npm run build
+          npm run start -- -p 3000 &
+          sleep 5
+          curl -f http://localhost:3000/ || exit 1
+
+      - name: Run Playwright E2E Suite (16 tabs, auth, modals)
+        run: node web/tests/playwright_e2e_suite.mjs
+
+      - name: Run Responsive Viewport Suite (5 viewports)
+        run: node web/tests/responsive_suite.mjs
+
+      - name: Run Axe-Core WCAG 2.1 AA Suite (Dark & Light)
+        run: node web/tests/a11y_axe_suite.mjs
+
+      - name: Upload Test Results & Evidence Artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-and-a11y-test-evidence
+          path: |
+            web/tests/playwright_e2e_results.json
+            web/tests/responsive_test_results.json
+            web/tests/a11y_axe_results.json
+            web/tests/screenshots/**/*.png
+          if-no-files-found: ignore

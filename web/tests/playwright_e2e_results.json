@@ -1,8 +1,19 @@
 {
+  "metadata": {
+    "suite": "playwright_e2e_suite",
+    "timestamp": "2026-11-14T11:27:14.785Z",
+    "commitSha": "78ecde8254fe18266e9c1360b70cffe4d3be6b97",
+    "nodeVersion": "v24.20.0",
+    "platform": "win32",
+    "arch": "x64",
+    "targetUrl": "http://localhost:3000",
+    "credentialSource": "env_file",
+    "browserVersion": "157.0.8103.78"
+  },
   "authentication": {
     "admin_login_success": {
       "status": "PASSED",
-      "details": "Logged in successfully with dashboard credentials"
+      "details": "Logged in successfully with environment credentials"
     }
   },
   "tab_transitions": {
@@ -163,6 +174,7 @@
   "summary": {
     "total": 30,
     "passed": 30,
-    "failed": 0
+    "failed": 0,
+    "overall_status": "PASSED"
   }
 }

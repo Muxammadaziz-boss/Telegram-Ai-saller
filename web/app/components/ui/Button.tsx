@@ -41,10 +41,17 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       outline: "linear-btn-secondary border-dashed",
     }[variant];
 
+    const computedAriaLabel =
+      (props as Record<string, any>)["aria-label"] ||
+      (typeof children === "string" ? children : undefined) ||
+      props.title ||
+      undefined;
+
     return (
       <button
         ref={ref}
         disabled={disabled || loading}
+        aria-label={computedAriaLabel}
         className={`linear-btn ${variantClasses} ${sizeClasses} ${className}`}
         {...props}
       >

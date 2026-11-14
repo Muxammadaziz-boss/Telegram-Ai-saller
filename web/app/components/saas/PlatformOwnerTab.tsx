@@ -343,7 +343,7 @@ export function PlatformOwnerTab({
                     </span>
                     <Badge variant="success">Real-time</Badge>
                   </div>
-                  <div className="fs-2 fw-bold font-monospace mb-1" style={{ color: "var(--success)" }}>
+                  <div className="fs-2 fw-bold font-monospace mb-1" style={{ color: "var(--success-text)" }}>
                     ${metrics?.mrr_usd?.toFixed(2) || "0.00"}
                   </div>
                 </div>
@@ -367,7 +367,7 @@ export function PlatformOwnerTab({
                   </div>
                 </div>
                 <div className="text-secondary small mt-2 pt-2 border-top" style={{ borderColor: "var(--border-subtle)", fontSize: "0.78rem" }}>
-                  ARPU: <strong className="font-monospace" style={{ color: "var(--info)" }}>${metrics?.arpu_usd?.toFixed(2) || "0.00"}</strong> / mijoz
+                  ARPU: <strong className="font-monospace" style={{ color: "var(--info-text)" }}>${metrics?.arpu_usd?.toFixed(2) || "0.00"}</strong> / mijoz
                 </div>
               </div>
             </div>
@@ -381,7 +381,7 @@ export function PlatformOwnerTab({
                     </span>
                     <Badge variant="warning">Compute Cost</Badge>
                   </div>
-                  <div className="fs-2 fw-bold font-monospace mb-1" style={{ color: "var(--warning)" }}>
+                  <div className="fs-2 fw-bold font-monospace mb-1" style={{ color: "var(--warning-text)" }}>
                     ${metrics?.total_ai_cost_usd?.toFixed(2) || "0.00"}
                   </div>
                 </div>
@@ -406,7 +406,7 @@ export function PlatformOwnerTab({
                   </div>
                 </div>
                 <div className="text-secondary small mt-2 pt-2 border-top" style={{ borderColor: "var(--border-subtle)", fontSize: "0.78rem" }}>
-                  Faol: <strong style={{ color: "var(--success)" }}>{(metrics?.active_subscriptions ?? organizations.filter(o => o.subscription_status === "active").length) || 0} ta</strong> • Sinov: {metrics?.trial_organizations || 0} ta
+                  Faol: <strong style={{ color: "var(--success-text)" }}>{(metrics?.active_subscriptions ?? organizations.filter(o => o.subscription_status === "active").length) || 0} ta</strong> • Sinov: {metrics?.trial_organizations || 0} ta
                 </div>
               </div>
             </div>
@@ -462,10 +462,10 @@ export function PlatformOwnerTab({
                             <td>
                               <Badge variant="accent">{org.plan.toUpperCase()}</Badge>
                             </td>
-                            <td className="font-monospace fw-bold" style={{ color: "var(--success)" }}>
+                            <td className="font-monospace fw-bold" style={{ color: "var(--success-text)" }}>
                               ${org.monthly_revenue_usd}
                             </td>
-                            <td className="font-monospace" style={{ color: "var(--warning)" }}>
+                            <td className="font-monospace" style={{ color: "var(--warning-text)" }}>
                               ${org.monthly_ai_cost_usd}
                             </td>
                             <td>
@@ -619,10 +619,10 @@ export function PlatformOwnerTab({
                     <td className="font-monospace text-secondary small">
                       {org.conversations_count ?? "—"} ta
                     </td>
-                    <td className="font-monospace fw-bold" style={{ color: "var(--success)" }}>
+                    <td className="font-monospace fw-bold" style={{ color: "var(--success-text)" }}>
                       ${org.monthly_revenue_usd}
                     </td>
-                    <td className="font-monospace" style={{ color: "var(--warning)" }}>
+                    <td className="font-monospace" style={{ color: "var(--warning-text)" }}>
                       ${org.monthly_ai_cost_usd}
                     </td>
                     <td className="font-monospace fw-semibold text-primary small">
@@ -820,11 +820,11 @@ export function PlatformOwnerTab({
                   <div className="text-secondary small fw-bold text-uppercase mb-2" style={{ fontSize: "0.72rem" }}>
                     Jami Hisoblangan Xarajat
                   </div>
-                  <div className="fs-1 fw-bold font-monospace mb-1" style={{ color: "var(--warning)" }}>
+                  <div className="fs-1 fw-bold font-monospace mb-1" style={{ color: "var(--warning-text)" }}>
                     ${metrics?.total_ai_cost_usd?.toFixed(3) || "0.000"}
                   </div>
                   <p className="text-secondary small mb-0">
-                    Oylik marja: <strong style={{ color: "var(--success)" }}>{metrics?.gross_margin_percent?.toFixed(1) || "100"}%</strong>
+                    Oylik marja: <strong style={{ color: "var(--success-text)" }}>{metrics?.gross_margin_percent?.toFixed(1) || "100"}%</strong>
                   </p>
                 </div>
               </div>
@@ -1040,14 +1040,14 @@ export function PlatformOwnerTab({
                   {createStoreSuccess.organization?.temporary_password && (
                     <div className="d-flex justify-content-between py-1 border-bottom" style={{ borderColor: "var(--border-subtle)" }}>
                       <span className="text-secondary">Vaqtincha Parol:</span>
-                      <span className="font-monospace fw-bold" style={{ color: "var(--warning)" }}>
+                      <span className="font-monospace fw-bold" style={{ color: "var(--warning-text)" }}>
                         {createStoreSuccess.organization?.temporary_password}
                       </span>
                     </div>
                   )}
                   <div className="d-flex justify-content-between py-1">
                     <span className="text-secondary">Tarif & Valyuta:</span>
-                    <span className="font-monospace" style={{ color: "var(--info)" }}>
+                    <span className="font-monospace" style={{ color: "var(--info-text)" }}>
                       {createStoreSuccess.organization?.plan} ({createStoreSuccess.organization?.currency})
                     </span>
                   </div>

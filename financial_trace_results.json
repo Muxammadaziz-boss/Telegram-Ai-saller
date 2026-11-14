@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-11-14T10:21:06.804679+00:00",
+  "timestamp": "2026-11-14T11:22:02.066782+00:00",
   "token_pricing_verification": {
     "pricing_model_gemini-3.1-flash-lite": {
       "status": "PASSED",
@@ -48,29 +48,48 @@
     }
   },
   "formula_unit_tests": {
-    "flash_lite_1m_tokens": {
+    "flash_lite_1m_tokens_micros": {
       "status": "PASSED",
-      "calculated": 0.375,
-      "expected": 0.375,
-      "msg": "1M in + 1M out = $0.375 (expected 0.375)"
+      "calculated_micros": 375000,
+      "calculated_usd": 0.375,
+      "expected_micros": 375000,
+      "expected_usd": 0.375,
+      "msg": "1M in + 1M out = 375000 micros ($ 0.375 USD)"
     },
-    "flash_3_5_typical_turn": {
+    "flash_3_5_typical_turn_micros": {
       "status": "PASSED",
-      "calculated": 0.0027,
-      "expected": 0.0027,
-      "msg": "10k in + 2k out = $0.0027 (expected 0.0027)"
+      "calculated_micros": 2700,
+      "calculated_usd": 0.0027,
+      "expected_micros": 2700,
+      "expected_usd": 0.0027,
+      "msg": "10k in + 2k out = 2700 micros ($ 0.0027 USD)"
     },
-    "cents_conversion_375": {
+    "flash_3_8_high_volume_micros": {
       "status": "PASSED",
-      "calculated_cents": 37,
-      "expected": 37,
-      "msg": "USD $0.375 converts to 37 cents"
+      "calculated_micros": 3750000,
+      "calculated_usd": 3.75,
+      "expected_micros": 3750000,
+      "expected_usd": 3.75,
+      "msg": "1M in + 500k out = 3750000 micros ($ 3.75 USD)"
     },
-    "cents_conversion_min_clamp": {
+    "sub_cent_tiny_call_no_1cent_clamp": {
       "status": "PASSED",
-      "calculated_cents": 1,
-      "expected": 1,
-      "msg": "Sub-cent cost $2e-06 safely clamped to minimum 1 cent"
+      "calculated_micros": 1,
+      "calculated_usd": 1e-06,
+      "expected_micros": 1,
+      "clamp_eliminated": true,
+      "msg": "Sub-cent call (5 in, 2 out) charged exact 1 micro-USD ($ 1e-06), 1-cent clamp safely eliminated"
+    },
+    "zero_tokens_zero_cost": {
+      "status": "PASSED",
+      "calculated_micros": 0,
+      "calculated_usd": 0.0,
+      "msg": "0 tokens in and out produces exactly 0 micro-USD"
+    },
+    "cent_to_micros_conversion_ratio": {
+      "status": "PASSED",
+      "micros_per_cent": 10000,
+      "msg": "1 cent maps exactly to 10,000 micro-USD"
     },
     "yearly_normalization": {
       "status": "PASSED",
@@ -111,9 +130,9 @@
       "status": "PASSED",
       "count": 10,
       "sample_org": {
-        "id": 452,
+        "id": 488,
         "name": "Boutique A",
-        "slug": "boutique-a-6832",
+        "slug": "boutique-a-13468",
         "category": "Retail",
         "plan": "None",
         "subscription_status": "inactive",
@@ -123,14 +142,14 @@
         "is_profitable": true,
         "conversations_count": 0,
         "bot_configured": false,
-        "created_at": "2026-11-14T08:58:50.263027+00:00"
+        "created_at": "2026-11-14T10:25:48.044420+00:00"
       },
       "msg": "Retrieved 10 organizations with revenue/cost breakdowns"
     }
   },
   "summary": {
-    "total_tests": 16,
-    "passed": 16,
+    "total_tests": 18,
+    "passed": 18,
     "failed": 0
   }
 }

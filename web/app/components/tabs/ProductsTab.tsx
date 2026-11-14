@@ -114,6 +114,7 @@ export function ProductsTab({
                 <div className="d-flex align-items-center gap-1.5">
                   <IconFilter size={14} className="text-secondary" />
                   <select
+                    aria-label="Kategoriya bo'yicha saralash"
                     value={selectedCategory}
                     onChange={(e) => setSelectedCategory(e.target.value)}
                     className="linear-input py-1"
@@ -205,12 +206,16 @@ export function ProductsTab({
                             variant="secondary"
                             size="xs"
                             onClick={() => setEditingProduct(prod)}
+                            title="Tahrirlash"
+                            aria-label={`${prod.name} mahsulotini tahrirlash`}
                             icon={<IconPencil size={13} />}
                           />
                           <Button
                             variant="danger"
                             size="xs"
                             onClick={() => onDeleteProduct(prod)}
+                            title="O'chirish"
+                            aria-label={`${prod.name} mahsulotini o'chirish`}
                             icon={<IconTrash size={13} />}
                           />
                         </div>

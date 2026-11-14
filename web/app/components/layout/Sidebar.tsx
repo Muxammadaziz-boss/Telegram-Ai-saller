@@ -308,9 +308,9 @@ export function Sidebar({
               <div
                 className="px-2 mb-1.5 text-uppercase fw-semibold"
                 style={{
-                  fontSize: "0.65rem",
+                  fontSize: "0.68rem",
                   letterSpacing: "0.08em",
-                  color: "var(--text-tertiary)",
+                  color: "var(--text-secondary)",
                 }}
               >
                 {group.title}

@@ -5,7 +5,7 @@ import { createSessionToken, SessionPayload, sessionCookieName, sessionTtlSecond
 // In-memory rate limiting tracker: ip/identifier -> timestamp[]
 const loginAttempts = new Map<string, number[]>();
 
-function checkRateLimit(key: string, maxAttempts = 5, windowMs = 60000): boolean {
+function checkRateLimit(key: string, maxAttempts = (process.env.NODE_ENV === "production" ? 10 : 100), windowMs = 60000): boolean {
   const now = Date.now();
   const attempts = (loginAttempts.get(key) || []).filter((t) => now - t < windowMs);
   if (attempts.length >= maxAttempts) {

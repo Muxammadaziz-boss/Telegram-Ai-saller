@@ -21,7 +21,9 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from app.core.db import SessionLocal
 from app.services.cost_service import (
     MODEL_PRICING,
+    MODEL_PRICING_MICROS,
     estimate_token_cost_usd,
+    estimate_token_cost_micros,
     get_platform_financial_metrics,
     get_organization_profitability_list,
 )
@@ -64,42 +66,75 @@ async def main():
             "msg": f"Model {m} has input=${rates.get('input_per_m')}/M and output=${rates.get('output_per_m')}/M"
         })
 
-    # 2. Formula Unit Tests: estimate_token_cost_usd
-    print("\n--- 2. Formula Unit Tests ---")
-    # For gemini-3.1-flash-lite: input=1,000,000 ($0.075), output=1,000,000 ($0.30) => total $0.375
+    # 2. Formula Unit Tests: Integer Micro-USD & USD Precision
+    print("\n--- 2. Formula Unit Tests (Micro-USD Integer Accounting) ---")
+    # For gemini-3.1-flash-lite: input=1,000,000 ($0.075), output=1,000,000 ($0.30) => total $0.375 = 375,000 micros
+    micros1 = estimate_token_cost_micros("gemini-3.1-flash-lite", 1_000_000, 1_000_000)
     cost1 = estimate_token_cost_usd("gemini-3.1-flash-lite", 1_000_000, 1_000_000)
-    match1 = (cost1 == 0.375)
-    record_test("formula_unit_tests", "flash_lite_1m_tokens", match1, {
-        "calculated": cost1,
-        "expected": 0.375,
-        "msg": f"1M in + 1M out = ${cost1} (expected 0.375)"
+    match1 = (micros1 == 375_000 and cost1 == 0.375)
+    record_test("formula_unit_tests", "flash_lite_1m_tokens_micros", match1, {
+        "calculated_micros": micros1,
+        "calculated_usd": cost1,
+        "expected_micros": 375_000,
+        "expected_usd": 0.375,
+        "msg": f"1M in + 1M out = {micros1} micros ($ {cost1} USD)"
     })
 
     # For gemini-3.5-flash: 10,000 input, 2,000 output
-    # (10000 / 1e6) * 0.15 = 0.0015; (2000 / 1e6) * 0.60 = 0.0012 => total = 0.0027
+    # (10000 * 150000 + 2000 * 600000) / 1e6 = 1500 + 1200 = 2700 micros ($0.0027 USD)
+    micros2 = estimate_token_cost_micros("gemini-3.5-flash", 10_000, 2_000)
     cost2 = estimate_token_cost_usd("gemini-3.5-flash", 10_000, 2_000)
-    match2 = (cost2 == 0.0027)
-    record_test("formula_unit_tests", "flash_3_5_typical_turn", match2, {
-        "calculated": cost2,
-        "expected": 0.0027,
-        "msg": f"10k in + 2k out = ${cost2} (expected 0.0027)"
+    match2 = (micros2 == 2_700 and cost2 == 0.0027)
+    record_test("formula_unit_tests", "flash_3_5_typical_turn_micros", match2, {
+        "calculated_micros": micros2,
+        "calculated_usd": cost2,
+        "expected_micros": 2_700,
+        "expected_usd": 0.0027,
+        "msg": f"10k in + 2k out = {micros2} micros ($ {cost2} USD)"
     })
 
-    # Cents conversion logic: cost_cents = max(1, int(cost_usd * 100))
-    cents1 = max(1, int(cost1 * 100))  # 0.375 * 100 = 37.5 => 37 cents
-    record_test("formula_unit_tests", "cents_conversion_375", (cents1 == 37), {
-        "calculated_cents": cents1,
-        "expected": 37,
-        "msg": "USD $0.375 converts to 37 cents"
+    # High-volume call: gemini-3.8-flash: 1,000,000 input, 500,000 output
+    # (1M * 1.25M + 500k * 5.0M) / 1e6 = 1,250,000 + 2,500,000 = 3,750,000 micros ($3.750 USD)
+    micros_hv = estimate_token_cost_micros("gemini-3.8-flash", 1_000_000, 500_000)
+    cost_hv = estimate_token_cost_usd("gemini-3.8-flash", 1_000_000, 500_000)
+    match_hv = (micros_hv == 3_750_000 and cost_hv == 3.75)
+    record_test("formula_unit_tests", "flash_3_8_high_volume_micros", match_hv, {
+        "calculated_micros": micros_hv,
+        "calculated_usd": cost_hv,
+        "expected_micros": 3_750_000,
+        "expected_usd": 3.75,
+        "msg": f"1M in + 500k out = {micros_hv} micros ($ {cost_hv} USD)"
     })
 
-    # Tiny call (e.g. 5 tokens in, 5 tokens out) -> cost < $0.01 -> floor clamped to 1 cent
-    tiny_cost = estimate_token_cost_usd("gemini-3.1-flash-lite", 5, 5)
-    tiny_cents = max(1, int(tiny_cost * 100))
-    record_test("formula_unit_tests", "cents_conversion_min_clamp", (tiny_cents == 1), {
-        "calculated_cents": tiny_cents,
-        "expected": 1,
-        "msg": f"Sub-cent cost ${tiny_cost} safely clamped to minimum 1 cent"
+    # Sub-cent Tiny call (5 input tokens, 2 output tokens)
+    # Verifies elimination of arbitrary 1-cent ($0.01 = 10,000 micros) clamp!
+    # Expected: exact micro-USD integer precision (1 micro-USD = $0.000001 USD)
+    tiny_micros = estimate_token_cost_micros("gemini-3.1-flash-lite", 5, 2)
+    tiny_cost = estimate_token_cost_usd("gemini-3.1-flash-lite", 5, 2)
+    # 5 * 75000 + 2 * 300000 = 975000 => (975000 + 500000) // 1000000 = 1 micro-USD
+    no_clamp = (tiny_micros == 1 and tiny_cost == 0.000001 and tiny_micros < 10_000)
+    record_test("formula_unit_tests", "sub_cent_tiny_call_no_1cent_clamp", no_clamp, {
+        "calculated_micros": tiny_micros,
+        "calculated_usd": tiny_cost,
+        "expected_micros": 1,
+        "clamp_eliminated": (tiny_micros < 10_000),
+        "msg": f"Sub-cent call (5 in, 2 out) charged exact {tiny_micros} micro-USD ($ {tiny_cost}), 1-cent clamp safely eliminated"
+    })
+
+    # Zero tokens call: 0 in, 0 out => 0 micros, $0.0 USD
+    zero_micros = estimate_token_cost_micros("gemini-3.5-flash", 0, 0)
+    zero_cost = estimate_token_cost_usd("gemini-3.5-flash", 0, 0)
+    record_test("formula_unit_tests", "zero_tokens_zero_cost", (zero_micros == 0 and zero_cost == 0.0), {
+        "calculated_micros": zero_micros,
+        "calculated_usd": zero_cost,
+        "msg": "0 tokens in and out produces exactly 0 micro-USD"
+    })
+
+    # Backward compatibility: 1 Cent = 10,000 Micro-USD fixed relation
+    cent_in_micros = 10_000
+    record_test("formula_unit_tests", "cent_to_micros_conversion_ratio", (cent_in_micros == 10_000), {
+        "micros_per_cent": cent_in_micros,
+        "msg": "1 cent maps exactly to 10,000 micro-USD"
     })
 
     # Yearly subscription normalization: $290 yearly -> $290 / 12 = $24.1666...

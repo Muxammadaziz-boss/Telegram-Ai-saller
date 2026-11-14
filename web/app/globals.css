@@ -1,6 +1,93 @@
 @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700;12..96,800&family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Syne:wght@600;700;800&display=swap');
 @import "./styles/theme.css";
 
+/* Design System Semantic Text Overrides to guarantee WCAG 2.1 AA contrast */
+:root {
+  --tblr-primary: #5e6ad2 !important;
+  --tblr-primary-rgb: 94, 106, 210 !important;
+}
+
+[data-bs-theme="dark"],
+html[data-theme="dark"],
+.theme-dark {
+  --tblr-primary: #818cf8 !important;
+  --tblr-primary-rgb: 129, 140, 248 !important;
+  --tblr-body-color: #f4f5f6 !important;
+  --tblr-success: #34d399 !important;
+  --tblr-warning: #fbbf24 !important;
+  --tblr-danger: #f87171 !important;
+  --tblr-info: #60a5fa !important;
+}
+
+[data-bs-theme="light"],
+html[data-theme="light"],
+.theme-light {
+  --tblr-primary: #4338ca !important;
+  --tblr-primary-rgb: 67, 56, 202 !important;
+  --tblr-body-color: #121316 !important;
+  --tblr-success: #065f46 !important;
+  --tblr-warning: #92400e !important;
+  --tblr-danger: #991b1b !important;
+  --tblr-info: #1e40af !important;
+}
+
+html body .text-primary,
+html body span.text-primary,
+html body div.text-primary,
+html body h3.text-primary,
+html body h4.text-primary,
+html body h5.text-primary,
+html body p.text-primary {
+  color: var(--text-primary) !important;
+}
+
+html body .text-secondary,
+html body span.text-secondary,
+html body div.text-secondary,
+html body p.text-secondary {
+  color: var(--text-secondary) !important;
+}
+
+html body .text-tertiary {
+  color: var(--text-tertiary) !important;
+}
+
+html body .text-success,
+html body span.text-success,
+html body div.text-success,
+html body td.text-success,
+html body strong.text-success,
+html body p.text-success {
+  color: var(--success-text) !important;
+}
+
+html body .text-warning,
+html body span.text-warning,
+html body div.text-warning,
+html body td.text-warning,
+html body strong.text-warning,
+html body p.text-warning {
+  color: var(--warning-text) !important;
+}
+
+html body .text-danger,
+html body span.text-danger,
+html body div.text-danger,
+html body td.text-danger,
+html body strong.text-danger,
+html body p.text-danger {
+  color: var(--danger-text) !important;
+}
+
+html body .text-info,
+html body span.text-info,
+html body div.text-info,
+html body td.text-info,
+html body strong.text-info,
+html body p.text-info {
+  color: var(--info-text) !important;
+}
+
 /* Local & Custom Display Fonts: Olline and Pogonia */
 @font-face {
   font-family: 'Olline';

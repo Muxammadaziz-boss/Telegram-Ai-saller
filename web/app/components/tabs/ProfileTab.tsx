@@ -261,9 +261,10 @@ export function ProfileTab({
                               top: 8,
                               right: 8,
                               backgroundColor: "var(--warning)",
-                              color: "#fff",
-                              fontSize: "8px",
-                              padding: "2px 5px",
+                              color: "#090a0c",
+                              fontWeight: 700,
+                              fontSize: "9px",
+                              padding: "2px 6px",
                             }}
                           >
                             YANGI FONT

@@ -120,7 +120,7 @@
     },
     "metrics_schema_and_types_valid": {
       "status": "PASSED",
-      "details": "Organizations: 86, Schema matches FinancialMetrics model"
+      "details": "Organizations: 124, Schema matches FinancialMetrics model"
     }
   },
   "a11y_responsive": {

@@ -73,6 +73,7 @@ export function OrdersTab({
               <div className="d-flex align-items-center gap-1.5">
                 <IconFilter size={14} className="text-secondary" />
                 <select
+                  aria-label="Holat bo'yicha saralash"
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
                   className="linear-input py-1"
@@ -181,6 +182,8 @@ export function OrdersTab({
                             variant="danger"
                             size="xs"
                             onClick={() => onDeleteOrder(ord.id)}
+                            title="Buyurtmani o'chirish"
+                            aria-label={`Buyurtma #${ord.id} ni o'chirish`}
                             icon={<IconTrash size={13} />}
                           />
                         </div>

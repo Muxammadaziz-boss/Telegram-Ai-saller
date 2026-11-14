@@ -1,4 +1,15 @@
 {
+  "metadata": {
+    "suite": "responsive_suite",
+    "timestamp": "2026-11-14T11:27:38.819Z",
+    "commitSha": "78ecde8254fe18266e9c1360b70cffe4d3be6b97",
+    "nodeVersion": "v24.20.0",
+    "platform": "win32",
+    "arch": "x64",
+    "targetUrl": "http://localhost:3000",
+    "credentialSource": "env_file",
+    "browserVersion": "157.0.8103.78"
+  },
   "viewports": {
     "mobile_375x812": {
       "no_horizontal_overflow_overview": {
@@ -27,7 +38,7 @@
       },
       "modal_fits_viewport": {
         "status": "PASSED",
-        "details": "Logo modal bounds do not exceed viewport"
+        "details": "Logo modal bounds do not exceed viewport width"
       }
     },
     "tablet_768x1024": {
@@ -57,7 +68,7 @@
       },
       "modal_fits_viewport": {
         "status": "PASSED",
-        "details": "Logo modal bounds do not exceed viewport"
+        "details": "Logo modal bounds do not exceed viewport width"
       }
     },
     "laptop_1366x768": {
@@ -87,7 +98,7 @@
       },
       "modal_fits_viewport": {
         "status": "PASSED",
-        "details": "Logo modal bounds do not exceed viewport"
+        "details": "Logo modal bounds do not exceed viewport width"
       }
     },
     "desktop_1440x900": {
@@ -117,7 +128,7 @@
       },
       "modal_fits_viewport": {
         "status": "PASSED",
-        "details": "Logo modal bounds do not exceed viewport"
+        "details": "Logo modal bounds do not exceed viewport width"
       }
     },
     "ultrawide_1920x1080": {
@@ -147,13 +158,14 @@
       },
       "modal_fits_viewport": {
         "status": "PASSED",
-        "details": "Logo modal bounds do not exceed viewport"
+        "details": "Logo modal bounds do not exceed viewport width"
       }
     }
   },
   "summary": {
     "total": 35,
     "passed": 35,
-    "failed": 0
+    "failed": 0,
+    "overall_status": "PASSED"
   }
 }

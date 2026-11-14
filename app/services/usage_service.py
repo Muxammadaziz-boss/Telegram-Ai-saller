@@ -279,7 +279,12 @@ async def get_usage_dashboard(db: AsyncSession, organization_id: int) -> dict:
     # Token and cost tracking
     in_tokens_rec = await get_or_create_usage_record(db, organization_id, "input_tokens", period)
     out_tokens_rec = await get_or_create_usage_record(db, organization_id, "output_tokens", period)
-    cost_rec = await get_or_create_usage_record(db, organization_id, "estimated_ai_cost_cents", period)
+    micros_rec = await get_or_create_usage_record(db, organization_id, "estimated_ai_cost_micros", period)
+    if micros_rec.used > 0:
+        estimated_cost_usd = round(micros_rec.used / 1_000_000.0, 4)
+    else:
+        cost_rec = await get_or_create_usage_record(db, organization_id, "estimated_ai_cost_cents", period)
+        estimated_cost_usd = round(cost_rec.used / 100.0, 4)
 
     return {
         "organization_id": organization_id,
@@ -290,7 +295,7 @@ async def get_usage_dashboard(db: AsyncSession, organization_id: int) -> dict:
             "input_tokens": in_tokens_rec.used,
             "output_tokens": out_tokens_rec.used,
             "total_tokens": in_tokens_rec.used + out_tokens_rec.used,
-            "estimated_cost_usd": round(cost_rec.used / 100.0, 4),
+            "estimated_cost_usd": estimated_cost_usd,
         },
     }
 

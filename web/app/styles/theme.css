@@ -16,8 +16,8 @@
   --border-strong: rgba(255, 255, 255, 0.22);
   
   --text-primary: #f4f5f6;
-  --text-secondary: #8b9099;
-  --text-tertiary: #585d66;
+  --text-secondary: #94a3b8;
+  --text-tertiary: #9aa1ac;
   --text-inverse: #090a0c;
   
   /* Restrained Linear Signature Indigo/Purple Accent */
@@ -84,7 +84,9 @@
    LIGHT THEME OVERRIDES
    ========================================================================== */
 html[data-theme="light"],
+html[data-bs-theme="light"],
 body[data-theme="light"],
+body[data-bs-theme="light"],
 .theme-light {
   --bg-canvas: #f8f9fa;
   --bg-surface: #ffffff;
@@ -97,8 +99,8 @@ body[data-theme="light"],
   --border-strong: rgba(0, 0, 0, 0.22);
 
   --text-primary: #121316;
-  --text-secondary: #585d66;
-  --text-tertiary: #8b9099;
+  --text-secondary: #475569;
+  --text-tertiary: #5c6270;
   --text-inverse: #f4f5f6;
 
   --accent: #5e6ad2;
@@ -108,29 +110,29 @@ body[data-theme="light"],
   --accent-border: rgba(94, 106, 210, 0.28);
   --accent-text: #4f5bc4;
 
-  --success: #10b981;
-  --success-hover: #059669;
-  --success-subtle: rgba(16, 185, 129, 0.08);
-  --success-border: rgba(16, 185, 129, 0.26);
-  --success-text: #059669;
+  --success: #059669;
+  --success-hover: #047857;
+  --success-subtle: rgba(5, 150, 105, 0.1);
+  --success-border: rgba(5, 150, 105, 0.3);
+  --success-text: #065f46;
 
-  --warning: #f59e0b;
-  --warning-hover: #d97706;
-  --warning-subtle: rgba(245, 158, 11, 0.08);
-  --warning-border: rgba(245, 158, 11, 0.26);
-  --warning-text: #d97706;
+  --warning: #d97706;
+  --warning-hover: #b45309;
+  --warning-subtle: rgba(217, 119, 6, 0.1);
+  --warning-border: rgba(217, 119, 6, 0.3);
+  --warning-text: #92400e;
 
-  --danger: #ef4444;
-  --danger-hover: #dc2626;
-  --danger-subtle: rgba(239, 68, 68, 0.08);
-  --danger-border: rgba(239, 68, 68, 0.26);
-  --danger-text: #dc2626;
+  --danger: #dc2626;
+  --danger-hover: #b91c1c;
+  --danger-subtle: rgba(220, 38, 38, 0.1);
+  --danger-border: rgba(220, 38, 38, 0.3);
+  --danger-text: #991b1b;
 
-  --info: #3b82f6;
-  --info-hover: #2563eb;
-  --info-subtle: rgba(59, 130, 246, 0.08);
-  --info-border: rgba(59, 130, 246, 0.26);
-  --info-text: #2563eb;
+  --info: #2563eb;
+  --info-hover: #1d4ed8;
+  --info-subtle: rgba(37, 99, 235, 0.1);
+  --info-border: rgba(37, 99, 235, 0.3);
+  --info-text: #1e40af;
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);

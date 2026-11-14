@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import Conversation, Organization, Plan, Subscription, UsageRecord
 
 
-# Pricing per 1,000,000 tokens in USD
+# Pricing per 1,000,000 tokens in USD (reference float table)
 MODEL_PRICING = {
     "gemini-3.1-flash-lite": {"input_per_m": 0.075, "output_per_m": 0.30},
     "gemini-3.5-flash": {"input_per_m": 0.15, "output_per_m": 0.60},
@@ -15,13 +15,35 @@ MODEL_PRICING = {
     "default": {"input_per_m": 0.15, "output_per_m": 0.60},
 }
 
+# Pricing per 1,000,000 tokens in Micro-USD (1 USD = 1,000,000 micro-USD; 1 cent = 10,000 micro-USD)
+# Scaled to eliminate floating-point drift and sub-cent rounding error.
+MODEL_PRICING_MICROS = {
+    "gemini-3.1-flash-lite": {"input_micros_per_m": 75_000, "output_micros_per_m": 300_000},
+    "gemini-3.5-flash": {"input_micros_per_m": 150_000, "output_micros_per_m": 600_000},
+    "gemini-3.8-flash": {"input_micros_per_m": 1_250_000, "output_micros_per_m": 5_000_000},
+    "gemini-embedding-001": {"input_micros_per_m": 20_000, "output_micros_per_m": 0},
+    "default": {"input_micros_per_m": 150_000, "output_micros_per_m": 600_000},
+}
+
+
+def estimate_token_cost_micros(model: str, input_tokens: int, output_tokens: int) -> int:
+    """Calculate exact LLM API cost in integer micro-USD (1 USD = 1,000,000 micro-USD).
+
+    Eliminates floating-point accumulation drift and arbitrary 1-cent clamps.
+    Rates are calculated with pure integer arithmetic and half-up rounding.
+    """
+    if input_tokens <= 0 and output_tokens <= 0:
+        return 0
+    rates = MODEL_PRICING_MICROS.get(model, MODEL_PRICING_MICROS["default"])
+    numerator = (input_tokens * rates["input_micros_per_m"]) + (output_tokens * rates["output_micros_per_m"])
+    micros = (numerator + 500_000) // 1_000_000
+    return max(1, micros) if numerator > 0 else 0
+
 
 def estimate_token_cost_usd(model: str, input_tokens: int, output_tokens: int) -> float:
     """Calculate estimated LLM API cost in USD based on input and output tokens."""
-    rates = MODEL_PRICING.get(model, MODEL_PRICING["default"])
-    input_cost = (input_tokens / 1_000_000.0) * rates["input_per_m"]
-    output_cost = (output_tokens / 1_000_000.0) * rates["output_per_m"]
-    return round(input_cost + output_cost, 6)
+    micros = estimate_token_cost_micros(model, input_tokens, output_tokens)
+    return round(micros / 1_000_000.0, 6)
 
 
 async def get_platform_financial_metrics(db: AsyncSession) -> dict:
@@ -78,13 +100,25 @@ async def get_platform_financial_metrics(db: AsyncSession) -> dict:
         )
     ) or 0
 
+    cost_micros_total = await db.scalar(
+        select(func.sum(UsageRecord.used)).where(
+            UsageRecord.metric == "estimated_ai_cost_micros",
+            UsageRecord.period == current_period,
+        )
+    ) or 0
+
     cost_cents_total = await db.scalar(
         select(func.sum(UsageRecord.used)).where(
             UsageRecord.metric == "estimated_ai_cost_cents",
             UsageRecord.period == current_period,
         )
     ) or 0
-    total_ai_cost_usd = round(cost_cents_total / 100.0, 2)
+
+    # Total AI cost in USD: prefer micro-USD precision, fallback to legacy cents
+    if cost_micros_total > 0:
+        total_ai_cost_usd = round(cost_micros_total / 1_000_000.0, 4)
+    else:
+        total_ai_cost_usd = round(cost_cents_total / 100.0, 4)
 
     # 4. Gross Margin %
     if mrr_usd > 0:
@@ -115,8 +149,19 @@ async def get_organization_profitability_list(db: AsyncSession, limit: int = 100
     now = datetime.now(timezone.utc)
     current_period = now.strftime("%Y-%m")
 
-    # 1. Bulk aggregate AI cost cents per organization for current month
-    cost_res = await db.execute(
+    # 1. Bulk aggregate AI costs per organization for current month
+    # Prefer exact micro-USD metrics, fallback to legacy cents
+    micros_res = await db.execute(
+        select(UsageRecord.organization_id, func.sum(UsageRecord.used))
+        .where(
+            UsageRecord.metric == "estimated_ai_cost_micros",
+            UsageRecord.period == current_period,
+        )
+        .group_by(UsageRecord.organization_id)
+    )
+    cost_by_org_micros = {row[0]: (row[1] or 0) for row in micros_res.all() if row[0] is not None}
+
+    cents_res = await db.execute(
         select(UsageRecord.organization_id, func.sum(UsageRecord.used))
         .where(
             UsageRecord.metric == "estimated_ai_cost_cents",
@@ -124,7 +169,16 @@ async def get_organization_profitability_list(db: AsyncSession, limit: int = 100
         )
         .group_by(UsageRecord.organization_id)
     )
-    cost_by_org = {row[0]: (row[1] or 0) for row in cost_res.all() if row[0] is not None}
+    cost_by_org_cents = {row[0]: (row[1] or 0) for row in cents_res.all() if row[0] is not None}
+
+    # Combined dictionary of AI costs in USD
+    all_org_ids_with_cost = set(cost_by_org_micros.keys()).union(cost_by_org_cents.keys())
+    cost_by_org_usd = {}
+    for oid in all_org_ids_with_cost:
+        if oid in cost_by_org_micros and cost_by_org_micros[oid] > 0:
+            cost_by_org_usd[oid] = round(cost_by_org_micros[oid] / 1_000_000.0, 4)
+        else:
+            cost_by_org_usd[oid] = round(cost_by_org_cents.get(oid, 0) / 100.0, 4)
 
     # 2. Bulk aggregate conversation counts per organization
     conv_res = await db.execute(
@@ -155,9 +209,8 @@ async def get_organization_profitability_list(db: AsyncSession, limit: int = 100
             plan_code = plan.code.upper() if plan else "START"
             sub_status = sub.status
 
-        # Org AI cost from pre-aggregated dictionary
-        cost_cents = cost_by_org.get(org.id, 0)
-        ai_cost = round(cost_cents / 100.0, 3)
+        # Org AI cost in USD from pre-aggregated dictionary (using micro-USD precision)
+        ai_cost = cost_by_org_usd.get(org.id, 0.0)
 
         margin = round(((monthly_rev - ai_cost) / monthly_rev) * 100.0, 1) if monthly_rev > 0 else 0.0
         conv_count = conv_by_org.get(org.id, 0)
@@ -182,6 +235,10 @@ async def get_organization_profitability_list(db: AsyncSession, limit: int = 100
 
 class CostService:
     @staticmethod
+    def estimate_token_cost_micros(model: str, input_tokens: int, output_tokens: int) -> int:
+        return estimate_token_cost_micros(model, input_tokens, output_tokens)
+
+    @staticmethod
     def estimate_token_cost_usd(model: str, input_tokens: int, output_tokens: int) -> float:
         return estimate_token_cost_usd(model, input_tokens, output_tokens)
 
@@ -196,9 +253,14 @@ class CostService:
     @staticmethod
     async def track_ai_call_cost(db: AsyncSession, organization_id: int, model: str, input_tokens: int, output_tokens: int):
         from app.services.usage_service import usage_service
-        cost_usd = estimate_token_cost_usd(model, input_tokens, output_tokens)
-        cost_cents = max(1, int(cost_usd * 100))
-        await usage_service.increment_usage(db, organization_id, "estimated_ai_cost_cents", cost_cents)
+        # Precise integer micro-USD accounting (1 USD = 1,000,000 micros)
+        cost_micros = estimate_token_cost_micros(model, input_tokens, output_tokens)
+        await usage_service.increment_usage(db, organization_id, "estimated_ai_cost_micros", cost_micros)
+
+        # Backward compatibility with legacy cents metric without artificial 1-cent minimum clamp
+        legacy_cents = cost_micros // 10_000
+        if legacy_cents > 0:
+            await usage_service.increment_usage(db, organization_id, "estimated_ai_cost_cents", legacy_cents)
 
 
 cost_service = CostService()

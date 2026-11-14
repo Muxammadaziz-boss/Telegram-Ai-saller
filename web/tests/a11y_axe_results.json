@@ -1,7 +1,16 @@
 {
-  "timestamp": "2026-11-14T10:19:19.748Z",
+  "metadata": {
+    "suite": "a11y_axe_suite",
+    "timestamp": "2026-11-14T11:28:14.191Z",
+    "commitSha": "78ecde8254fe18266e9c1360b70cffe4d3be6b97",
+    "nodeVersion": "v24.20.0",
+    "platform": "win32",
+    "arch": "x64",
+    "targetUrl": "http://localhost:3000",
+    "credentialSource": "env_file",
+    "browserVersion": "157.0.8103.78"
+  },
   "environment": {
-    "browser": "Google Chrome",
     "standard": "WCAG 2.1 Level AA",
     "tags": [
       "wcag2a",
@@ -14,38 +23,43 @@
     "dark": {
       "overview": {
         "name": "Overview Dashboard",
-        "passesCount": 23,
+        "passesCount": 21,
         "violationsCount": 0,
         "violations": [],
-        "incompleteCount": 1
+        "incompleteCount": 0,
+        "incompleteRules": []
       },
       "products": {
         "name": "Products Catalog",
         "passesCount": 23,
         "violationsCount": 0,
         "violations": [],
-        "incompleteCount": 1
+        "incompleteCount": 0,
+        "incompleteRules": []
       },
       "orders": {
         "name": "Orders Management",
         "passesCount": 23,
         "violationsCount": 0,
         "violations": [],
-        "incompleteCount": 1
+        "incompleteCount": 0,
+        "incompleteRules": []
       },
       "platform": {
         "name": "Platform Owner Center",
         "passesCount": 23,
         "violationsCount": 0,
         "violations": [],
-        "incompleteCount": 1
+        "incompleteCount": 0,
+        "incompleteRules": []
       },
       "profile": {
         "name": "Profile & Appearance",
-        "passesCount": 23,
+        "passesCount": 21,
         "violationsCount": 0,
         "violations": [],
-        "incompleteCount": 1
+        "incompleteCount": 0,
+        "incompleteRules": []
       }
     },
     "light": {
@@ -54,35 +68,40 @@
         "passesCount": 23,
         "violationsCount": 0,
         "violations": [],
-        "incompleteCount": 1
+        "incompleteCount": 0,
+        "incompleteRules": []
       },
       "products": {
         "name": "Products Catalog",
-        "passesCount": 23,
+        "passesCount": 24,
         "violationsCount": 0,
         "violations": [],
-        "incompleteCount": 1
+        "incompleteCount": 0,
+        "incompleteRules": []
       },
       "orders": {
         "name": "Orders Management",
-        "passesCount": 23,
+        "passesCount": 24,
         "violationsCount": 0,
         "violations": [],
-        "incompleteCount": 1
+        "incompleteCount": 0,
+        "incompleteRules": []
       },
       "platform": {
         "name": "Platform Owner Center",
         "passesCount": 23,
         "violationsCount": 0,
         "violations": [],
-        "incompleteCount": 1
+        "incompleteCount": 0,
+        "incompleteRules": []
       },
       "profile": {
         "name": "Profile & Appearance",
-        "passesCount": 23,
+        "passesCount": 21,
         "violationsCount": 0,
         "violations": [],
-        "incompleteCount": 1
+        "incompleteCount": 0,
+        "incompleteRules": []
       }
     }
   },
@@ -93,6 +112,9 @@
     "criticalViolations": 0,
     "seriousViolations": 0,
     "moderateViolations": 0,
-    "minorViolations": 0
-  }
+    "minorViolations": 0,
+    "totalIncompleteItems": 0,
+    "overall_status": "AUTOMATED_PASS_MANUAL_REVIEW_PENDING"
+  },
+  "incompleteReviewRequired": []
 }
